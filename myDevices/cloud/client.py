@@ -12,7 +12,7 @@ import myDevices.ipgetter
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from myDevices.os import services
 from myDevices.sensors import sensors
-from myDevices.cloud.vcom_id import VCOMMacId
+from myDevices.os.hardware import Hardware
 from myDevices.wifi import WifiManager
 from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
@@ -367,7 +367,7 @@ class CloudServerClient:
             self.waitPing = 0
             self.lastPing = time()-self.pingRate - 1
             self.PublicIP = myDevices.ipgetter.myip()
-            self.vCOMMacId = VCOMMacId(self.config)
+            self.hardware = Hardware()
             self.oSInfo = OSInfo()
             self.downloadSpeed = DownloadSpeed(self.config)
             self.MachineId = None
@@ -514,22 +514,22 @@ class CloudServerClient:
             data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
             data['Timestamp'] = int(time())
             data['IpAddress'] = self.PublicIP
-            data['GatewayMACAddress'] = self.vCOMMacId.get_mac(2)
+            data['GatewayMACAddress'] = self.hardware.getMac()
             raspberryValue = {}
             raspberryValue['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
             raspberryValue['AntiVirus'] = 'None'
             raspberryValue['Firewall'] = 'iptables'
             raspberryValue['FirewallEnabled'] = 'true'
-            raspberryValue['ComputerMake'] =  self.vCOMMacId.getManufacturer()
-            raspberryValue['ComputerModel'] = self.vCOMMacId.getModel()
+            raspberryValue['ComputerMake'] =  self.hardware.getManufacturer()
+            raspberryValue['ComputerModel'] = self.hardware.getModel()
             raspberryValue['OsName'] = self.oSInfo.ID
             raspberryValue['OsBuild'] = self.oSInfo.ID_LIKE if hasattr(self.oSInfo, 'ID_LIKE') else self.oSInfo.ID
-            raspberryValue['OsArchitecture'] = self.vCOMMacId.Revision
+            raspberryValue['OsArchitecture'] = self.hardware.Revision
             raspberryValue['OsVersion'] = self.oSInfo.VERSION_ID
             raspberryValue['ComputerName'] = self.machineName
             raspberryValue['AgentVersion'] = self.config.get('Agent', 'Version', fallback='1.0.1.0')
             raspberryValue['InstallDate'] = self.installDate
-            raspberryValue['GatewayMACAddress'] = self.vCOMMacId.get_mac(2)
+            raspberryValue['GatewayMACAddress'] = self.hardware.getMac()
             with self.sensorsClient.sensorMutex:
                 raspberryValue['SystemInfo'] = self.sensorsClient.currentSystemInfo
                 raspberryValue['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
