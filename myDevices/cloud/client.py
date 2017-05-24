@@ -18,7 +18,6 @@ from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
 from myDevices.os.raspiconfig import RaspiConfig
-from myDevices.cloud.installer import Installer
 from myDevices.os.daemon import Daemon
 from myDevices.os.threadpool import ThreadPool
 from myDevices.utils.history import History
@@ -378,7 +377,6 @@ class CloudServerClient:
             self.buff = bytearray(self.count)
             #start thread only after init of other fields
             self.sensorsClient = sensors.SensorsClient()
-            # self.packageInstaller = Installer(self.config)
             self.sensorsClient.SetDataChanged(self.OnDataChanged, self.BuildPT_SYSTEM_INFO)
             self.processManager=services.ProcessManager()
             self.serviceManager=services.ServiceManager()
@@ -595,8 +593,6 @@ class CloudServerClient:
             info('Registration succeeded for invite code {}, auth id = {}'.format(inviteCode, authId))
             self.config.set('Agent', 'Initialized', 'true')
             self.MachineId = authId
-            # self.packageInstaller.reset()
-            # self.packageInstaller.start()
     @property
     def Start(self):
         #debug('Start')
