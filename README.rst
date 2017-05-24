@@ -11,7 +11,12 @@ Requirements
   ::
 
     sudo apt-get install python3-pip
- 
+
+* python3-dev -  Python 3 header files and static library package. Via `apt-get` this can be installed with:
+  ::
+
+    sudo apt-get install python3-dev
+
 * python3-setuptools - Python 3 setuptools package. This should already be available in Python 3.4+ and above. If it isn't in can be installed using the system package manager. Via `apt-get` this would be:
   ::
 
@@ -22,6 +27,10 @@ Requirements
 
     sudo apt-get install libiw-dev
 
+All of the above packages can be installed at once via `apt-get` by running:
+::
+
+  sudo apt-get install python3-pip python3-dev python3-setuptools libiw-dev
 
 ***************
 Getting Started
