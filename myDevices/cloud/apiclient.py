@@ -1,6 +1,7 @@
 from myDevices.requests_futures.sessions import FuturesSession
 from concurrent.futures import ThreadPoolExecutor
 import json
+from myDevices.utils.logger import error, exception
 
 class CayenneApiClient:
     def __init__(self, host):
@@ -21,7 +22,7 @@ class CayenneApiClient:
                 if method == 'GET':
                     future = self.session.get(request_url)
                 if method == 'POST':
-                    future = self.session.post(request_url, data=body)  # ,cookies =cookies
+                    future = self.session.post(request_url, data=body)
                 if method == 'PUT':
                     future = self.session.put(request_url, data=body)
                 if method == 'DELETE':
@@ -45,6 +46,7 @@ class CayenneApiClient:
         body = json.dumps({'id': inviteCode})
         url = '/things/key/activate'
         return self.sendRequest('POST', url, body)
+
     def getId(self, content):
         if content is None:
             return None
@@ -52,6 +54,7 @@ class CayenneApiClient:
         if body is None or body is "":
             return None
         return json.loads(body)['id']
+
     def loginDevice(self, inviteCode):
         response = self.authenticate(inviteCode)
         if response and response.status_code == 200:

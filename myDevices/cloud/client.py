@@ -25,7 +25,7 @@ from myDevices.utils.history import History
 from select import select
 from hashlib import sha256
 from resource import getrusage, RUSAGE_SELF
-from myDevices.cloud.cayenneclient import CayenneApiClient
+from myDevices.cloud.apiclient import CayenneApiClient
 
 @unique
 class PacketTypes(Enum):
