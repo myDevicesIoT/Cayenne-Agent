@@ -9,7 +9,6 @@ from os import path, getpid
 from urllib import parse
 import http.client as httplib
 from myDevices.os.daemon import Daemon
-from myDevices.utils.mutex import acquire
 from myDevices.cloud.dbmanager import DbManager
 from myDevices.os.threadpool import ThreadPool
 from hashlib import sha1
