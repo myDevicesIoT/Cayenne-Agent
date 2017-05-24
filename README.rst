@@ -120,7 +120,7 @@ To add support for additional boards beyond the Raspberry Pi you may need to mod
 
 Pin and Bus I/O
 ---------------
-Current support for pin and bus I/O is based on the Linux filesystem drivers used on the Raspberry Pi. To support a different board you may need to update the following, depending on what functionality the board has:
+Current support for pin and bus I/O is based on the Linux filesystem drivers used on the Raspberry Pi. To support a different board you may need to update the agent code for the following items, depending on what functionality the board has:
 
 Native GPIO Pins
   Native GPIO pin support is provided in ``myDevices.devices.digital.gpio.py``. This uses the Linux file system drivers under ``/sys/class/gpio`` for reading and writing to GPIO pins. It also uses the ``/dev/gpiomem`` memory map to determine pin modes. If your board is a Linux based board that supports the same filesystem drivers at the same location you may be able to use this code as-is. Otherwise you may need to modify the filesystem driver location or replace the drivers with a some other method or library for reading and writing GPIO values. If your board doesn't support the ``/dev/gpiomem`` memory mapped file you may be able to get the same pin mode info from ``/dev/mem`` or perhaps another GPIO library. Or just fallback to using the filesystem drivers and only get basic pin modes.
@@ -142,7 +142,7 @@ Loading/Unloading Bus Kernel Modules
 
 System info
 -----------
-Information about the device, including CPU, RAM, etc., is currently retrieved via several modules including a C library compiled for the Raspberry Pi, though that will be changed to a Python only implementation in the future. To support a different board you may need to update the following, if applicable:
+Information about the device, including CPU, RAM, etc., is currently retrieved via several modules including a C library compiled for the Raspberry Pi, though that will be changed to a Python only implementation in the future. To support a different board you may need to update the agent code for the following items, if applicable:
 
 General System Info
   General system info, including CPU, RAM, memory, etc. is retrieved via ``myDevices.os.systeminfo.py`` This is mostly implemented via a C library for the Raspberry Pi, though that will be changed to a Python only implementation in the future. If the C library doesn't work on your device you can disable the C library call until the Python implementation is available at which point you can modify it to support your board.
