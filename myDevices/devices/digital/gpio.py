@@ -67,8 +67,8 @@ class NativeGPIO(GPIOPort):
                 # first time while waiting for the file group to be set
                 self.__checkFilesystemExport__(i)
             try:
-                self.gpiomem = open('/dev/gpiomem', 'rb') 
-                self.gpio_map = mmap.mmap(self.gpiomem.fileno(), BLOCK_SIZE, prot=mmap.PROT_READ)
+                with open('/dev/gpiomem', 'rb') as gpiomem:
+                    self.gpio_map = mmap.mmap(gpiomem.fileno(), BLOCK_SIZE, prot=mmap.PROT_READ)
             except OSError as err:
                 error(err)
             NativeGPIO.instance = self
@@ -76,8 +76,6 @@ class NativeGPIO(GPIOPort):
     def __del__(self):
         if self.gpio_map:
             self.gpio_map.close()
-        if self.gpiomem:
-            self.gpiomem.close()
 
     class SetupException(BaseException):
         pass
