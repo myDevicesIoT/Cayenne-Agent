@@ -57,7 +57,6 @@ class Updater(Thread):
         if 'SetupUrl' in config.cloudConfig:
             SETUP_URL = config.cloudConfig.SetupUrl
         self.scheduler = scheduler(time, sleep)
-        # self.serviceManager=services.ServiceManager()
         self.Continue = True
         self.currentVersion = ''
         self.newVersion = ''
@@ -88,6 +87,10 @@ class Updater(Thread):
             exception('UpdateCleanup error')
             
     def CheckUpdate(self):
+        doUpdates = self.appSettings.get('Agent', 'DoUpdates', 'true')
+        if doUpdates.lower() == 'false':
+            info('DoUpdates is false, skipping update check')
+            return
         if self.onUpdateConfig:
             self.onUpdateConfig()
         now = datetime.now()

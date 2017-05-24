@@ -77,7 +77,7 @@ If you have already have installed the Cayenne agent service via the Cayenne das
 Other potential issues caused by running this agent along side the Cayenne service:
 
 * File/folder permissions issues - The permissions for files and folders used by this agent, including `/var/log/myDevice`, `/etc/myDevices`, `/var/run/myDevices` and files inside those folders, could conflict with the permissions set by the agent service installed from Cayenne. To get around this issue you can manually modify the file and folder permissions, reinstall the agent, or run the agent as a service as explained above.
-* Agent update - The Cayenne agent will automatically update itself if a new agent becomes available which can overwrite the installation of this agent. You may need to reinstall this agent if that happens.
+* Agent update - The Cayenne agent will automatically update itself if a new agent becomes available which can overwrite the installation of this agent. You may need to reinstall this agent if that happens. To completely disable updates you can add the line ``DoUpdates = false`` to ``/etc/myDevices/AppSettings.ini``.
 
 ***********
 Development
