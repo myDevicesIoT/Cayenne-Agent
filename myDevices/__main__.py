@@ -1,5 +1,5 @@
 from myDevices.utils.config import Config
-from os import path, getpid
+from os import path, getpid, remove
 from myDevices.cloud.client import CloudServerClient
 from myDevices.utils.logger import exception, setDebug, info, debug, error, logToFile, setInfo
 from sys import excepthook, __excepthook__, argv
@@ -23,11 +23,13 @@ except Exception as e:
     error('Cannot set limit to memory: ' + str(e))
 
 client = None
+pidfile = '/var/run/myDevices/cayenne.pid'
 def signal_handler(signal, frame):
     if client:
         if signal == SIGINT:
             info('Program interrupt received, client exiting')
             client.Destroy()
+            remove(pidfile)
         else:
             client.Restart()
 signal(SIGUSR1, signal_handler)
@@ -88,6 +90,7 @@ def writePidToFile(pidfile):
     with open(pidfile, 'w') as file:
         file.write(pid)
 def main(argv):
+    global pidfile
     configfile = None
     scriptfile = None
     logfile = None
@@ -108,10 +111,10 @@ def main(argv):
         elif argv[i] in ["-P", "--pidfile"]:
             pidfile = argv[i+1]
             i+=1
-            writePidToFile(pidfile)
         i+=1
     if configfile == None:
         configfile = '/etc/myDevices/Network.ini'
+    writePidToFile(pidfile)
     logToFile(logfile)
     # SET HOST AND PORT
     config = Config(configfile)

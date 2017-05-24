@@ -20,7 +20,7 @@ except KeyError:
       # Otherwise install under the user that ran sudo.
       user_id = int(os.environ['SUDO_UID'])
       group_id = int(os.environ['SUDO_GID'])
-directories = ('/etc/myDevices', '/var/log/myDevices')
+directories = ('/etc/myDevices', '/var/log/myDevices', '/var/run/myDevices')
 for directory in directories:
       try:
             os.makedirs(directory)
