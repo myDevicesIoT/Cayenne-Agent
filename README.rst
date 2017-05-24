@@ -94,7 +94,12 @@ Development
 The agent can be installed for doing development in place by navigating to the root directory of the agent code and running::
 
   sudo python3 setup.py develop
+
+When running the agent logs information to stderr as well as ``/var/log/myDevices/cayenne.log``. To enable additional debug logging use the ``-d`` option on the command line:
+::
   
+  python3 -m myDevices -d
+
 Currently the agent has code for interfacing with several sensors and actuators and support for the Raspberry Pi. If you would like to extend that you can add support for additional sensors, actuators and boards as described below.
   
 Supporting Additional Sensors/Actuators
