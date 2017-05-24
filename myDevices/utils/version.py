@@ -1,8 +1,6 @@
 import re
 import sys
 
-VERSION         = '0.7.22'
-VERSION_STRING  = "WebIOPi/%s/Python%d.%d" % (VERSION, sys.version_info.major, sys.version_info.minor)
 PYTHON_MAJOR    = sys.version_info.major
 BOARD_REVISION  = 0
 

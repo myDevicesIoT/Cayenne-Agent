@@ -4,7 +4,7 @@ from datetime import datetime
 from os.path import getmtime
 from myDevices.utils.logger import exception, info, warn, error, debug
 from myDevices.os.services import ServiceManager
-#if the cloud server or webiopi don't respond more than timeout
+
 #defining reset timeout in seconds
 RESET_TIMEOUT=30
 FAILURE_COUNT=1000
