@@ -29,7 +29,7 @@ Getting Started
 
 Installation
 ============
-This library can be installed by navigating to the root directory of the agent code and running::
+The agent can be installed by navigating to the root directory of the agent code and running::
 
   sudo python3 setup.py install
 
@@ -79,55 +79,72 @@ Other potential issues caused by running this agent along side the Cayenne servi
 * File/folder permissions issues - The permissions for files and folders used by this agent, including `/var/log/myDevice`, `/etc/myDevices`, `/var/run/myDevices` and files inside those folders, could conflict with the permissions set by the agent service installed from Cayenne. To get around this issue you can manually modify the file and folder permissions, reinstall the agent, or run the agent as a service as explained above.
 * Agent update - The Cayenne agent will automatically update itself if a new agent becomes available which can overwrite the installation of this agent. You may need to reinstall this agent if that happens.
 
-***************************************
+***********
+Development
+***********
+The agent can be installed for doing development in place by navigating to the root directory of the agent code and running::
+
+  sudo python3 setup.py develop
+  
+Currently the agent has code for interfacing with several senosrs and actuators and support for the Raspberry Pi. If you would like to extend that you can add support for additional sensors, actuators and boards as described below.
+  
 Supporting Additional Sensors/Actuators
-***************************************
+=======================================
 To add support for additional sensors/actuators you may need to create new modules for the specific sensors/actuators.
 
 Creating a new sensor/actuator module
-=====================================
+-------------------------------------
 
-* Create the new module under the appropriate `myDevices.devices` subfolder, e.g. new analog devices should be added under `myDevices.devices.analog`.
-* Derive the device's class from appropriate bus type, e.g. `myDevices.devices.i2c.I2C`, and sensor type, e.g. `myDevices.devices.sensor.Temperature`, if applicable.
-* Override the read/write functions of the parent class, `__digitalRead__`, `__analogWrite__`, etc., with sensor specific read/write functionality.
-* Add the device module/class to the `DRIVERS` in the `myDevices.devices` subfolder `__init__.py` file.
+* Create a new module for the sensor/actuator under the appropriate ``myDevices.devices`` subfolder. For instance, a new analog device should be added under ``myDevices.devices.analog``.
+* Add a class for your sensor/actuator inside the new module.
+* Derive the class from appropriate bus type and sensor/device types, if applicable. For example, the BMP085 class in the ``myDevices.devices.sensors.bmp085`` is an I²C temperature and pressure sensor so it is derived from ``myDevices.devices.i2c.I2C``,  ``myDevices.devices.sensor.Temperature``, and ``myDevices.devices.sensor.Pressure``.
+* Override the read/write functions of the parent class that your device needs to support with sensor specific functionality. For example a digital sensor would need to override the ``__digitalRead__`` function. An analog actuator would need to override the ``__analogWrite__`` function.
+* Add the device module and class to the ``DRIVERS`` dict in the appropriate ``myDevices.devices`` subfolder ``__init__.py`` file. For an analog device that would mean adding it to the ``DRIVERS`` dict in ``myDevices.devices.analog.__init__.py``. The dict key is the name of the module, the value is a list of classes within the module.
 
 Testing that the new sensor/actuator module works
-=================================================
+-------------------------------------------------
+To verify that the sensor/actuator works correctly you can test it with the following functions.
 
-* Create a new sensor using `myDevices.sensors.SensorsClient.AddSensor`.
-* Get the sensor values using `myDevices.sensors.SensorsClient.SensorsInfo` and make sure the sensor's data is returned.
-* If the new device is an actuator set the actuator value using `myDevices.sensors.SensorsClient.SensorCommand`.
-* Delete the sensor using `myDevices.sensors.SensorsClient.DeleteSensor`.
+* Create a new sensor using ``myDevices.sensors.SensorsClient.AddSensor`` using the approriate device name and any args required by your device.
+* Get the sensor values using ``myDevices.sensors.SensorsClient.SensorsInfo`` and make sure the sensor data is correct.
+* If the new device is an actuator set the actuator value using ``myDevices.sensors.SensorsClient.SensorCommand``.
+* Delete the sensor using ``myDevices.sensors.SensorsClient.DeleteSensor``.
 
-.. note:: For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your sensor/actuator code requires root access consider running it via a separate process that can be launched using sudo.
+An example demonstrating these functions is available in ``myDevices.test.client_test.py``.
 
-****************************
+*Note:* For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your sensor/actuator code requires root access consider running just that portion of your code via a separate process that can be launched using sudo. For example, the ``myDevices.devices.digital.ds2408`` module uses this method to write data.
+
 Supporting Additional Boards
-****************************
-To add support for additional boards you may need to modify I/O, bus and settings modules as required for the board.
+============================
+To add support for additional boards beyond the Raspberry Pi you may need to modify I/O, system info and/or settings modules as required for the board.
 
-I/O modules
-===========
-Current support for pin and bus I/O is based on the filesystem drivers used on the Raspberry Pi. To support a different board you may need to update the following modules, depending on what functionality the board has:
+Pin and Bus I/O
+---------------
+Current support for pin and bus I/O is based on the Linux filesystem drivers used on the Raspberry Pi. To support a different board you may need to update the following, depending on what functionality the board has:
 
-* `myDevices.devices.digital.gpio.py` - Native GPIO pin support
-* `myDevices.devices.spi.py` - SPI bus support
-* `myDevices.devices.i2c.py` - I²C bus support
-* `myDevices.devices.onewire.py` - 1-Wire bus support
-* `myDevices.devices.serial.py` - Serial bus support
-* `myDevices.devices.bus.py` - Generic bus class, as well as code for loading/unloading bus kernel modules
+**Native GPIO Pins** - Native GPIO pin support is provided in ``myDevices.devices.digital.gpio.py``. This uses the Linux file system drivers under ``/sys/class/gpio`` for reading and writing to GPIO pins. It also uses the ``/dev/gpiomem`` memory map to determine pin modes. If your board is a Linux based board that supports the same filesystem drivers at the same location you may be able to use this code as-is. Otherwise you may need to modify the filesystem driver location or replace the drivers with a some other method or library for reading and writing GPIO values. If your board doesn't support the ``/dev/gpiomem`` memory mapped file you may be able to get the same pin mode info from ``/dev/mem`` or perhaps another GPIO library. Or just fallback to using the filesystem drivers and only get basic pin modes.
+
+**SPI Bus** - SPI bus support is provided in ``myDevices.devices.spi.py``. This uses the Linux file system drivers under ``/dev/spidev0.*``. If your board is a Linux based board that supports the same filesystem drivers at the same location you may be able to use this code as-is. Otherwise you may need to modify the filesystem driver location or replace the drivers with a some other method or library for reading and writing SPI values.
+**I²C Bus** - I²C bus support is proviced in ``myDevices.devices.i2c.py``. This uses the Linux file system drivers under ``/dev/i2c-*``. If your board is a Linux based board that supports the same filesystem drivers at the same location you may be able to use this code as-is. Otherwise you may need to modify the filesystem driver location or replace the drivers with a some other method or library for reading and writing I²C values.
+
+**1-Wire Bus** - 1-Wire bus support is provided in ``myDevices.devices.onewire.py``. This uses the Linux file system drivers under ``/sys/bus/w1/devices``. If your board is a Linux based board that supports the same filesystem drivers at the same location you may be able to use this code as-is. Otherwise you may need to modify the filesystem driver location or replace the drivers with a some other method or library for reading and writing 1-Wire values.
+
+**Serial Bus** - Serial bus support is provided in ``myDevices.devices.serial.py`` This uses the Linux file system drivers under ``/dev/ttyAMA0``. Currently Cayenne doesn't support any sensors or actuators using the serial bus so you probably don't need to support this, unless you add some sensor or actuator that requires it.
+
+**Loading/Unloading Bus Kernel Modules** - Support for loading/unloading bus kernel modules is provided in ``myDevices.devices.bus.py``. This uses the Linux program ``modprobe``. If your board uses the same bus kernel modules and supports ``modprobe`` you may be able to use this code as-is. Otherwise you may need to update the modules listed in ``BUSLIST`` and/or modify the code to load the kernel modules. If you don't need to support loading the bus kernel modules you can stub out this code.
 
 System info
-===========
-Information about the device, including CPU, RAM, etc., is currently retrieved via several modules including a C library compiled for the Rasberry Pi, though that may be changed to a Python only implementation in the future. To support a different board you may need to update the following modules, if applicable:
+-----------
+Information about the device, including CPU, RAM, etc., is currently retrieved via several modules including a C library compiled for the Rasberry Pi, though that will be changed to a Python only implementation in the future. To support a different board you may need to update the following, if applicable:
 
-* `myDevices.os.systeminfo.py` - Retrieves general system info, including CPU, RAM, memory, etc. This is mostly implemented via a C library for the Raspberry Pi, though that may be changed to a Python only implementation in the future.
-* `myDevices.cloud.vcom_id.py` - Retrieves device make, model, etc.
-* `myDevices.utils.version.py` - Information about the board pin mapping
+**General System Info** - General system info, including CPU, RAM, memory, etc. is retrieved via ``myDevices.os.systeminfo.py`` This is mostly implemented via a C library for the Raspberry Pi, though that will be changed to a Python only implementation in the future. If the C library doesn't work on your device you can disable the C library call until the Python implementation is available at which point you can modify it to support your board.
+
+**Hardware Info** - Hardware info, including make, model, etc. is retrieved via ``myDevices.cloud.vcom_id.py``. This should be modified or overridden to provide the appropriate hardware info for your board.
+
+**Pin Mapping** - The mapping of the on-board pins is provided in ``myDevices.utils.version.py`` with the ``MAPPING`` list. This list provides the available GPIO pin numbers as well as the voltage ("V33", "V50"), ground ("GND") and do-not-connect ("DNC") pins. This should be updated with the mapping for your board. However, the Cayenne dashboard is currently built to display the Raspberry Pi GPIO layout so if your board's pin layout is significantly different it may not display correctly in the GPIO tab.
 
 Settings
-========
-Currently the Raspberry Pi agent has settings for enabling/disabling the device tree, SPI, I²C, serial and camera. These are set via the `myDevices.os.raspiconfig.py` module. If any of these settings are available on your board and you would like to support them you can override or replace that file. Otherwise the settings functionality can be ignored.
+--------
+Currently the Raspberry Pi agent has settings for enabling/disabling the device tree, SPI, I²C, serial and camera. These are set via the ``myDevices.os.raspiconfig`` module which runs a separate Bash script at ``/etc/myDevices/scripts/config.sh``. If any of these settings are available on your board and you would like to support them you can override or replace ``myDevices.os.raspiconfig.py``. Otherwise the settings functionality can be ignored.
 
-.. note:: For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your I/O, system or settings code requires root access consider running it via a separate process that can be launched using sudo.
+*Note:* For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your I/O, system info or settings code requires root access consider running it via a separate process that can be launched using sudo. For example, the ``myDevices.os.raspiconfig`` module uses this method to update config settings.
