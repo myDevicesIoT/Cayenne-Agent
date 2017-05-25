@@ -192,7 +192,7 @@ The Cayenne agent is an open source project and welcomes your contributions, inc
 *****************
 Cayenne Community
 *****************
-Join us on Slack at `mydevices-cayenne.slack.com <https://mydevices-cayenne.slack.com>`_ or in the `Cayenne Community <http://community.mydevices.com>`_.
+Join us on Slack at `slack.mydevices.com <http://slack.mydevices.com/>`_ or in the `Cayenne Community <http://community.mydevices.com>`_.
 
 *******
 License
