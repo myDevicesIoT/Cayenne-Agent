@@ -177,3 +177,24 @@ Settings
 Currently the Raspberry Pi agent has settings for enabling/disabling the device tree, SPI, I²C, serial and camera. These are set via the ``myDevices.os.raspiconfig`` module which runs a separate Bash script at ``/etc/myDevices/scripts/config.sh``. If any of these settings are available on your board and you would like to support them you can override or replace ``myDevices.os.raspiconfig.py``. Otherwise the settings functionality can be ignored.
 
 *Note:* For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your I/O, system info or settings code requires root access consider running it via a separate process that can be launched using sudo. For example, the ``myDevices.os.raspiconfig`` module uses this method to update config settings.
+
+************
+Contributing
+************
+The Cayenne agent is an open source project and welcomes your contributions, including:
+
+* Bug reports and fixes
+* Documentation improvements
+* Additional sensor/actuator support
+* Additional board support
+* Other code enhancements
+
+*****************
+Cayenne Community
+*****************
+Join us on Slack at `mydevices-cayenne.slack.com <https://mydevices-cayenne.slack.com>`_ or in the `Cayenne Community <http://community.mydevices.com>`_.
+
+*******
+License
+*******
+`MIT <LICENSE>`_
