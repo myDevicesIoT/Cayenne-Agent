@@ -21,6 +21,7 @@ class SystemInfo():
                 libSystemInformation.FreeSystemInformation()
                 del libSystemInformation
                 libSystemInformation = None
+                system_info = {}
                 try:
                     system_info = loads(currentSystemInfo)
                     try:
@@ -32,13 +33,12 @@ class SystemInfo():
                     system_info['Memory'] = self.getMemoryInfo()
                     system_info['Uptime'] = self.getUptime()
                     system_info['Storage'] = self.getDiskInfo()
-                    currentSystemInfo = dumps(system_info)
                 except:
                     pass
         except Exception as ex:
             exception('getSystemInformation failed to retrieve: ' + str(ex))
         finally:
-            return currentSystemInfo
+            return system_info
 
     def getMemoryInfo(self):
         """Get a dict containing the memory info

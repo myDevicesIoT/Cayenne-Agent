@@ -20,6 +20,7 @@ from myDevices.devices.digital.gpio import NativeGPIO as GPIO
 from myDevices.devices import manager
 from myDevices.devices import instance
 from myDevices.utils.types import M_JSON
+from myDevices.os.systeminfo import SystemInfo
 
 REFRESH_FREQUENCY = 0.10 #seconds
 SENSOR_INFO_SLEEP = 0.05
@@ -154,16 +155,10 @@ class SensorsClient():
         with self.systemMutex:
              self.retrievingSystemInfo = True
         try:
-            jsonInfo="{}"
-            debug('SystemInfo Spawning child process from pid:'  + str(getpid()) )
-            (jsonInfo,retCode) = services.ServiceManager.ExecuteCommand("python3 -m myDevices.os.getsysteminfo")
-            if int(retCode) == 0:
-                newSystemInfo = loads(jsonInfo)
-                if self.currentSystemInfo:
-                    del self.currentSystemInfo
-                    self.currentSystemInfo = None
+            systemInfo = SystemInfo()
+            newSystemInfo = systemInfo.getSystemInformation()
+            if newSystemInfo:
                 self.currentSystemInfo = newSystemInfo
-                del jsonInfo
         except Exception as ex:
             exception('SystemInformation failed: '+str(ex))
         with self.systemMutex:
