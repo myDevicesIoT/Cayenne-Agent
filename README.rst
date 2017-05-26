@@ -167,7 +167,7 @@ General System Info
   General system info, including CPU, RAM, memory, etc. is retrieved via ``myDevices.os.systeminfo.py`` This is mostly implemented via a C library for the Raspberry Pi, though that will be changed to a Python only implementation in the future. If the C library doesn't work on your device you can disable the C library call until the Python implementation is available at which point you can modify it to support your board.
 
 Hardware Info
-  Hardware info, including make, model, etc. is retrieved via ``myDevices.cloud.vcom_id.py``. This should be modified or overridden to provide the appropriate hardware info for your board.
+  Hardware info, including make, model, etc. is retrieved via ``myDevices.os.hardware.py``. This should be modified or overridden to provide the appropriate hardware info for your board.
 
 Pin Mapping
   The mapping of the on-board pins is provided in ``myDevices.utils.version.py`` with the ``MAPPING`` list. This list provides the available GPIO pin numbers as well as the voltage ("V33", "V50"), ground ("GND") and do-not-connect ("DNC") pins. This should be updated with the mapping for your board. However, the Cayenne dashboard is currently built to display the Raspberry Pi GPIO layout so if your board's pin layout is significantly different it may not display correctly in the GPIO tab.
