@@ -1,36 +1,26 @@
 #!/usr/bin/python 
 # -*- coding: utf-8 -*-
 
-'''
+"""
 Created on 04.12.2014
 
 @author: plagtag
-'''
+"""
 from time import sleep
 
 
-class GetCpuLoad(object):
-    '''
-    classdocs
-    '''
+class CpuInfo(object):
+    """Class for retrieving CPU info"""
 
-
-    def __init__(self, percentage=True, sleeptime = 1):
-        '''
-        @parent class: GetCpuLoad
-        @date: 04.12.2014
-        @author: plagtag
-        @info: 
-        @param:
-        @return: CPU load in percentage
-        '''
-        self.percentage = percentage
+    def __init__(self):
+        """Initialize the CpuInfo class"""
         self.cpustat = '/proc/stat'
         self.sep = ' '
-        self.sleeptime = sleeptime
 
-    def getcputime(self):
-        '''
+    def get_cpu_time(self):
+        """Return dict with CPU usage info for each CPU as well as overall CPU usage
+
+        This is calculated from info in the /proc/stat file.
         http://stackoverflow.com/questions/23367857/accurate-calculation-of-cpu-usage-given-in-percentage-in-linux
         read in cpu information from file
         The meanings of the columns are as follows, from left to right:
@@ -53,15 +43,15 @@ class GetCpuLoad(object):
         Total=Idle+NonIdle # first line of file for all cpus
 
         CPU_Percentage=((Total-PrevTotal)-(Idle-PrevIdle))/(Total-PrevTotal)
-        '''
+        """
         cpu_infos = {} #collect here the information
         with open(self.cpustat,'r') as f_stat:
             lines = [line.split(self.sep) for content in f_stat.readlines() for line in content.split('\n') if line.startswith('cpu')]
 
             #compute for every cpu
             for cpu_line in lines:
-                if '' in cpu_line: cpu_line.remove('')#remove empty elements
-                cpu_line = [cpu_line[0]]+[float(i) for i in cpu_line[1:]]#type casting
+                if '' in cpu_line: cpu_line.remove('') #remove empty elements
+                cpu_line = [cpu_line[0]]+[int(i) for i in cpu_line[1:]] #type casting
                 cpu_id,user,nice,system,idle,iowait,irq,softrig,steal,guest,guest_nice = cpu_line
 
                 Idle=idle+iowait
@@ -69,24 +59,25 @@ class GetCpuLoad(object):
                 busy = user + nice + system + irq + softrig
 
                 Total=Idle+NonIdle
-                #update dictionionary
+                #update dictionary
                 cpu_infos.update({cpu_id:{'total':Total,'idle':Idle, 'irq': irq, 'softirq': softrig, 'system': system, 'user': user, 'nice': nice, 'busy': busy,'iowait': iowait }})
             return cpu_infos
 
-    def getcpuload(self):
-        '''
-        CPU_Percentage=((Total-PrevTotal)-(Idle-PrevIdle))/(Total-PrevTotal)
-        '''
-        start = self.getcputime()
-        #wait a second
-        sleep(self.sleeptime)
-        stop = self.getcputime()
+    def get_cpu_load(self, sleeptime = 1):
+        """Return CPU load
+
+        :param sleeptime: time interval in seconds to wait when calculating CPU usage
+        :returns: dict containing CPU load for each CPU, and overall load, as a percentage
+        """
+        start = self.get_cpu_time()
+        sleep(sleeptime)
+        stop = self.get_cpu_time()
         cpu_load = {}
         for cpu in start:
-            Total = stop[cpu]['total']
-            PrevTotal = start[cpu]['total']
-            Idle = stop[cpu]['idle']
-            PrevIdle = start[cpu]['idle']
+            Total = float(stop[cpu]['total'])
+            PrevTotal = float(start[cpu]['total'])
+            Idle = float(stop[cpu]['idle'])
+            PrevIdle = float(start[cpu]['idle'])
             CPU_Percentage=((Total-PrevTotal)-(Idle-PrevIdle))/(Total-PrevTotal)*100
             CPU_Percentage=float('{0:.1f}'.format(CPU_Percentage))
             cpu_load.update({cpu: CPU_Percentage})
@@ -95,13 +86,17 @@ class GetCpuLoad(object):
         start = None
         stop = None
         return cpu_load
+
     def build_info(self):
+        """Return CPU temperature, load average and usage info as a dict"""
         info = {}
         info['temperature'] = self.get_cpu_temp()
-        info["loadavg"] = self.get_loadavg()
-        info["usage"] = self.getcputime()['cpu']
+        info["loadavg"] = self.get_load_avg()
+        info["usage"] = self.get_cpu_time()['cpu']
         return info
+
     def get_cpu_temp(self):
+        """Get CPU temperature"""
         info = {}
         file = "/sys/class/thermal/thermal_zone0/temp"
         temp = 0.0
@@ -112,7 +107,9 @@ class GetCpuLoad(object):
         except Exception as e:
             print('Temp exception:' + str(e))
         return temp
-    def get_loadavg(self):
+
+    def get_load_avg(self):
+        """Get CPU average load for the last one, five, and 10 minute periods"""
         info = {}
         file = "/proc/loadavg"
         one     = 0
@@ -121,9 +118,9 @@ class GetCpuLoad(object):
         try:
             with open(file, 'r') as f_stat:
                 content = f_stat.read().strip().split(' ')
-                one = content[0]
-                five = content[1]
-                ten = content[2]
+                one = float(content[0])
+                five = float(content[1])
+                ten = float(content[2])
         except Exception as e:
             print('Cpu Loadavg exception:' + str(e))
         info['one']     = one
@@ -131,5 +128,3 @@ class GetCpuLoad(object):
         info['ten']     = ten
         return info
 
-# gpl = GetCpuLoad()
-# print(gpl.build_info())

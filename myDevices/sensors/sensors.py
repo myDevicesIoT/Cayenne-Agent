@@ -34,7 +34,6 @@ class SensorsClient():
         self.currentBusInfo = self.previousBusInfo = None
         self.currentSensorsInfo = self.previousSensorsInfo = None
         self.currentSystemInfo = self.previousSystemInfo = None
-        self.cpuLoadValues = {}
         self.disabledSensors = {}
         self.sensorsRefreshCount = 0
         self.retrievingSystemInfo = False
@@ -165,12 +164,6 @@ class SensorsClient():
                     self.currentSystemInfo = None
                 self.currentSystemInfo = newSystemInfo
                 del jsonInfo
-                from myDevices.os.cpu import GetCpuLoad
-                cpuLoad = GetCpuLoad()
-                newCpuLoadValues = cpuLoad.getcpuload()
-                if newCpuLoadValues['cpu'] != 0.0:
-                    self.cpuLoadValues = newCpuLoadValues
-                self.currentSystemInfo['CpuLoad'] = self.cpuLoadValues
         except Exception as ex:
             exception('SystemInformation failed: '+str(ex))
         with self.systemMutex:

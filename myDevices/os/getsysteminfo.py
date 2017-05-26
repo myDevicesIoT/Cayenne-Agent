@@ -1,5 +1,5 @@
-from myDevices.os.systeminfo import getSystemInformation
+from myDevices.os.systeminfo import SystemInfo
 
-info = getSystemInformation()
+info = SystemInfo().getSystemInformation()
 
 print(info)
