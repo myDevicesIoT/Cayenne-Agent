@@ -145,8 +145,12 @@ class History:
                 for subkey in new_sample['SystemInfo']['Network'][key].keys():
                     current_avgs['SystemInfo']['Network'][key][subkey] = self.CalculateSubItemAverages(current_avgs['SystemInfo']['Network'][key][subkey], new_sample['SystemInfo']['Network'][key][subkey], count)
             #Calculate storage averages
-            for subkey in new_sample['SystemInfo']['Storage']['throughput'].keys():
-                current_avgs['SystemInfo']['Storage']['throughput'][subkey] = self.CalculateSubItemAverages(current_avgs['SystemInfo']['Storage']['throughput'][subkey], new_sample['SystemInfo']['Storage']['throughput'][subkey], count)
+            try:
+                for subkey in new_sample['SystemInfo']['Storage']['throughput'].keys():
+                    current_avgs['SystemInfo']['Storage']['throughput'][subkey] = self.CalculateSubItemAverages(current_avgs['SystemInfo']['Storage']['throughput'][subkey], new_sample['SystemInfo']['Storage']['throughput'][subkey], count)
+            except:
+                # Ignore error if one of the dicts doesn't contain 'throughput'
+                pass
             current_avgs['SystemInfo']['Storage']['list'] = self.CalculateListAverages(current_avgs['SystemInfo']['Storage']['list'], new_sample['SystemInfo']['Storage']['list'], ('available', 'used', 'use'), 'mount', count)
             #Calculate memory averages
             current_avgs['SystemInfo']['Memory'] = self.CalculateSubItemAverages(current_avgs['SystemInfo']['Memory'], new_sample['SystemInfo']['Memory'], count)

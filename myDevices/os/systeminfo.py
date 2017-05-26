@@ -2,7 +2,7 @@ from ctypes import CDLL, c_char_p
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from os import path, getpid
 from json import loads, dumps
-from psutil import virtual_memory, swap_memory
+from psutil import virtual_memory, swap_memory, disk_partitions, disk_usage
 from myDevices.os.cpu import CpuInfo
 
 
@@ -31,6 +31,7 @@ class SystemInfo():
                         pass
                     system_info['Memory'] = self.getMemoryInfo()
                     system_info['Uptime'] = self.getUptime()
+                    system_info['Storage'] = self.getDiskInfo()
                     currentSystemInfo = dumps(system_info)
                 except:
                     pass
@@ -97,5 +98,48 @@ class SystemInfo():
         except Exception as e:
             exception('Error getting uptime')
         info['uptime'] = uptime
-        info['idle'] = idle
+        return info
+
+    def getDiskInfo(self):
+        """Get system uptime as a dict
+        
+        Returned dict example::
+
+            {
+                'list': [{
+                    'filesystem': 'ext4',
+                    'size': 13646516224,
+                    'use': 0.346063,
+                    'mount': '/',
+                    'device': '/dev/root',
+                    'available': 8923963392,
+                    'used': 4005748736
+                }, {
+                    "device": "/dev/mmcblk0p5",
+                    "filesystem": "vfat",
+                    "mount": "/boot",
+                }]
+            }
+        """
+        disk_list = []
+        try:
+            for partition in disk_partitions(True):
+                disk = {}
+                disk['filesystem'] = partition.fstype
+                disk['mount'] = partition.mountpoint
+                disk['device'] = partition.device
+                try:
+                    usage = disk_usage(partition.mountpoint)
+                    if usage.total:
+                        disk['size'] = usage.total
+                        disk['used'] = usage.used
+                        disk['available'] = usage.free
+                        disk['use'] = float('{0:.6f}'.format((usage.total - usage.free) / usage.total))
+                except:
+                    pass
+                disk_list.append(disk)
+        except:
+            exception('Error getting disk info')
+        info = {}
+        info['list'] = disk_list
         return info
