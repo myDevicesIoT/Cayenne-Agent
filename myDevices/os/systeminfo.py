@@ -1,8 +1,9 @@
+import psutil
+import netifaces
 from ctypes import CDLL, c_char_p
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from os import path, getpid
 from json import loads, dumps
-from psutil import virtual_memory, swap_memory, disk_partitions, disk_usage
 from myDevices.os.cpu import CpuInfo
 
 
@@ -33,7 +34,9 @@ class SystemInfo():
                     system_info['Memory'] = self.getMemoryInfo()
                     system_info['Uptime'] = self.getUptime()
                     system_info['Storage'] = self.getDiskInfo()
+                    system_info['Network'] = self.getNetworkInfo()
                 except:
+                    exception('Error retrieving system info')
                     pass
         except Exception as ex:
             exception('getSystemInformation failed to retrieve: ' + str(ex))
@@ -61,14 +64,14 @@ class SystemInfo():
         """
         memory = {}
         try:
-            vmem = virtual_memory()
+            vmem = psutil.virtual_memory()
             memory['total'] = vmem.total
             memory['free'] = vmem.available
             memory['used'] = memory['total'] - memory['free']
             memory['buffers'] = vmem.buffers
             memory['cached'] = vmem.cached
             memory['processes'] = vmem.used - vmem.buffers - vmem.cached
-            swap = swap_memory()
+            swap = psutil.swap_memory()
             memory['swap'] = {}
             memory['swap']['total'] = swap.total
             memory['swap']['free'] = swap.free
@@ -123,13 +126,13 @@ class SystemInfo():
         """
         disk_list = []
         try:
-            for partition in disk_partitions(True):
+            for partition in psutil.disk_partitions(True):
                 disk = {}
                 disk['filesystem'] = partition.fstype
                 disk['mount'] = partition.mountpoint
                 disk['device'] = partition.device
                 try:
-                    usage = disk_usage(partition.mountpoint)
+                    usage = psutil.disk_usage(partition.mountpoint)
                     if usage.total:
                         disk['size'] = usage.total
                         disk['used'] = usage.used
@@ -142,4 +145,51 @@ class SystemInfo():
             exception('Error getting disk info')
         info = {}
         info['list'] = disk_list
+        return info
+
+    def getNetworkInfo(self):
+        """Get network information as a dict
+        
+        Returned dict example::
+
+            {
+                "eth0": {
+                    "ip": {
+                        "address": "192.168.0.25",
+                    },
+                    "ipv6": [{
+                        "address": "2001:db8:3c4d::1a2f:1a2b",
+                    }],
+                    "mac": "aa:bb:cc:dd:ee:ff",
+                },
+                "wlan0": {
+                    "ipv6": [{
+                        "address": "2001:db8:3c4d::1a2f:1a2b",
+                    }],
+                    "mac": "aa:bb:cc:dd:ee:ff"
+                }
+            }
+        """
+        network_info = {}
+        for interface in netifaces.interfaces():
+            addresses = netifaces.ifaddresses(interface)
+            interface_info = {}
+            try:
+                addr = addresses[netifaces.AF_INET][0]['addr']
+                interface_info['ip'] = {}
+                interface_info['ip']['address'] = addr
+            except:
+                pass
+            try:
+                interface_info['ipv6'] = [{'address': addr['addr'].split('%')[0]} for addr in addresses[netifaces.AF_INET6]]
+            except:
+                pass
+            try:
+                interface_info['mac'] = addresses[netifaces.AF_LINK][0]['addr']
+            except:
+                pass
+            if interface_info:
+                network_info[interface] = interface_info
+        info = {}
+        info['list'] = network_info
         return info
