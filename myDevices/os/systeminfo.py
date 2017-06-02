@@ -53,7 +53,7 @@ class SystemInfo():
             memory['used'] = memory['total'] - memory['free']
             memory['buffers'] = vmem.buffers
             memory['cached'] = vmem.cached
-            memory['processes'] = vmem.used - vmem.buffers - vmem.cached
+            memory['processes'] = memory['used']
             swap = psutil.swap_memory()
             memory['swap'] = {}
             memory['swap']['total'] = swap.total
