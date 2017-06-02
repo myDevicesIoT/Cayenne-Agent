@@ -161,10 +161,10 @@ Loading/Unloading Bus Kernel Modules
 
 System info
 -----------
-Information about the device, including CPU, RAM, etc., is currently retrieved via several modules including a C library compiled for the Raspberry Pi, though that will be changed to a Python only implementation in the future. To support a different board you may need to update the agent code for the following items, if applicable:
+Information about the device, including CPU, RAM, etc., is currently retrieved via a few different modules. To support a different board you may need to update the agent code for the following items, if applicable:
 
 General System Info
-  General system info, including CPU, RAM, memory, etc. is retrieved via ``myDevices.os.systeminfo.py`` This is mostly implemented via a C library for the Raspberry Pi, though that will be changed to a Python only implementation in the future. If the C library doesn't work on your device you can disable the C library call until the Python implementation is available at which point you can modify it to support your board.
+  General system info, including CPU, RAM, memory, etc. is retrieved via ``myDevices.os.systeminfo.py`` and ``myDevices.os.cpu.py``. These are mostly implemented using cross platform libraries so they may already provide support for your board. If not, they should be modified or overridden to provide the appropriate system info. If your board does not support all the data values currently implemented you can just provide default values where necessary, though this may affect the data display in the Cayenne dashboard.
 
 Hardware Info
   Hardware info, including make, model, etc. is retrieved via ``myDevices.os.hardware.py``. This should be modified or overridden to provide the appropriate hardware info for your board.
