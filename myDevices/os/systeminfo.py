@@ -171,25 +171,28 @@ class SystemInfo():
             }
         """
         network_info = {}
-        for interface in netifaces.interfaces():
-            addresses = netifaces.ifaddresses(interface)
-            interface_info = {}
-            try:
-                addr = addresses[netifaces.AF_INET][0]['addr']
-                interface_info['ip'] = {}
-                interface_info['ip']['address'] = addr
-            except:
-                pass
-            try:
-                interface_info['ipv6'] = [{'address': addr['addr'].split('%')[0]} for addr in addresses[netifaces.AF_INET6]]
-            except:
-                pass
-            try:
-                interface_info['mac'] = addresses[netifaces.AF_LINK][0]['addr']
-            except:
-                pass
-            if interface_info:
-                network_info[interface] = interface_info
+        try:
+            for interface in netifaces.interfaces():
+                addresses = netifaces.ifaddresses(interface)
+                interface_info = {}
+                try:
+                    addr = addresses[netifaces.AF_INET][0]['addr']
+                    interface_info['ip'] = {}
+                    interface_info['ip']['address'] = addr
+                except:
+                    pass
+                try:
+                    interface_info['ipv6'] = [{'address': addr['addr'].split('%')[0]} for addr in addresses[netifaces.AF_INET6]]
+                except:
+                    pass
+                try:
+                    interface_info['mac'] = addresses[netifaces.AF_LINK][0]['addr']
+                except:
+                    pass
+                if interface_info:
+                    network_info[interface] = interface_info
+        except:
+            exception('Error getting network info')
         info = {}
         info['list'] = network_info
         return info

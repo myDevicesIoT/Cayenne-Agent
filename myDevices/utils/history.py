@@ -141,9 +141,13 @@ class History:
             except:
                 exception('Error calculating CPU temperature average')
             #Calculate network averages
-            for key in ('packets', 'bytes'):
-                for subkey in new_sample['SystemInfo']['Network'][key].keys():
-                    current_avgs['SystemInfo']['Network'][key][subkey] = self.CalculateSubItemAverages(current_avgs['SystemInfo']['Network'][key][subkey], new_sample['SystemInfo']['Network'][key][subkey], count)
+            try:
+                for key in ('packets', 'bytes'):
+                    for subkey in new_sample['SystemInfo']['Network'][key].keys():
+                        current_avgs['SystemInfo']['Network'][key][subkey] = self.CalculateSubItemAverages(current_avgs['SystemInfo']['Network'][key][subkey], new_sample['SystemInfo']['Network'][key][subkey], count)
+            except:
+                # Ignore error if key doesn't exist
+                pass
             #Calculate storage averages
             try:
                 for subkey in new_sample['SystemInfo']['Storage']['throughput'].keys():
