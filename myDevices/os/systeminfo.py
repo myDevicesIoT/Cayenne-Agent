@@ -12,34 +12,17 @@ class SystemInfo():
 
     def getSystemInformation(self):
         """Get a dict containing CPU, memory, uptime, storage and network info"""
-        currentSystemInfo = "{}"
+        system_info = {}
         try:
-            debug('Child process for systeminformation pid:' + str(getpid()))
-            libSystemInformation = CDLL("/etc/myDevices/libs/libSystemInformation.so")
-            if libSystemInformation:
-                libSystemInformation.GetSystemInformation.restype = c_char_p
-                currentSystemInfo = libSystemInformation.GetSystemInformation().decode('utf-8')
-                libSystemInformation.FreeSystemInformation()
-                del libSystemInformation
-                libSystemInformation = None
-                system_info = {}
-                try:
-                    system_info = loads(currentSystemInfo)
-                    try:
-                        cpu_info = CpuInfo()
-                        system_info['Cpu'] = cpu_info.build_info()
-                        system_info['CpuLoad'] = cpu_info.get_cpu_load()
-                    except:
-                        pass
-                    system_info['Memory'] = self.getMemoryInfo()
-                    system_info['Uptime'] = self.getUptime()
-                    system_info['Storage'] = self.getDiskInfo()
-                    system_info['Network'] = self.getNetworkInfo()
-                except:
-                    exception('Error retrieving system info')
-                    pass
-        except Exception as ex:
-            exception('getSystemInformation failed to retrieve: ' + str(ex))
+            cpu_info = CpuInfo()
+            system_info['Cpu'] = cpu_info.get_cpu_info()
+            system_info['CpuLoad'] = cpu_info.get_cpu_load()
+            system_info['Memory'] = self.getMemoryInfo()
+            system_info['Uptime'] = self.getUptime()
+            system_info['Storage'] = self.getDiskInfo()
+            system_info['Network'] = self.getNetworkInfo()
+        except:
+            exception('Error retrieving system info')
         finally:
             return system_info
 
@@ -137,7 +120,7 @@ class SystemInfo():
                         disk['size'] = usage.total
                         disk['used'] = usage.used
                         disk['available'] = usage.free
-                        disk['use'] = float('{0:.6f}'.format((usage.total - usage.free) / usage.total))
+                        disk['use'] = round((usage.total - usage.free) / usage.total, 6)
                 except:
                     pass
                 disk_list.append(disk)
