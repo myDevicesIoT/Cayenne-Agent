@@ -1,5 +1,6 @@
 import psutil
 import os
+from glob import glob
 from time import sleep
 from myDevices.utils.logger import exception
 
@@ -41,14 +42,24 @@ class CpuInfo(object):
     def get_cpu_temp(self):
         """Get CPU temperature"""
         info = {}
-        file = "/sys/class/thermal/thermal_zone0/temp"
+        thermal_dirs = glob('/sys/class/thermal/thermal_zone*')
+        thermal_dirs.sort()
         temp = 0.0
         try:
-            with open(file, 'r') as f_stat:
-                content = int(f_stat.read().strip())
-                temp = content/1000.0
-        except Exception as e:
-            print('Temp exception:' + str(e))
+            for thermal_dir in thermal_dirs:
+                try:
+                    thermal_type = ''
+                    with open(thermal_dir + '/type', 'r') as type_file:
+                        thermal_type = type_file.read().strip()
+                    if thermal_type != 'gpu_thermal':
+                        with open(thermal_dir + '/temp', 'r') as temp_file:
+                            content = int(temp_file.read().strip())
+                            temp = content / 1000.0
+                            break
+                except:
+                    pass
+        except Exception:
+            exception('Error getting CPU temperature')
         return temp
 
     def get_load_avg(self):
@@ -64,8 +75,8 @@ class CpuInfo(object):
                 one = float(content[0])
                 five = float(content[1])
                 ten = float(content[2])
-        except Exception as e:
-            print('Cpu Loadavg exception:' + str(e))
+        except Exception:
+            exception('Error getting CPU load average')
         info['one']     = one
         info['five']    = five
         info['ten']     = ten
