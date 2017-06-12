@@ -9,7 +9,7 @@ from socket import error as socket_error
 from myDevices.os.daemon import Daemon
 from myDevices.os.threadpool import ThreadPool
 
-defaultUrl = "http://updates.mydevices.com/test/10MB.zip"
+defaultUrl = "https://updates.mydevices.com/test/10MB.zip"
 download_path = "/etc/myDevices/test"
 mb = 1024*1024
 #in seconds download Rate = 24 hours
