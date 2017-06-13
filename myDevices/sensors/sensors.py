@@ -497,13 +497,4 @@ class SensorsClient():
             #then refresh never comes for the specific sensor
             #ThreadPool.SubmitParam(self.Monitor, hashKey)
             return retVal
-    # def SensorCommandTest(self):
-    #     # self.SensorCommand('integer', 'ledswitch', 'DigitalActuator', '', '', 1)
-    #     # sleep(5)
-    #     # self.SensorCommand('integer', 'motorswitch', 'DigitalActuator', '', '', 1)
-    #     sleep(5)
-    #     self.SensorCommand('integer', 'motorswitch', 'DigitalActuator', '', '', 0)
-    #     sleep(5)
-    #     self.SensorCommand('integer', 'ledswitch', 'DigitalActuator', '', '', 0)
 
-#SensorCommandTest()

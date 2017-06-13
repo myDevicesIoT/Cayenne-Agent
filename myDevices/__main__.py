@@ -1,3 +1,4 @@
+"""This module is the main entry  """
 from myDevices.utils.config import Config
 from os import path, getpid, remove
 from myDevices.cloud.client import CloudServerClient
@@ -10,6 +11,7 @@ from myDevices.os.services import ProcessInfo
 from myDevices.os.daemon import Daemon
 
 def setMemoryLimit(rsrc, megs = 200):
+    """Set the memory usage limit for the agent process"""
     size = megs * 1048576
     soft, hard = getrlimit(rsrc)
     setrlimit(rsrc, (size, hard)) #limit to one kilobyte
@@ -25,6 +27,7 @@ except Exception as e:
 client = None
 pidfile = '/var/run/myDevices/cayenne.pid'
 def signal_handler(signal, frame):
+    """Handle program interrupt so the agent can exit cleanly"""
     if client:
         if signal == SIGINT:
             info('Program interrupt received, client exiting')
@@ -79,6 +82,7 @@ def displayHelp():
     exit()
 
 def writePidToFile(pidfile):
+    """Write the process ID to a file to prevent multiple agents from running at the same time"""
     if path.isfile(pidfile):
         info(pidfile + " already exists, exiting")
         with open(pidfile, 'r') as file:
@@ -89,7 +93,9 @@ def writePidToFile(pidfile):
     pid = str(getpid())
     with open(pidfile, 'w') as file:
         file.write(pid)
+
 def main(argv):
+    """Main entry point for starting the agent client"""
     global pidfile
     configfile = None
     scriptfile = None

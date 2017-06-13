@@ -13,6 +13,7 @@ class Config:
                 self.config.readfp(fp)
         except:
             pass
+            
     def set(self, section, key, value):
         with self.mutex:
             try:

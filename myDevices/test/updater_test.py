@@ -8,14 +8,13 @@ class UpdaterTest(unittest.TestCase):
         setDebug()
         self.config = Config('/etc/myDevices/AppSettings.ini')
         self.updater = Updater(self.config)
+
     def tearDown(self):
         self.updater = None
+
     def testCheckUpdate(self):
         self.updater.CheckUpdate()
         print('After CheckUpdate')
-    # def testStart(self):
-    #     self.updater.start()
-    #     print('After Updater')
 
 def main():
     unittest.main()

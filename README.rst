@@ -1,7 +1,7 @@
 =============
 Cayenne Agent
 =============
-The Cayenne agent is a full featured client for the `Cayenne IoT project builder <https://mydevices.com>`_. It sends system information as well as sensor and actuator date and responds to actuator messages initiated from the Cayenne dashboard and mobile apps. The Cayenne agent currently supports Rasbian on the Raspberry Pi but it can be extended to support additional Linux flavors and other platforms.
+The Cayenne agent is a full featured client for the `Cayenne IoT project builder <https://mydevices.com>`_. It sends system information as well as sensor and actuator data and responds to actuator messages initiated from the Cayenne dashboard and mobile apps. The Cayenne agent currently supports Rasbian on the Raspberry Pi but it can be extended to support additional Linux flavors and other platforms.
 
 ************
 Requirements
