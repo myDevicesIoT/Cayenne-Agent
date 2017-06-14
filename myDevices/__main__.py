@@ -2,7 +2,7 @@ from myDevices.utils.config import Config
 from os import path, getpid, remove
 from myDevices.cloud.client import CloudServerClient
 from myDevices.utils.logger import exception, setDebug, info, debug, error, logToFile, setInfo
-from sys import excepthook, __excepthook__, argv
+from sys import excepthook, __excepthook__, argv, maxsize
 from threading import Thread
 from signal import signal, SIGUSR1, SIGINT
 from resource import getrlimit, setrlimit, RLIMIT_AS
@@ -16,9 +16,9 @@ def setMemoryLimit(rsrc, megs = 200):
     soft, hard = getrlimit(rsrc)
     info ('Limit changed to :'+ str( soft))
 try:
-    #setMemoryLimit(RLIMIT_DATA)
-    #setMemoryLimit(RLIMIT_STACK)
-    setMemoryLimit(RLIMIT_AS)
+    #Only set memory limit on 32-bit systems
+    if maxsize <= 2**32:
+        setMemoryLimit(RLIMIT_AS)
 except Exception as e:
     error('Cannot set limit to memory: ' + str(e))
 
