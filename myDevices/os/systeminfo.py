@@ -1,9 +1,10 @@
+"""
+This module retrieves information about the system, including CPU, RAM, disk and network data.
+"""
+
 import psutil
 import netifaces
-from ctypes import CDLL, c_char_p
-from myDevices.utils.logger import exception, info, warn, error, debug, logJson
-from os import path, getpid
-from json import loads, dumps
+from myDevices.utils.logger import exception
 from myDevices.os.cpu import CpuInfo
 
 
@@ -23,12 +24,11 @@ class SystemInfo():
             system_info['Network'] = self.getNetworkInfo()
         except:
             exception('Error retrieving system info')
-        finally:
-            return system_info
+        return system_info
 
     def getMemoryInfo(self):
         """Get a dict containing the memory info
-        
+
         Returned dict example::
 
             {
@@ -59,13 +59,13 @@ class SystemInfo():
             memory['swap']['total'] = swap.total
             memory['swap']['free'] = swap.free
             memory['swap']['used'] = swap.used
-        except Exception as e:
+        except:
             exception('Error getting memory info')
         return memory
 
     def getUptime(self):
         """Get system uptime as a dict
-        
+
         Returned dict example::
 
             {
@@ -74,21 +74,21 @@ class SystemInfo():
             }
         """
         info = {}
-        uptime      = 0.0
-        idle        = 0.0
+        uptime = 0.0
+        idle = 0.0
         try:
             with open('/proc/uptime', 'r') as f_stat:
                 lines = [line.split(' ') for content in f_stat.readlines() for line in content.split('\n') if line != '']
                 uptime = float(lines[0][0])
                 idle = float(lines[0][1])
-        except Exception as e:
+        except:
             exception('Error getting uptime')
         info['uptime'] = uptime
         return info
 
     def getDiskInfo(self):
         """Get system uptime as a dict
-        
+
         Returned dict example::
 
             {
@@ -132,7 +132,7 @@ class SystemInfo():
 
     def getNetworkInfo(self):
         """Get network information as a dict
-        
+
         Returned dict example::
 
             {
