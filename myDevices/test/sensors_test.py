@@ -63,7 +63,7 @@ class SensorsClientTest(unittest.TestCase):
         for key in compareKeys:
             self.assertEqual(editedSensor[key], retrievedSensor[key])
         #Test removing a sensor
-        retValue = SensorsClientTest.client.DeleteSensor(testSensor['name'])
+        retValue = SensorsClientTest.client.RemoveSensor(testSensor['name'])
         self.assertTrue(retValue)
         deviceNames = [device['name'] for device in SensorsClientTest.client.GetDevices()]
         self.assertNotIn(testSensor['name'], deviceNames)
@@ -82,7 +82,7 @@ class SensorsClientTest(unittest.TestCase):
         retrievedSensorInfo = next(obj for obj in SensorsClientTest.client.SensorsInfo() if obj['name'] == sensors['distance']['name'])
         self.assertEqual(retrievedSensorInfo['float'], 0.0)
         for sensor in sensors.values():
-            self.assertTrue(SensorsClientTest.client.DeleteSensor(sensor['name']))
+            self.assertTrue(SensorsClientTest.client.RemoveSensor(sensor['name']))
 
     def testSystemInfo(self):
         system_info = SensorsClientTest.client.SystemInformation()

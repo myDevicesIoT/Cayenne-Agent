@@ -1,18 +1,19 @@
+"""
+This module provides a class for interfacing with sensors and actuators. It can add, edit and remove
+sensors and actuators as well as monitor their states and execute commands.
+"""
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from time import sleep, time
-from json import loads,dumps
+from json import loads, dumps
 from threading import Thread, RLock
 from myDevices.os import services
-from copy import deepcopy
 from datetime import datetime, timedelta
 from os import path, getpid
 from urllib import parse
-import http.client as httplib
 from myDevices.os.daemon import Daemon
 from myDevices.cloud.dbmanager import DbManager
 from myDevices.os.threadpool import ThreadPool
 from hashlib import sha1
-from http.client import CannotSendRequest
 import urllib.request as req
 from myDevices.utils.version import MAPPING
 from myDevices.devices.bus import checkAllBus, BUSLIST
@@ -26,7 +27,10 @@ REFRESH_FREQUENCY = 0.10 #seconds
 SENSOR_INFO_SLEEP = 0.05
 
 class SensorsClient():
+    """Class for interfacing with sensors and actuators"""
+
     def __init__(self):
+        """Initialize the bus and sensor info and start monitoring sensor states"""
         self.sensorMutex = RLock()
         self.systemMutex = RLock()
         self.continueMonitoring = False
@@ -49,18 +53,28 @@ class SensorsClient():
             for row in results:
                 self.disabledSensors[row[0]] = 1
         self.StartMonitoring()
-    def SetDataChanged(self, onDataChanged = None, onSystemInfo = None):
-        #one parameter only that contains data in a dictionary for changed items only
+
+    def SetDataChanged(self, onDataChanged=None, onSystemInfo=None):
+        """Set callbacks to call when data has changed
+        
+        Args:
+            onDataChanged: Function to call when sensor data changes
+            onSystemInfo: Function to call when system info changes
+        """
         self.onDataChanged = onDataChanged
         self.onSystemInfo = onSystemInfo
+
     def StartMonitoring(self):
+        """Start thread monitoring sensor data"""
         self.continueMonitoring = True
-        #thread = Thread(target = self.Monitor)
-        #thread.start()
         ThreadPool.Submit(self.Monitor)
+
     def StopMonitoring(self):
+        """Stop thread monitoring sensor data"""
         self.continueMonitoring = False
+
     def Monitor(self):
+        """Monitor bus/sensor states and system info and report changed data via callbacks"""
         nextTime = datetime.now()
         nextTimeSystemInfo = datetime.now()
         debug('Monitoring sensors and os resources started')
@@ -77,37 +91,40 @@ class SensorsClient():
                         nextTimeSystemInfo = datetime.now() + timedelta(seconds=5)
                     self.MonitorSensors()
                     self.MonitorBus()
-                    if self.onDataChanged != None:
+                    if self.onDataChanged and self.raspberryValue:
                         self.onDataChanged(self.raspberryValue)
-                    bResult=self.RemoveRefresh(refreshTime)
-                    if bResult == True and self.onSystemInfo != None:
+                    bResult = self.RemoveRefresh(refreshTime)
+                    if bResult and self.onSystemInfo:
                         self.onSystemInfo()
                     self.sensorsRefreshCount += 1
                     nextTime = datetime.now() + timedelta(seconds=REFRESH_FREQUENCY)
                 sleep(REFRESH_FREQUENCY)
             except:
-                exception("Monitoring sensors and os resources failed: " + str() )
+                exception("Monitoring sensors and os resources failed: " + str())
         debug('Monitoring sensors and os resources Finished')
+
     def MonitorSensors(self):
-        if self.continueMonitoring == False:
+        """Check sensor states for changes"""
+        if not self.continueMonitoring:
             return
         debug(str(time()) + ' Get sensors info ' + str(self.sensorsRefreshCount))
         self.SensorsInfo()
         debug(str(time()) + ' Got sensors info ' + str(self.sensorsRefreshCount))
         with self.sensorMutex:
             if self.SHA_Calc(self.currentSensorsInfo) != self.SHA_Calc(self.previousSensorsInfo):
-                #do merge
                 mergedSensors = self.ChangedSensorsList()
                 if self.previousSensorsInfo:
                     del self.previousSensorsInfo
                     self.previousSensorsInfo = None
-                if mergedSensors == None:
+                if mergedSensors is None:
                     self.previousSensorsInfo = self.currentSensorsInfo
                     return
                 self.raspberryValue['SensorsInfo'] = mergedSensors
                 self.previousSensorsInfo = self.currentSensorsInfo
         debug(str(time()) + ' Merge sensors info ' + str(self.sensorsRefreshCount))
+
     def ChangedSensorsList(self):
+        """Return list of changed sensors"""
         if self.continueMonitoring == False:
             return None
         if self.previousSensorsInfo == None:
@@ -125,7 +142,9 @@ class SensorsClient():
             else:
                 changedSensors.append(item)
         return changedSensors
+
     def MonitorBus(self):
+        """Check bus states for changes"""
         if self.continueMonitoring == False:
             return
         debug(str(time()) + ' Get bus info ' + str(self.sensorsRefreshCount))
@@ -133,17 +152,19 @@ class SensorsClient():
         debug(str(time()) + ' Got bus info ' + str(self.sensorsRefreshCount))
         if self.SHA_Calc(self.currentBusInfo) != self.SHA_Calc(self.previousBusInfo):
             self.raspberryValue['BusInfo'] = self.currentBusInfo
-            if self.previousBusInfo: 
+            if self.previousBusInfo:
                 del self.previousBusInfo
                 self.previousBusInfo = None
             self.previousBusInfo = self.currentBusInfo
+
     def MonitorSystemInformation(self):
+        """Check system info for changes"""
         if self.continueMonitoring == False:
             return
         debug(str(time()) + ' Get system info ' + str(self.sensorsRefreshCount))
         self.SystemInformation()
         debug(str(time()) + ' Got system info ' + str(self.sensorsRefreshCount))
-        firstSHA = self.SHA_Calc(self.currentSystemInfo) 
+        firstSHA = self.SHA_Calc(self.currentSystemInfo)
         secondSHA = self.SHA_Calc(self.previousSystemInfo)
         if firstSHA != secondSHA:
             if self.previousSystemInfo:
@@ -151,9 +172,11 @@ class SensorsClient():
                 self.previousSystemInfo = None
             self.previousSystemInfo = self.currentSystemInfo
             self.raspberryValue['SystemInfo'] = self.currentSystemInfo
+
     def SystemInformation(self):
+        """Return dict containing current system info, including CPU, RAM, storage and network info"""
         with self.systemMutex:
-             self.retrievingSystemInfo = True
+            self.retrievingSystemInfo = True
         try:
             systemInfo = SystemInfo()
             newSystemInfo = systemInfo.getSystemInformation()
@@ -162,9 +185,11 @@ class SensorsClient():
         except Exception as ex:
             exception('SystemInformation failed: '+str(ex))
         with self.systemMutex:
-             self.retrievingSystemInfo = False
+            self.retrievingSystemInfo = False
         return self.currentSystemInfo
+
     def SHA_Calc(self, object):
+        """Return SHA value for an object"""
         if object == None:
             return ''
         try:
@@ -173,12 +198,22 @@ class SensorsClient():
             exception('SHA_Calc failed for:' + str(object))
             return ''
         return self.SHA_Calc_str(strVal)
+
     def SHA_Calc_str(self, stringVal):
+        """Return SHA value for a string"""
         m = sha1()
         m.update(stringVal.encode('utf8'))
         sDigest = str(m.hexdigest())
         return sDigest
+
     def AppendToDeviceList(self, device_list, source, device_type):
+        """Append a sensor/actuator device to device list
+
+        Args:
+            device_list: Device list to append device to
+            source: Device to append to list
+            device_type: Type of device
+        """
         device = source.copy()
         del device['origin']
         device['name'] = parse.unquote(device['name'])
@@ -192,7 +227,9 @@ class SensorsClient():
         else:
             device['enabled'] = 1
         device_list.append(device)
+
     def GetDevices(self):
+        """Return a list of current sensor/actuator devices"""
         device_list = manager.getDeviceList()
         devices = []
         for dev in device_list:
@@ -203,9 +240,19 @@ class SensorsClient():
                     for device_type in dev['type']:
                         self.AppendToDeviceList(devices, dev, device_type)
             except:
-                exception ("Failed to get device: {}".format(dev))
+                exception("Failed to get device: {}".format(dev))
         return devices
+
     def CallDeviceFunction(self, func, *args):
+        """Call a function for a sensor/actuator device and format the result value type
+
+        Args:
+            func: Function to call
+            args: Parameters to pass to the function
+
+        Returns:
+            True for success, False otherwise.
+        """
         result = func(*args)
         if result != None:
             if hasattr(func, "contentType"):
@@ -217,7 +264,9 @@ class SensorsClient():
             else:
                 response = result
         return response
+
     def BusInfo(self):
+        """Return a dict with current bus info"""
         json = {}
         for (bus, value) in BUSLIST.items():
             json[bus] = int(value["enabled"])
@@ -230,7 +279,9 @@ class SensorsClient():
         json['GpioMap'] = MAPPING
         self.currentBusInfo = json
         return self.currentBusInfo
+
     def SensorsInfo(self):
+        """Return a dict with current sensor states for all enabled sensors"""
         with self.sensorMutex:
             devices = self.GetDevices()
             debug(str(time()) + ' Got devices info ' + str(self.sensorsRefreshCount))
@@ -244,7 +295,7 @@ class SensorsClient():
                         if value['type'] == 'Temperature':
                             value['Celsius'] = self.CallDeviceFunction(sensor.getCelsius)
                             value['Fahrenheit'] = self.CallDeviceFunction(sensor.getFahrenheit)
-                            value['Kelvin'] =self.CallDeviceFunction(sensor.getKelvin)
+                            value['Kelvin'] = self.CallDeviceFunction(sensor.getKelvin)
                         if value['type'] == 'Pressure':
                             value['Pascal'] = self.CallDeviceFunction(sensor.getPascal)
                         if value['type'] == 'Luminosity':
@@ -259,7 +310,7 @@ class SensorsClient():
                             value['allInteger'] = self.CallDeviceFunction(sensor.analogReadAll)
                             value['allVolt'] = self.CallDeviceFunction(sensor.analogReadAllVolt)
                             value['allFloat'] = self.CallDeviceFunction(sensor.analogReadAllFloat)
-                            if value['type'] in ('DAC'):
+                            if value['type'] in 'DAC':
                                 value['vref'] = self.CallDeviceFunction(sensor.analogReference)
                         if value['type'] == 'PWM':
                             value['channelCount'] = self.CallDeviceFunction(sensor.pwmCount)
@@ -267,8 +318,8 @@ class SensorsClient():
                             value['resolution'] = self.CallDeviceFunction(sensor.pwmResolution)
                             value['all'] = self.CallDeviceFunction(sensor.pwmWildcard)
                         if value['type'] == 'Humidity':
-                            value['float']=self.CallDeviceFunction(sensor.getHumidity)
-                            value['percent']=self.CallDeviceFunction(sensor.getHumidityPercent)
+                            value['float'] = self.CallDeviceFunction(sensor.getHumidity)
+                            value['percent'] = self.CallDeviceFunction(sensor.getHumidityPercent)
                         if value['type'] == 'PiFaceDigital':
                             value['all'] = self.CallDeviceFunction(sensor.readAll)
                         if value['type'] in ('DigitalSensor', 'DigitalActuator'):
@@ -285,7 +336,7 @@ class SensorsClient():
                         if value['type'] == 'AnalogActuator':
                             value['float'] = self.CallDeviceFunction(sensor.readFloat)
                     except:
-                        exception ("Sensor values failed: "+ value['type'] + " " + value['name']) 
+                        exception("Sensor values failed: "+ value['type'] + " " + value['name'])
                 try:
                     if 'hash' in value:
                         value['sensor'] = value['hash']
@@ -302,7 +353,19 @@ class SensorsClient():
         debug(('New sensors info retrieved: {}').format(self.sensorsRefreshCount))
         logJson('Sensors Info updated: ' + str(self.currentSensorsInfo))
         return self.currentSensorsInfo
+
     def AddSensor(self, name, description, device, args):
+        """Add a new sensor/actuator
+   
+        Args:
+            name: Name of sensor to add
+            description: Sensor description
+            device: Sensor device class
+            args: Sensor specific args
+
+        Returns:
+            True for success, False otherwise.
+        """
         info('AddSensor: {}, {}, {}, {}'.format(name, description, device, args))
         bVal = False
         try:
@@ -324,11 +387,23 @@ class SensorsClient():
         except:
             bVal = False
         return bVal
+
     def EditSensor(self, name, description, device, args):
+        """Edit an existing sensor/actuator
+  
+        Args:
+            name: Name of sensor to edit
+            description: New sensor description
+            device: New sensor device class
+            args: New sensor specific args
+
+        Returns:
+            True for success, False otherwise.
+        """
         info('EditSensor: {}, {}, {}, {}'.format(name, description, device, args))
         bVal = False
         try:
-            sensorEdit= {}
+            sensorEdit = {}
             name = req.pathname2url(name)
             sensorEdit['name'] = name
             sensorEdit['device'] = device
@@ -349,7 +424,7 @@ class SensorsClient():
                         sensor['description'] = description
                         raspberryValue['SensorsInfo'] = []
                         raspberryValue['SensorsInfo'].append(sensor)
-                        if self.onDataChanged != None:
+                        if self.onDataChanged:
                             self.onDataChanged(raspberryValue)
             except:
                 pass
@@ -357,10 +432,19 @@ class SensorsClient():
                 bVal = True
                 self.AddRefresh()
         except:
-            exception ("Edit sensor failed") 
+            exception("Edit sensor failed")
             bVal = False
         return bVal
-    def DeleteSensor(self, name):
+
+    def RemoveSensor(self, name):
+        """Remove an existing sensor/actuator
+
+        Args:
+            name: Name of sensor to remove
+
+        Returns:
+            True for success, False otherwise.
+        """
         bVal = False
         try:
             sensorRemove = req.pathname2url(name)
@@ -371,14 +455,20 @@ class SensorsClient():
                 bVal = True
                 self.AddRefresh()
         except:
-            exception ("Remove sensor failed")
+            exception("Remove sensor failed")
             bVal = False
         return bVal
-    def RemoveSensor(self, name):
-        debug('')
-        return self.DeleteSensor(name)
+
     def EnableSensor(self, sensor, enable):
-        #sensor is the hash composed from name and device class/type
+        """Enable a sensor/actuator
+
+        Args:
+            sensor: Hash composed from name and device class/type
+            enable: 1 to enable, 0 to disable
+
+        Returns:
+            True for success, False otherwise.
+        """
         info('Enable sensor: ' + str(sensor) + ' ' + str(enable))
         try:
             if sensor is None:
@@ -402,17 +492,39 @@ class SensorsClient():
             return False
         self.AddRefresh()
         return True
+
     def AddRefresh(self):
+        """Add the time to list of system info changed times"""
         self.systemInfoRefreshList.append(int(time()))
-    def RemoveRefresh(self, newRefresh):
+
+    def RemoveRefresh(self, cutoff):
+        """Remove times from refresh list and check if system info was changed
+
+        Args:
+            cutoff: Cutoff time to use when checking for system info changes
+
+        Returns:
+            True if system info has changed before cutoff, False otherwise.
+        """
         bReturn = False
         for i in self.systemInfoRefreshList:
-            if i < newRefresh:
+            if i < cutoff:
                 self.systemInfoRefreshList.remove(i)
                 bReturn = True
         return bReturn
+
     def GpioCommand(self, commandType, method, channel, value):
-        debug('')
+        """Execute onboard GPIO command
+
+        Args:
+            commandType: Type of command to execute
+            method: 'POST' for setting/writing values, 'GET' for retrieving values
+            channel: GPIO pin
+            value: Value to use for reading/writing data
+
+        Returns:
+            String containing command specific return value on success, or 'failure' on failure
+        """
         info('GpioCommand ' + commandType + ' method ' + method + ' Channel: ' + str(channel) + ' Value: ' + str(value))
         if commandType == 'function':
             if method == 'POST':
@@ -434,18 +546,32 @@ class SensorsClient():
                 debug('portWrite:' + str(value))
                 return str(self.gpio.portWrite(value))
             if method == 'GET':
-                debug('portRead:' )
+                debug('portRead')
                 return str(self.gpio.portRead())
         debug.log('GpioCommand not set')
         return 'failure'
+
     def SensorCommand(self, commandType, sensorName, sensorType, driverClass, method, channel, value):
+        """Execute sensor/actuator command
+
+        Args:
+            commandType: Type of command to execute
+            sensorName: Name of the sensor
+            sensorType: Type of the sensor
+            driverClass: Class of device
+            method: Not currently used
+            channel: Pin/channel on device
+            value: Value to use for sending data
+
+        Returns:
+            Command specific return value on success, False on failure
+        """
         retVal = False
         info('SensorCommand: {} SensorName {} SensorType {} DriverClass {} Method {} Channel {} Value {}'.format(commandType, sensorName, sensorType, driverClass, method, channel, value) )
         try:
             self.AddRefresh()
-            debug('')
-            actuators=('GPIOPort', 'ServoMotor', 'AnalogActuator', 'LoadSensor', 'PiFaceDigital', 'DistanceSensor', 'Thermistor', 'Photoresistor', 'LightDimmer', 'LightSwitch', 'DigitalSensor', 'DigitalActuator', 'MotorSwitch', 'RelaySwitch', 'ValveSwitch', 'MotionSensor')
-            gpioExtensions=('GPIOPort', 'PiFaceDigital')
+            actuators = ('GPIOPort', 'ServoMotor', 'AnalogActuator', 'LoadSensor', 'PiFaceDigital', 'DistanceSensor', 'Thermistor', 'Photoresistor', 'LightDimmer', 'LightSwitch', 'DigitalSensor', 'DigitalActuator', 'MotorSwitch', 'RelaySwitch', 'ValveSwitch', 'MotionSensor')
+            gpioExtensions = ('GPIOPort', 'PiFaceDigital')
             if driverClass is None:
                 hashKey = self.SHA_Calc_str(sensorName+sensorType)
             else:
@@ -491,10 +617,5 @@ class SensorsClient():
                 return retVal
         except Exception as ex:
             exception('SensorCommand failed with: ' +str(ex))
-            pass
-        finally:
-            #looks like this breaks actuators refresh by updating and not sending data changed
-            #then refresh never comes for the specific sensor
-            #ThreadPool.SubmitParam(self.Monitor, hashKey)
-            return retVal
+        return retVal
 

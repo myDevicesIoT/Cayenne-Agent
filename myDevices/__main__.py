@@ -1,28 +1,30 @@
-"""This module is the main entry  """
-from myDevices.utils.config import Config
+"""
+This module is the main entry point for the Cayenne agent. It processes any command line parameters and launches the client.
+"""
 from os import path, getpid, remove
+from sys import __excepthook__, argv, maxsize
+from threading import Thread
+from myDevices.utils.config import Config
 from myDevices.cloud.client import CloudServerClient
 from myDevices.utils.logger import exception, setDebug, info, debug, error, logToFile, setInfo
-from sys import excepthook, __excepthook__, argv, maxsize
-from threading import Thread
 from signal import signal, SIGUSR1, SIGINT
 from resource import getrlimit, setrlimit, RLIMIT_AS
 from myDevices.os.services import ProcessInfo
 from myDevices.os.daemon import Daemon
 
-def setMemoryLimit(rsrc, megs = 200):
+def setMemoryLimit(rsrc, megs=200):
     """Set the memory usage limit for the agent process"""
     size = megs * 1048576
     soft, hard = getrlimit(rsrc)
     setrlimit(rsrc, (size, hard)) #limit to one kilobyte
     soft, hard = getrlimit(rsrc)
-    info ('Limit changed to :'+ str( soft))
+
 try:
     #Only set memory limit on 32-bit systems
     if maxsize <= 2**32:
         setMemoryLimit(RLIMIT_AS)
-except Exception as e:
-    error('Cannot set limit to memory: ' + str(e))
+except Exception as ex:
+    print('Cannot set limit to memory: ' + str(ex))
 
 client = None
 pidfile = '/var/run/myDevices/cayenne.pid'
@@ -49,7 +51,7 @@ def exceptionHook(exc_type, exc_value, exc_traceback):
 
 def threadExceptionHook():
     """Make sure any child threads hook exceptions. This should be called before any threads are created."""
-    debug('Daemon::threadExceptionHook ')
+    debug('Daemon::threadExceptionHook')
     init_original = Thread.__init__
     def init(self, *args, **kwargs):
         init_original(self, *args, **kwargs)
@@ -98,37 +100,33 @@ def main(argv):
     """Main entry point for starting the agent client"""
     global pidfile
     configfile = None
-    scriptfile = None
     logfile = None
-    isDebug = False
     i = 1
     setInfo()
     while i < len(argv):
         if argv[i] in ["-c", "-C", "--config-file"]:
             configfile = argv[i+1]
-            i+=1
+            i += 1
         elif argv[i] in ["-l", "-L", "--log-file"]:
             logfile = argv[i+1]
-            i+=1
+            i += 1
         elif argv[i] in ["-h", "-H", "--help"]:
             displayHelp()
         elif argv[i] in ["-d", "--debug"]:
             setDebug()
         elif argv[i] in ["-P", "--pidfile"]:
             pidfile = argv[i+1]
-            i+=1
-        i+=1
+            i += 1
+        i += 1
     if configfile == None:
         configfile = '/etc/myDevices/Network.ini'
     writePidToFile(pidfile)
     logToFile(logfile)
-    # SET HOST AND PORT
     config = Config(configfile)
-    HOST = config.get('CONFIG','ServerAddress', 'cloud.mydevices.com')
-    PORT = config.getInt('CONFIG','ServerPort', 8181)
+    HOST = config.get('CONFIG', 'ServerAddress', 'cloud.mydevices.com')
+    PORT = config.getInt('CONFIG', 'ServerPort', 8181)
     CayenneApiHost = config.get('CONFIG', 'CayenneApi', 'https://api.mydevices.com')
-    # CREATE SOCKET
-    global client 
+    global client
     client = CloudServerClient(HOST, PORT, CayenneApiHost)
 
 if __name__ == "__main__":

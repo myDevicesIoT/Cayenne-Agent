@@ -127,9 +127,9 @@ To verify that the sensor/actuator works correctly you can test it with the foll
 * Create a new sensor using ``myDevices.sensors.SensorsClient.AddSensor`` using the appropriate device name and any args required by your device.
 * Get the sensor values using ``myDevices.sensors.SensorsClient.SensorsInfo`` and make sure the sensor data is correct.
 * If the new device is an actuator set the actuator value using ``myDevices.sensors.SensorsClient.SensorCommand``.
-* Delete the sensor using ``myDevices.sensors.SensorsClient.DeleteSensor``.
+* Delete the sensor using ``myDevices.sensors.SensorsClient.RemoveSensor``.
 
-An example demonstrating these functions is available in ``myDevices.test.client_test.py``.
+An example demonstrating these functions is available in ``myDevices.test.sensors_test.py``.
 
 *Note:* For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your sensor/actuator code requires root access consider running just that portion of your code via a separate process that can be launched using sudo. For example, the ``myDevices.devices.digital.ds2408`` module uses this method to write data.
 
