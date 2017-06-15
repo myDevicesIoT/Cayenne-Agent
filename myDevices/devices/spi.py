@@ -17,7 +17,7 @@ import array
 import ctypes
 import struct
 
-from myDevices.utils.version import PYTHON_MAJOR
+from sys import version_info
 from myDevices.devices.bus import Bus
 
 # from spi/spidev.h
@@ -120,7 +120,7 @@ class SPI(Bus):
         
     def xfer(self, txbuff=None):
         length = len(txbuff)
-        if PYTHON_MAJOR >= 3:
+        if version_info.major >= 3:
             _txbuff = bytes(txbuff)
             _txptr = ctypes.create_string_buffer(_txbuff)
         else:

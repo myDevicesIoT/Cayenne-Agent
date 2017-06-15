@@ -2,7 +2,6 @@ import unittest
 import os
 import grp
 from myDevices.sensors import sensors
-from myDevices.utils.version import MAPPING
 from myDevices.devices import manager
 from myDevices.utils.config import Config
 from myDevices.utils import types

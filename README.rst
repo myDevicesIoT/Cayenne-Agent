@@ -170,7 +170,7 @@ Hardware Info
   Hardware info, including make, model, etc. is retrieved via ``myDevices.os.hardware.py``. This should be modified or overridden to provide the appropriate hardware info for your board.
 
 Pin Mapping
-  The mapping of the on-board pins is provided in ``myDevices.utils.version.py`` with the ``MAPPING`` list. This list provides the available GPIO pin numbers as well as the voltage ("V33", "V50"), ground ("GND") and do-not-connect ("DNC") pins. This should be updated with the mapping for your board. However, the Cayenne dashboard is currently built to display the Raspberry Pi GPIO layout so if your board's pin layout is significantly different it may not display correctly in the GPIO tab.
+  The mapping of the on-board pins is provided in ``myDevices.os.hardware.py`` with the ``MAPPING`` list. This list provides the available GPIO pin numbers as well as the voltage ("V33", "V50"), ground ("GND") and do-not-connect ("DNC") pins. This should be updated with the mapping for your board. However, the Cayenne dashboard is currently built to display the Raspberry Pi GPIO layout so if your board's pin layout is significantly different it may not display correctly in the GPIO tab.
 
 Settings
 --------

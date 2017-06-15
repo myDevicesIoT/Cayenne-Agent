@@ -15,7 +15,7 @@ from myDevices.cloud.dbmanager import DbManager
 from myDevices.utils.threadpool import ThreadPool
 from hashlib import sha1
 import urllib.request as req
-from myDevices.utils.version import MAPPING
+from myDevices.os.hardware import MAPPING
 from myDevices.devices.bus import checkAllBus, BUSLIST
 from myDevices.devices.digital.gpio import NativeGPIO as GPIO
 from myDevices.devices import manager
