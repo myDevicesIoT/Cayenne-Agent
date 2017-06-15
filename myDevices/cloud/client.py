@@ -13,9 +13,8 @@ from time import strftime, localtime, tzset, time, sleep
 from queue import Queue, Empty
 from enum import Enum, unique
 from myDevices.utils.config import Config
-import myDevices.ipgetter
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
-from myDevices.os import services
+from myDevices.os import services, ipgetter
 from myDevices.sensors import sensors
 from myDevices.os.hardware import Hardware
 from myDevices.wifi import WifiManager
@@ -291,7 +290,7 @@ class CloudServerClient:
             self.pingTimeout = 35
             self.waitPing = 0
             self.lastPing = time()-self.pingRate - 1
-            self.PublicIP = myDevices.ipgetter.myip()
+            self.PublicIP = ipgetter.myip()
             self.hardware = Hardware()
             self.oSInfo = OSInfo()
             self.downloadSpeed = DownloadSpeed(self.config)

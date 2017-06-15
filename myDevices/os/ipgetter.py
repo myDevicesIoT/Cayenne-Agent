@@ -19,8 +19,8 @@ API Usage
     >>> ipgetter.IPgetter().test()
 
     Number of servers: 47
-    IP's :
-    8.8.8.8 = 47 ocurrencies
+    IPs:
+     8.8.8.8 = 47 occurrences
 
 
 Copyright 2014 phoemur@gmail.com
@@ -49,7 +49,6 @@ def myip():
 
 
 class IPgetter(object):
-
     '''
     This class is designed to fetch your external IP address from the internet.
     It is used mostly when behind a NAT.
@@ -108,7 +107,6 @@ class IPgetter(object):
         '''
         This function gets your IP from a random server
         '''
-
         myip = ''
         for i in range(7):
             myip = self.fetch(choice(self.server_list))
@@ -131,7 +129,7 @@ class IPgetter(object):
             url = opener.open(server, timeout=2)
             content = url.read()
 
-            # Didn't want to import chardet. Prefered to stick to stdlib
+            # Didn't want to import chardet. Preferred to stick to stdlib
             if PY3K:
                 try:
                     content = content.decode('UTF-8')
@@ -155,7 +153,6 @@ class IPgetter(object):
         on the list when retrieving your IP.
         All results should be the same.
         '''
-
         resultdict = {}
         for server in self.server_list:
             resultdict.update(**{server: self.fetch(server)})
@@ -163,9 +160,9 @@ class IPgetter(object):
         ips = sorted(resultdict.values())
         ips_set = set(ips)
         print('\nNumber of servers: {}'.format(len(self.server_list)))
-        print("IP's :")
-        for ip, ocorrencia in zip(ips_set, map(lambda x: ips.count(x), ips_set)):
-            print('{0} = {1} ocurrenc{2}'.format(ip if len(ip) > 0 else 'broken server', ocorrencia, 'y' if ocorrencia == 1 else 'ies'))
+        print("IPs:")
+        for ip, occurrence in zip(ips_set, map(lambda x: ips.count(x), ips_set)):
+            print(' {0} = {1} occurrences'.format(ip if len(ip) > 0 else 'broken server', occurrence))
         print('\n')
         print(resultdict)
 
