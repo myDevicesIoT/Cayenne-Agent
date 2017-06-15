@@ -24,7 +24,7 @@ from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
 from myDevices.os.raspiconfig import RaspiConfig
 from myDevices.os.daemon import Daemon
-from myDevices.os.threadpool import ThreadPool
+from myDevices.utils.threadpool import ThreadPool
 from myDevices.utils.history import History
 from select import select
 from hashlib import sha256

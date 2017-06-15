@@ -9,7 +9,7 @@ from time import sleep
 from random import randint
 from socket import error as socket_error
 from myDevices.os.daemon import Daemon
-from myDevices.os.threadpool import ThreadPool
+from myDevices.utils.threadpool import ThreadPool
 
 defaultUrl = "https://updates.mydevices.com/test/10MB.zip"
 download_path = "/etc/myDevices/test"

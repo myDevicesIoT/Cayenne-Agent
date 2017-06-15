@@ -1,7 +1,7 @@
 from myDevices.utils.logger import exception, info, warn, error, debug
 from myDevices.os.services import ServiceManager
 from time import sleep
-from myDevices.os.threadpool import ThreadPool
+from myDevices.utils.threadpool import ThreadPool
 
 CUSTOM_CONFIG_SCRIPT = "/etc/myDevices/scripts/config.sh"
 

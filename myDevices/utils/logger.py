@@ -7,7 +7,7 @@ from os import path, getpid, remove
 from datetime import datetime
 from hashlib import sha256
 import time
-from myDevices.os.threadpool import ThreadPool
+from myDevices.utils.threadpool import ThreadPool
 from glob import iglob
 
 MAX_JSON_ITEMS_PER_CATEGORY = 100

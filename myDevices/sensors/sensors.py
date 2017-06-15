@@ -12,7 +12,7 @@ from os import path, getpid
 from urllib import parse
 from myDevices.os.daemon import Daemon
 from myDevices.cloud.dbmanager import DbManager
-from myDevices.os.threadpool import ThreadPool
+from myDevices.utils.threadpool import ThreadPool
 from hashlib import sha1
 import urllib.request as req
 from myDevices.utils.version import MAPPING
