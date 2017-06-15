@@ -8,7 +8,7 @@ from myDevices.utils.logger import exception, info, warn, error, debug
 from time import sleep
 from random import randint
 from socket import error as socket_error
-from myDevices.os.daemon import Daemon
+from myDevices.utils.daemon import Daemon
 from myDevices.utils.threadpool import ThreadPool
 
 defaultUrl = "https://updates.mydevices.com/test/10MB.zip"

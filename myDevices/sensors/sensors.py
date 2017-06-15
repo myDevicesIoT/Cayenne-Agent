@@ -10,7 +10,7 @@ from myDevices.os import services
 from datetime import datetime, timedelta
 from os import path, getpid
 from urllib import parse
-from myDevices.os.daemon import Daemon
+from myDevices.utils.daemon import Daemon
 from myDevices.cloud.dbmanager import DbManager
 from myDevices.utils.threadpool import ThreadPool
 from hashlib import sha1

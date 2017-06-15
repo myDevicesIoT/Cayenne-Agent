@@ -10,7 +10,7 @@ from myDevices.utils.logger import exception, setDebug, info, debug, error, logT
 from signal import signal, SIGUSR1, SIGINT
 from resource import getrlimit, setrlimit, RLIMIT_AS
 from myDevices.os.services import ProcessInfo
-from myDevices.os.daemon import Daemon
+from myDevices.utils.daemon import Daemon
 
 def setMemoryLimit(rsrc, megs=200):
     """Set the memory usage limit for the agent process"""

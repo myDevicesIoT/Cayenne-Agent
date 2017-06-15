@@ -23,7 +23,7 @@ from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
 from myDevices.os.raspiconfig import RaspiConfig
-from myDevices.os.daemon import Daemon
+from myDevices.utils.daemon import Daemon
 from myDevices.utils.threadpool import ThreadPool
 from myDevices.utils.history import History
 from select import select

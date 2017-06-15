@@ -258,7 +258,7 @@ class ServiceManager:
                 processOutput = None
         except OSError as oserror:
             warn('ServiceManager::ExecuteCommand handled: ' + command + ' Exception:' + str(traceback.format_exc()))
-            from myDevices.os.daemon import Daemon
+            from myDevices.utils.daemon import Daemon
             Daemon.OnFailure('services', oserror.errno)
         except:
             exception('ServiceManager::ExecuteCommand failed: ' + command)
