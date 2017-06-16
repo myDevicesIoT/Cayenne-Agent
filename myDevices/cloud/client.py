@@ -924,7 +924,7 @@ class CloudServerClient:
             try:
                 config_id = parameters["id"]
                 arguments = parameters["arguments"]
-                (retValue, output) = RaspiConfig.Config(config_id, arguments)
+                (retValue, output) = RaspiConfig.ExecuteConfigCommand(config_id, arguments)
                 data["Output"] = output
                 retValue = str(retValue)
             except:
