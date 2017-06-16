@@ -29,7 +29,7 @@ for directory in directories:
       os.chown(directory, user_id, group_id)
 
 setup(name             = 'myDevices',
-      version          = '0.2.0',
+      version          = '0.2.1',
       author           = 'myDevices',
       author_email     = 'N/A',
       description      = 'myDevices Cayenne agent',
