@@ -16,7 +16,7 @@ def setMemoryLimit(rsrc, megs=200):
     """Set the memory usage limit for the agent process"""
     size = megs * 1048576
     soft, hard = getrlimit(rsrc)
-    setrlimit(rsrc, (size, hard)) #limit to one kilobyte
+    setrlimit(rsrc, (size, hard))
     soft, hard = getrlimit(rsrc)
 
 try:

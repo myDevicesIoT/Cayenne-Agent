@@ -1,5 +1,5 @@
 """
-This module provices a class for modifying Raspberry Pi configuration settings.
+This module provides a class for modifying Raspberry Pi configuration settings.
 """
 from myDevices.utils.logger import exception, info, warn, error, debug
 from myDevices.system.services import ServiceManager
