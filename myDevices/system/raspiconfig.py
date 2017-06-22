@@ -56,8 +56,9 @@ class RaspiConfig:
                 values = output.strip().split(' ')
                 configItem['Camera'] = {}
                 for i in values:
-                    val1 = i.split('=')
-                    configItem['Camera'][val1[0]] = int(val1[1])
+                    if '=' in i:
+                        val1 = i.split('=')
+                        configItem['Camera'][val1[0]] = int(val1[1])
             del output
         except:
             exception('Camera config')
