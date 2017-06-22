@@ -17,7 +17,6 @@ def setMemoryLimit(rsrc, megs=200):
     size = megs * 1048576
     soft, hard = getrlimit(rsrc)
     setrlimit(rsrc, (size, hard))
-    soft, hard = getrlimit(rsrc)
 
 try:
     #Only set memory limit on 32-bit systems
