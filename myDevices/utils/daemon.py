@@ -4,7 +4,7 @@ This module provides a class for restarting the agent if errors occur and exitin
 from sys import exit
 from datetime import datetime
 from myDevices.utils.logger import exception, info, warn, error, debug
-from myDevices.os.services import ServiceManager
+from myDevices.system.services import ServiceManager
 
 #defining reset timeout in seconds
 RESET_TIMEOUT = 30

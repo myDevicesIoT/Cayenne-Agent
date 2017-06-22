@@ -1,5 +1,5 @@
 import unittest
-from myDevices.os.systeminfo import SystemInfo
+from myDevices.system.systeminfo import SystemInfo
 from myDevices.utils.logger import setInfo, info
 
 

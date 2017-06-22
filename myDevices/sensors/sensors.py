@@ -6,7 +6,7 @@ from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from time import sleep, time
 from json import loads, dumps
 from threading import Thread, RLock
-from myDevices.os import services
+from myDevices.system import services
 from datetime import datetime, timedelta
 from os import path, getpid
 from urllib import parse
@@ -15,13 +15,13 @@ from myDevices.cloud.dbmanager import DbManager
 from myDevices.utils.threadpool import ThreadPool
 from hashlib import sha1
 import urllib.request as req
-from myDevices.os.hardware import MAPPING
+from myDevices.system.hardware import MAPPING
 from myDevices.devices.bus import checkAllBus, BUSLIST
 from myDevices.devices.digital.gpio import NativeGPIO as GPIO
 from myDevices.devices import manager
 from myDevices.devices import instance
 from myDevices.utils.types import M_JSON
-from myDevices.os.systeminfo import SystemInfo
+from myDevices.system.systeminfo import SystemInfo
 
 REFRESH_FREQUENCY = 0.10 #seconds
 SENSOR_INFO_SLEEP = 0.05

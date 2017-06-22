@@ -5,7 +5,7 @@ This module retrieves information about the system, including CPU, RAM, disk and
 import psutil
 import netifaces
 from myDevices.utils.logger import exception
-from myDevices.os.cpu import CpuInfo
+from myDevices.system.cpu import CpuInfo
 
 
 class SystemInfo():

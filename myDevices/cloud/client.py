@@ -14,14 +14,14 @@ from queue import Queue, Empty
 from enum import Enum, unique
 from myDevices.utils.config import Config
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
-from myDevices.os import services, ipgetter
+from myDevices.system import services, ipgetter
 from myDevices.sensors import sensors
-from myDevices.os.hardware import Hardware
+from myDevices.system.hardware import Hardware
 from myDevices.wifi import WifiManager
 from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
-from myDevices.os.raspiconfig import RaspiConfig
+from myDevices.system.raspiconfig import RaspiConfig
 from myDevices.utils.daemon import Daemon
 from myDevices.utils.threadpool import ThreadPool
 from myDevices.utils.history import History

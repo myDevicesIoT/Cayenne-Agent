@@ -17,7 +17,7 @@ import time
 import subprocess
 
 from myDevices.utils.logger import debug, info
-from myDevices.os.version import OS_VERSION, OS_RASPBIAN_JESSIE, OS_RASPBIAN_WHEEZY
+from myDevices.system.version import OS_VERSION, OS_RASPBIAN_JESSIE, OS_RASPBIAN_WHEEZY
 
 BUSLIST = {
     "I2C": {

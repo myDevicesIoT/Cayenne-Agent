@@ -1,7 +1,7 @@
 from myDevices.utils.logger import exception, info, warn, error, debug, setDebug
 from time import time, sleep
 from sched import scheduler
-from myDevices.os import services
+from myDevices.system import services
 from distutils.version import LooseVersion, StrictVersion
 from os import mkdir, path
 from threading import Thread

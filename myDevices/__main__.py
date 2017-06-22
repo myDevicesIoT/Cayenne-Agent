@@ -9,7 +9,7 @@ from myDevices.cloud.client import CloudServerClient
 from myDevices.utils.logger import exception, setDebug, info, debug, error, logToFile, setInfo
 from signal import signal, SIGUSR1, SIGINT
 from resource import getrlimit, setrlimit, RLIMIT_AS
-from myDevices.os.services import ProcessInfo
+from myDevices.system.services import ProcessInfo
 from myDevices.utils.daemon import Daemon
 
 def setMemoryLimit(rsrc, megs=200):

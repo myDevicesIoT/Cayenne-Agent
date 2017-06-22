@@ -1,6 +1,6 @@
 import unittest
 from myDevices.utils.logger import setInfo, info
-from myDevices.os.hardware import Hardware, MAPPING, BOARD_REVISION, CPU_REVISION
+from myDevices.system.hardware import Hardware, MAPPING, BOARD_REVISION, CPU_REVISION
 
 class HarwareTest(unittest.TestCase):
     def setUp(self):

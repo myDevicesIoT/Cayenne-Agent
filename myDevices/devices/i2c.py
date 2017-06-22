@@ -14,7 +14,7 @@
 
 import fcntl
 
-from myDevices.os.hardware import BOARD_REVISION
+from myDevices.system.hardware import BOARD_REVISION
 from myDevices.devices.bus import Bus
 
 # /dev/i2c-X ioctl commands.  The ioctl's parameter is always an

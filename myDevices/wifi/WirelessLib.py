@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 import subprocess
 from time import sleep
-from myDevices.os.services import ServiceManager
+from myDevices.system.services import ServiceManager
 
 # send a command to the shell and return the result
 def cmd(cmd):

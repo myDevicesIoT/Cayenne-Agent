@@ -1,7 +1,7 @@
 from myDevices.wifi.WirelessLib import Wireless
 from json import dumps, loads, JSONEncoder, JSONDecoder
 from myDevices.utils.logger import exception, info, warn, error, debug
-from myDevices.os.services import ServiceManager
+from myDevices.system.services import ServiceManager
 
 class Network():
     def GetNetworkId():

@@ -2,7 +2,7 @@
 This module provices a class for modifying Raspberry Pi configuration settings.
 """
 from myDevices.utils.logger import exception, info, warn, error, debug
-from myDevices.os.services import ServiceManager
+from myDevices.system.services import ServiceManager
 from time import sleep
 from myDevices.utils.threadpool import ThreadPool
 

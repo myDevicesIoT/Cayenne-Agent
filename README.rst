@@ -164,19 +164,19 @@ System info
 Information about the device, including CPU, RAM, etc., is currently retrieved via a few different modules. To support a different board you may need to update the agent code for the following items, if applicable:
 
 General System Info
-  General system info, including CPU, RAM, memory, etc. is retrieved via ``myDevices.os.systeminfo.py`` and ``myDevices.os.cpu.py``. These are mostly implemented using cross platform libraries so they may already provide support for your board. If not, they should be modified or overridden to provide the appropriate system info. If your board does not support all the data values currently implemented you can just provide default values where necessary, though this may affect the data display in the Cayenne dashboard.
+  General system info, including CPU, RAM, memory, etc. is retrieved via ``myDevices.system.systeminfo.py`` and ``myDevices.system.cpu.py``. These are mostly implemented using cross platform libraries so they may already provide support for your board. If not, they should be modified or overridden to provide the appropriate system info. If your board does not support all the data values currently implemented you can just provide default values where necessary, though this may affect the data display in the Cayenne dashboard.
 
 Hardware Info
-  Hardware info, including make, model, etc. is retrieved via ``myDevices.os.hardware.py``. This should be modified or overridden to provide the appropriate hardware info for your board.
+  Hardware info, including make, model, etc. is retrieved via ``myDevices.system.hardware.py``. This should be modified or overridden to provide the appropriate hardware info for your board.
 
 Pin Mapping
-  The mapping of the on-board pins is provided in ``myDevices.os.hardware.py`` with the ``MAPPING`` list. This list provides the available GPIO pin numbers as well as the voltage ("V33", "V50"), ground ("GND") and do-not-connect ("DNC") pins. This should be updated with the mapping for your board. However, the Cayenne dashboard is currently built to display the Raspberry Pi GPIO layout so if your board's pin layout is significantly different it may not display correctly in the GPIO tab.
+  The mapping of the on-board pins is provided in ``myDevices.system.hardware.py`` with the ``MAPPING`` list. This list provides the available GPIO pin numbers as well as the voltage ("V33", "V50"), ground ("GND") and do-not-connect ("DNC") pins. This should be updated with the mapping for your board. However, the Cayenne dashboard is currently built to display the Raspberry Pi GPIO layout so if your board's pin layout is significantly different it may not display correctly in the GPIO tab.
 
 Settings
 --------
-Currently the Raspberry Pi agent has settings for enabling/disabling the device tree, SPI, I²C, serial and camera. These are set via the ``myDevices.os.raspiconfig`` module which runs a separate Bash script at ``/etc/myDevices/scripts/config.sh``. If any of these settings are available on your board and you would like to support them you can override or replace ``myDevices.os.raspiconfig.py``. Otherwise the settings functionality can be ignored.
+Currently the Raspberry Pi agent has settings for enabling/disabling the device tree, SPI, I²C, serial and camera. These are set via the ``myDevices.system.raspiconfig`` module which runs a separate Bash script at ``/etc/myDevices/scripts/config.sh``. If any of these settings are available on your board and you would like to support them you can override or replace ``myDevices.system.raspiconfig.py``. Otherwise the settings functionality can be ignored.
 
-*Note:* For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your I/O, system info or settings code requires root access consider running it via a separate process that can be launched using sudo. For example, the ``myDevices.os.raspiconfig`` module uses this method to update config settings.
+*Note:* For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your I/O, system info or settings code requires root access consider running it via a separate process that can be launched using sudo. For example, the ``myDevices.system.raspiconfig`` module uses this method to update config settings.
 
 ************
 Contributing
