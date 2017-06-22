@@ -17,7 +17,7 @@ import time
 import subprocess
 
 from myDevices.utils.logger import debug, info
-from myDevices.system.version import OS_VERSION, OS_RASPBIAN_JESSIE, OS_RASPBIAN_WHEEZY
+from myDevices.system.version import OS_VERSION, OS_JESSIE, OS_WHEEZY
 
 BUSLIST = {
     "I2C": {
@@ -29,7 +29,7 @@ BUSLIST = {
     "SPI": {
         "enabled": False,
         "gpio": {7:"CE1", 8:"CE0", 9:"MISO", 10:"MOSI", 11:"SCLK"},
-        "modules": ["spi-bcm2708" if OS_VERSION == OS_RASPBIAN_WHEEZY else "spi-bcm2835"]
+        "modules": ["spi-bcm2708" if OS_VERSION == OS_WHEEZY else "spi-bcm2835"]
     },
 
     "UART": {
