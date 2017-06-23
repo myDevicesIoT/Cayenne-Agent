@@ -28,7 +28,8 @@ class HarwareTest(unittest.TestCase):
 
     def testBoardRevision(self):
         info(BOARD_REVISION)
-        self.assertNotEqual(BOARD_REVISION, 0)
+        self.assertGreaterEqual(BOARD_REVISION, 0)
+        self.assertLessEqual(BOARD_REVISION, 3)
 
     def testCpuRevision(self):
         info(CPU_REVISION)
