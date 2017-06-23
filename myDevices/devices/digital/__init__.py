@@ -47,13 +47,13 @@ class GPIOPort():
     def __setFunction__(self, channel, func):
         raise NotImplementedError
     
-    def __digitalRead__(self, chanel):
+    def __digitalRead__(self, channel):
         raise NotImplementedError
         
     def __portRead__(self):
         raise NotImplementedError
     
-    def __digitalWrite__(self, chanel, value):
+    def __digitalWrite__(self, channel, value):
         raise NotImplementedError
         
     def __portWrite__(self, value):

@@ -16,61 +16,69 @@ import os
 import mmap
 from time import sleep
 from myDevices.utils.types import M_JSON
-from myDevices.utils.logger import debug, info, error
+from myDevices.utils.logger import debug, info, error, exception
 from myDevices.devices.digital import GPIOPort
 from myDevices.decorators.rest import request, response
+from myDevices.system.hardware import MAPPING
+try:
+    import ASUS.GPIO as gpio_library
+except:
+    gpio_library = None
 
 FSEL_OFFSET = 0 # 0x0000
 PINLEVEL_OFFSET = 13 # 0x0034 / 4
 
 BLOCK_SIZE = (4*1024)
 
-GPIO_COUNT  = 54
 FUNCTIONS   = ["IN", "OUT", "ALT5", "ALT4", "ALT0", "ALT1", "ALT2", "ALT3", "PWM"]
 
 class NativeGPIO(GPIOPort):
-    GPIO_COUNT      = 54
+    IN = 0
+    OUT = 1
+    ALT5 = 2
+    ALT4 = 3
+    ALT0 = 4
+    ALT1 = 5
+    ALT2 = 6
+    ALT3 = 7
+    PWM = 8
 
-    IN              = 0
-    OUT		        = 1
-    ALT5	        = 2
-    ALT4	        = 3
-    ALT0	        = 4
-    ALT1	        = 5
-    ALT2	        = 6
-    ALT3	        = 7
-    PWM		        = 8
+    ASUS_GPIO = 44
 
-    LOW		        = 0
-    HIGH	        = 1
+    LOW = 0
+    HIGH = 1
 
-    PUD_OFF	        = 0
-    PUD_DOWN	    = 1
-    PUD_UP	        = 2
+    PUD_OFF = 0
+    PUD_DOWN = 1
+    PUD_UP = 2
 
-    RATIO	        = 1
-    ANGLE	        = 2
-    instance        = None
+    RATIO = 1
+    ANGLE = 2
+    instance = None
 
     def __init__(self):
         if not NativeGPIO.instance:
-            GPIOPort.__init__(self, 54)
-            self.export = range(54)
+            self.pins = [pin for pin in MAPPING if type(pin) is int]
+            GPIOPort.__init__(self, max(self.pins) + 1)
             self.post_value = True
             self.post_function = True
             self.gpio_setup = []
             self.gpio_reset = []
-            self.valueFile = [0 for i in range(54)]
-            self.functionFile = [0 for i in range(54)]
-            for i in range(54):
+            self.gpio_map = None
+            self.valueFile = {pin:0 for pin in self.pins}
+            self.functionFile = {pin:0 for pin in self.pins}
+            for pin in self.pins:
                 # Export the pins here to prevent a delay when accessing the values for the 
                 # first time while waiting for the file group to be set
-                self.__checkFilesystemExport__(i)
-            try:
-                with open('/dev/gpiomem', 'rb') as gpiomem:
-                    self.gpio_map = mmap.mmap(gpiomem.fileno(), BLOCK_SIZE, prot=mmap.PROT_READ)
-            except OSError as err:
-                error(err)
+                self.__checkFilesystemExport__(pin)
+            if gpio_library:
+                gpio_library.setmode(gpio_library.ASUS)
+            else:
+                try:
+                    with open('/dev/gpiomem', 'rb') as gpiomem:
+                        self.gpio_map = mmap.mmap(gpiomem.fileno(), BLOCK_SIZE, prot=mmap.PROT_READ)
+                except OSError as err:
+                    error(err)
             NativeGPIO.instance = self
 
     def __del__(self):
@@ -139,7 +147,7 @@ class NativeGPIO(GPIOPort):
                 self.__digitalWrite__(gpio, g["value"])
 
     def checkDigitalChannelExported(self, channel):
-        if not channel in self.export:
+        if not channel in self.pins:
             raise Exception("Channel %d is not allowed" % channel)
 
     def checkPostingFunctionAllowed(self):
@@ -235,14 +243,20 @@ class NativeGPIO(GPIOPort):
         self.__checkFilesystemFunction__(channel)
         self.checkDigitalChannelExported(channel)
         try:
+            if gpio_library:
+                value = gpio_library.gpio_function(channel)
+                # If this is not a GPIO function return it, otherwise check the function file to see
+                # if it is an IN or OUT pin since the ASUS library doesn't provide that info.
+                if value != self.ASUS_GPIO:
+                    return value
             r = self.functionFile[channel].read()
             self.functionFile[channel].seek(0)
-            if (r.startswith("out")):
+            if r.startswith("out"):
                 return self.OUT
             else:
                 return self.IN
         except Exception as ex:
-            #error('Failed on __getFunction__: '+  str(channel) + ' ' + str(ex))
+            # error('Failed on __getFunction__: '+  str(channel) + ' ' + str(ex))
             return -1
 
     def __setFunction__(self, channel, value):
@@ -261,13 +275,13 @@ class NativeGPIO(GPIOPort):
 
     def __portRead__(self):
         value = 0
-        for i in self.export:
+        for i in self.pins:
             value |= self.__digitalRead__(i) << i
         return value
 
     def __portWrite__(self, value):
-        if len(self.export) < 54:
-            for i in self.export:
+        if len(self.pins) <= value.bit_length():
+            for i in self.pins:
                 if self.getFunction(i) == self.OUT:
                     self.__digitalWrite__(i, (value >> i) & 1)
         else:
@@ -284,7 +298,7 @@ class NativeGPIO(GPIOPort):
             v = "value"
 
         values = {}
-        for i in self.export:
+        for i in self.pins:
             if compact:
                 func = self.getFunction(i)
             else:
@@ -297,10 +311,12 @@ class NativeGPIO(GPIOPort):
     
     def getFunctionString(self, channel):
         f = self.getFunction(channel)
-        try:
-            function_string = FUNCTIONS[f]
-        except:
-            function_string = 'UNKNOWN'
+        function_string = 'UNKNOWN'
+        if f >= 0:
+            try:
+                function_string = FUNCTIONS[f]
+            except:
+                pass
         return function_string
 
     def input(self, channel):

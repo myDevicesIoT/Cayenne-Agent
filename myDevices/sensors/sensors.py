@@ -270,12 +270,13 @@ class SensorsClient():
         json = {}
         for (bus, value) in BUSLIST.items():
             json[bus] = int(value["enabled"])
-        gpios = {}
-        for gpio in range(GPIO.GPIO_COUNT):
-            gpios[gpio] = {}
-            gpios[gpio]['function'] = self.gpio.getFunctionString(gpio)
-            gpios[gpio]['value'] = int(self.gpio.input(gpio))
-        json['GPIO'] = gpios
+        pin_states = {}
+        pins = [pin for pin in MAPPING if type(pin) is int]
+        for pin in pins:
+            pin_states[pin] = {}
+            pin_states[pin]['function'] = self.gpio.getFunctionString(pin)
+            pin_states[pin]['value'] = int(self.gpio.input(pin))
+        json['GPIO'] = pin_states
         json['GpioMap'] = MAPPING
         self.currentBusInfo = json
         return self.currentBusInfo
