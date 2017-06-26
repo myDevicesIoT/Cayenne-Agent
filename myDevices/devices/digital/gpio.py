@@ -14,6 +14,7 @@
 
 import os
 import mmap
+import subprocess
 from time import sleep
 from myDevices.utils.types import M_JSON
 from myDevices.utils.logger import debug, info, error, exception
@@ -54,6 +55,9 @@ class NativeGPIO(GPIOPort):
 
     RATIO = 1
     ANGLE = 2
+
+    DIRECTION_FILE = "/sys/class/gpio/gpio%s/direction"
+
     instance = None
 
     def __init__(self):
@@ -65,8 +69,8 @@ class NativeGPIO(GPIOPort):
             self.gpio_setup = []
             self.gpio_reset = []
             self.gpio_map = None
-            self.valueFile = {pin:0 for pin in self.pins}
-            self.functionFile = {pin:0 for pin in self.pins}
+            self.valueFile = {pin:None for pin in self.pins}
+            self.functionFile = {pin:None for pin in self.pins}
             for pin in self.pins:
                 # Export the pins here to prevent a delay when accessing the values for the 
                 # first time while waiting for the file group to be set
@@ -84,6 +88,12 @@ class NativeGPIO(GPIOPort):
     def __del__(self):
         if self.gpio_map:
             self.gpio_map.close()
+        for value in self.valueFile.values():
+            if value:
+                value.close()
+        for value in self.functionFile.values():
+            if value:
+                value.close()
 
     class SetupException(BaseException):
         pass
@@ -157,6 +167,12 @@ class NativeGPIO(GPIOPort):
     def checkPostingValueAllowed(self):
         if not self.post_value:
             raise ValueError("POSTing value to native GPIO not allowed")
+    
+    def __getFunctionFilePath__(self, channel):
+        return "/sys/class/gpio/gpio%s/direction" % channel
+
+    def __getValueFilePath__(self, channel):
+        return "/sys/class/gpio/gpio%s/value" % channel
 
     def __checkFilesystemExport__(self, channel):
         #debug("checkExport for channel %d" % channel)
@@ -166,19 +182,19 @@ class NativeGPIO(GPIOPort):
                 with open("/sys/class/gpio/export", "a") as f:
                     f.write("%s" % channel)
             except Exception as ex:
-                #error('Failed on __checkFilesystemExport__: ' + str(channel) + ' ' + str(ex))
+                error('Failed on __checkFilesystemExport__: ' + str(channel) + ' ' + str(ex))
                 return False
         return True
 
     def __checkFilesystemFunction__(self, channel):
-        if self.functionFile[channel] == 0:
+        if not self.functionFile[channel]:
             #debug("function file %d not open" %channel)
             valRet = self.__checkFilesystemExport__(channel)
             if not valRet:
                 return
             for i in range(10):
                 try:
-                    self.functionFile[channel] = open("/sys/class/gpio/gpio%s/direction" % channel, "w+")
+                    self.functionFile[channel] = open(self.__getFunctionFilePath__(channel), "w+")
                     break
                 except PermissionError:
                     # Try again since the file group might not have been set to the gpio group
@@ -187,14 +203,14 @@ class NativeGPIO(GPIOPort):
             
 
     def __checkFilesystemValue__(self, channel):
-        if self.valueFile[channel] == 0:
+        if not self.valueFile[channel]:
             #debug("value file %d not open" %channel)
             valRet = self.__checkFilesystemExport__(channel)
             if not valRet:
                 return
             for i in range(10):
                 try:
-                    self.valueFile[channel] = open("/sys/class/gpio/gpio%s/value" % channel, "w+")
+                    self.valueFile[channel] = open(self.__getValueFilePath__(channel), "w+")
                     break
                 except PermissionError:
                     # Try again since the file group might not have been set to the gpio group
@@ -220,12 +236,16 @@ class NativeGPIO(GPIOPort):
         #self.checkDigitalChannelExported(channel)
         #self.checkPostingValueAllowed()
         try:
-            if (value == 1):
-                self.valueFile[channel].write('1')
+            if value == 1:
+                value = '1'
             else:
-                self.valueFile[channel].write('0')
-            self.valueFile[channel].seek(0)
-            pass
+                value = '0'
+            try:
+                self.valueFile[channel].write('1')
+                self.valueFile[channel].seek(0)
+            except:
+                command = 'sudo python3 -m myDevices.devices.writevalue -f {} -v {}'.format(self.__getValueFilePath__(channel), value)
+                subprocess.call(command.split())
         except:
             pass
 
@@ -264,13 +284,18 @@ class NativeGPIO(GPIOPort):
         self.checkDigitalChannelExported(channel)
         self.checkPostingFunctionAllowed()
         try:
-            if (value == self.IN):
-                self.functionFile[channel].write("in")
+            if value == self.IN:
+                value = 'in'
             else:
-                self.functionFile[channel].write("out")
-            self.functionFile[channel].seek(0)
+                value = 'out'
+            try:               
+                self.functionFile[channel].write(value)
+                self.functionFile[channel].seek(0)
+            except:
+                command = 'sudo python3 -m myDevices.devices.writevalue -f {} -v {}'.format(self.__getFunctionFilePath__(channel), value)
+                subprocess.call(command.split())
         except Exception as ex:
-            error('Failed on __setFunction__: ' + str(channel) + ' ' + str(ex))
+            exception('Failed on __setFunction__: ' + str(channel) + ' ' + str(ex))
             pass
 
     def __portRead__(self):
