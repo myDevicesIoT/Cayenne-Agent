@@ -193,6 +193,7 @@ class SensorsClient():
             device['enabled'] = 1
         device_list.append(device)
     def GetDevices(self):
+        manager.deviceDetector()
         device_list = manager.getDeviceList()
         devices = []
         for dev in device_list:
