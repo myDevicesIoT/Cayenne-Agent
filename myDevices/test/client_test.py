@@ -70,6 +70,7 @@ class SensorsClientTest(unittest.TestCase):
 
     def testSensorInfo(self):
         sensors = {'actuator' : {'description': 'Digital Output', 'device': 'DigitalActuator', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': 16}, 'name': 'test_actuator'},
+                   'light_switch' : {'description': 'Light Switch', 'device': 'LightSwitch', 'args': {'gpio': 'GPIO', 'invert': True, 'channel': 15}, 'name': 'test_light_switch'},
                    'MCP3004' : {'description': 'MCP3004', 'device': 'MCP3004', 'args': {'chip': '0'}, 'name': 'test_MCP3004'},
                    'distance' : {'description': 'Analog Distance Sensor', 'device': 'DistanceSensor', 'args': {'adc': 'test_MCP3004', 'channel': 0}, 'name': 'test_distance'}}
         for sensor in sensors.values():
@@ -78,6 +79,8 @@ class SensorsClientTest(unittest.TestCase):
         #Test setting sensor values
         self.setSensorValue(sensors['actuator'], 1)
         self.setSensorValue(sensors['actuator'], 0)
+        self.setSensorValue(sensors['light_switch'], 1)
+        self.setSensorValue(sensors['light_switch'], 0)
         #Test getting analog value
         retrievedSensorInfo = next(obj for obj in SensorsClientTest.client.SensorsInfo() if obj['name'] == sensors['distance']['name'])
         self.assertEqual(retrievedSensorInfo['float'], 0.0)
