@@ -80,7 +80,6 @@ class GPIOPort():
         self.__setFunction__(channel, value)
         return self.__getFunction__(channel)
 
-
     #@request("POST", "%(channel)d/function/%(value)s")
     def setFunctionString(self, channel, value):
         value = value.lower()
@@ -93,7 +92,6 @@ class GPIOPort():
         else:
             raise ValueError("Bad Function")
         return self.getFunctionString(channel)
-
 
     #@request("GET", "%(channel)d/value")
     @response("%d")

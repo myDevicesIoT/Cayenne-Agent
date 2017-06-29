@@ -20,8 +20,8 @@ from myDevices.utils.types import M_JSON
 from myDevices.utils.logger import debug, info, error, exception
 from myDevices.devices.digital import GPIOPort
 from myDevices.decorators.rest import request, response
-from myDevices.system.hardware import MAPPING
-from myDevices.system.services import ServiceManager
+from myDevices.system.hardware import BOARD_REVISION, CPU_REVISION
+from myDevices.utils.subprocess import executeCommand
 try:
     import ASUS.GPIO as gpio_library
 except:
@@ -49,13 +49,14 @@ class NativeGPIO(GPIOPort):
     RATIO = 1
     ANGLE = 2
 
-    DIRECTION_FILE = "/sys/class/gpio/gpio%s/direction"
+    MAPPING = []
 
     instance = None
 
     def __init__(self):
         if not NativeGPIO.instance:
-            self.pins = [pin for pin in MAPPING if type(pin) is int]
+            self.setPinMapping()
+            self.pins = [pin for pin in self.MAPPING if type(pin) is int]
             GPIOPort.__init__(self, max(self.pins) + 1)
             self.post_value = True
             self.post_function = True
@@ -267,7 +268,7 @@ class NativeGPIO(GPIOPort):
                 if os.geteuid() == 0:
                     value = gpio_library.gpio_function(channel)
                 else:
-                    value, error = ServiceManager.ExecuteCommand('sudo python3 -m myDevices.devices.readvalue -c {}'.format(channel))
+                    value, error = executeCommand('sudo python3 -m myDevices.devices.readvalue -c {}'.format(channel))
                     return int(value.splitlines()[0])
                 # If this is not a GPIO function return it, otherwise check the function file to see
                 # if it is an IN or OUT pin since the ASUS library doesn't provide that info.
@@ -321,7 +322,7 @@ class NativeGPIO(GPIOPort):
     def wildcard(self, compact=False):
         if gpio_library and os.geteuid() != 0:
             #If not root on an ASUS device get the pin states as root
-            value, error = ServiceManager.ExecuteCommand('sudo python3 -m myDevices.devices.readvalue --pins')
+            value, error = executeCommand('sudo python3 -m myDevices.devices.readvalue --pins')
             value = value.splitlines()[0]
             import json
             return json.loads(value)
@@ -353,4 +354,15 @@ class NativeGPIO(GPIOPort):
                 function_string = functions[f]
             except:
                 pass
-        return function_string        
+        return function_string
+
+    def setPinMapping(self):
+        if CPU_REVISION == "0000":
+            self.MAPPING = ["V33", "V50", 252, "V50", 253, "GND", 17, 161, "GND", 160, 164, 184, 166, "GND", 167, 162, "V33", 163, 257, "GND", 256, 171, 254, 255, "GND", 251, "DNC", "DNC" , 165, "GND", 168, 239, 238, "GND", 185, 223, 224, 187, "GND", 188]
+        else:
+            if BOARD_REVISION == 1:
+                self.MAPPING = ["V33", "V50", 0, "V50", 1, "GND", 4, 14, "GND", 15, 17, 18, 21, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
+            elif BOARD_REVISION == 2:
+                self.MAPPING = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
+            elif BOARD_REVISION == 3:
+                self.MAPPING = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7, "DNC", "DNC" , 5, "GND", 6, 12, 13, "GND", 19, 16, 26, 20, "GND", 21]

@@ -1,6 +1,6 @@
 import unittest
 from myDevices.utils.logger import setInfo, info
-from myDevices.system.hardware import Hardware, MAPPING, BOARD_REVISION, CPU_REVISION
+from myDevices.system.hardware import Hardware, BOARD_REVISION, CPU_REVISION
 
 class HarwareTest(unittest.TestCase):
     def setUp(self):
@@ -21,10 +21,6 @@ class HarwareTest(unittest.TestCase):
         mac = self.hardware.getMac()
         info(mac)
         self.assertRegex(mac, '^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$')
-
-    def testMapping(self):
-        info(MAPPING)
-        self.assertTrue(MAPPING)
 
     def testBoardRevision(self):
         info(BOARD_REVISION)
