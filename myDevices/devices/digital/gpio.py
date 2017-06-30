@@ -20,7 +20,7 @@ from myDevices.utils.types import M_JSON
 from myDevices.utils.logger import debug, info, error, exception
 from myDevices.devices.digital import GPIOPort
 from myDevices.decorators.rest import request, response
-from myDevices.system.hardware import BOARD_REVISION, CPU_REVISION
+from myDevices.system.hardware import BOARD_REVISION, Hardware
 from myDevices.utils.subprocess import executeCommand
 try:
     import ASUS.GPIO as gpio_library
@@ -63,6 +63,7 @@ class NativeGPIO(GPIOPort):
             self.gpio_setup = []
             self.gpio_reset = []
             self.gpio_map = None
+            self.pinFunctionSet = set()
             self.valueFile = {pin:None for pin in self.pins}
             self.functionFile = {pin:None for pin in self.pins}
             for pin in self.pins:
@@ -264,7 +265,11 @@ class NativeGPIO(GPIOPort):
         self.__checkFilesystemFunction__(channel)
         self.checkDigitalChannelExported(channel)
         try:
-            if gpio_library:
+            # If we haven't already set the channel function on an ASUS device, we use the GPIO 
+            # library to get the function. Otherwise we just fall through and read the file itself
+            # since we can assume the pin is a GPIO pin and reading the function file is quicker
+            #  than launching a separate process.
+            if gpio_library and channel not in self.pinFunctionSet:
                 if os.geteuid() == 0:
                     value = gpio_library.gpio_function(channel)
                 else:
@@ -299,6 +304,7 @@ class NativeGPIO(GPIOPort):
             except:
                 command = 'sudo python3 -m myDevices.devices.writevalue -f {} -t {}'.format(self.__getFunctionFilePath__(channel), value)
                 subprocess.call(command.split())
+            self.pinFunctionSet.add(channel)
         except Exception as ex:
             exception('Failed on __setFunction__: ' + str(channel) + ' ' + str(ex))
             pass
@@ -357,7 +363,7 @@ class NativeGPIO(GPIOPort):
         return function_string
 
     def setPinMapping(self):
-        if CPU_REVISION == "0000":
+        if Hardware().getModel() == 'Tinker Board':
             self.MAPPING = ["V33", "V50", 252, "V50", 253, "GND", 17, 161, "GND", 160, 164, 184, 166, "GND", 167, 162, "V33", 163, 257, "GND", 256, 171, 254, 255, "GND", 251, "DNC", "DNC" , 165, "GND", 168, 239, 238, "GND", 185, 223, 224, 187, "GND", 188]
         else:
             if BOARD_REVISION == 1:
