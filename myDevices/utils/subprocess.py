@@ -1,3 +1,6 @@
+"""
+This module contains functions for launching subprocesses and returning output from them.
+"""
 from subprocess import Popen, PIPE
 from myDevices.utils.logger import debug, info, error, exception
 

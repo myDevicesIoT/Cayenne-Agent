@@ -1,3 +1,8 @@
+"""
+This script reads GPIO info. It is intended to be launched via sudo in order to 
+read data from files that require root access so the main agent code can run from
+a non-root process and only elevate to root when necessary.
+"""
 import sys
 # from myDevices.utils.logger import setInfo, info, error, logToFile
 from myDevices.devices.digital.gpio import NativeGPIO

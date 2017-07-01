@@ -25,6 +25,7 @@ from myDevices.system.raspiconfig import RaspiConfig
 from myDevices.utils.daemon import Daemon
 from myDevices.utils.threadpool import ThreadPool
 from myDevices.utils.history import History
+from myDevices.utils.subprocess import executeCommand
 from select import select
 from hashlib import sha256
 from myDevices.cloud.apiclient import CayenneApiClient
@@ -685,7 +686,7 @@ class CloudServerClient:
             return
         if packetType == PacketTypes.PT_UNINSTALL_AGENT.value:
             command = "sudo /etc/myDevices/uninstall/uninstall.sh"
-            services.ServiceManager.ExecuteCommand(command)
+            executeCommand(command)
             return
         if packetType == PacketTypes.PT_STARTUP_APPLICATIONS.value:
             self.BuildPT_STARTUP_APPLICATIONS()
@@ -711,7 +712,7 @@ class CloudServerClient:
             data['Message'] = 'Computer Restarted!'
             self.EnqueuePacket(data)
             command = "sudo shutdown -r now"
-            services.ServiceManager.ExecuteCommand(command)
+            executeCommand(command)
             return
         if packetType == PacketTypes.PT_SHUTDOWN_COMPUTER.value:
             info(PacketTypes.PT_SHUTDOWN_COMPUTER)
@@ -721,7 +722,7 @@ class CloudServerClient:
             data['Message'] = 'Computer Powered Off!'
             self.EnqueuePacket(data)
             command = "sudo shutdown -h now"
-            services.ServiceManager.ExecuteCommand(command)
+            executeCommand(command)
             return
         if packetType == PacketTypes.PT_AGENT_CONFIGURATION.value:
             info('PT_AGENT_CONFIGURATION: ' + str(messageObject.Data))

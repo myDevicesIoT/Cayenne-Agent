@@ -2,7 +2,7 @@
 This module provides a class for modifying Raspberry Pi configuration settings.
 """
 from myDevices.utils.logger import exception, info, warn, error, debug
-from myDevices.system.services import ServiceManager
+from myDevices.utils.subprocess import executeCommand
 from time import sleep
 from myDevices.utils.threadpool import ThreadPool
 
@@ -16,7 +16,7 @@ class RaspiConfig:
         """Expand the filesystem"""
         command = "sudo raspi-config --expand-rootfs"
         debug('ExpandRootfs command:' + command)
-        (output, returnCode) = ServiceManager.ExecuteCommand(command)
+        (output, returnCode) = executeCommand(command)
         debug('ExpandRootfs command:' + command + " retCode: " + returnCode)
         output = 'reboot required'
         return (returnCode, output)
@@ -33,7 +33,7 @@ class RaspiConfig:
         if config_id == 0:
             return RaspiConfig.ExpandRootfs()
         command = "sudo " + CUSTOM_CONFIG_SCRIPT + " " + str(config_id) + " " + str(parameters)
-        (output, returnCode) = ServiceManager.ExecuteCommand(command)        
+        (output, returnCode) = executeCommand(command)        
         debug('ExecuteConfigCommand '+ str(config_id) + ' args: ' + str(parameters) + ' retCode: ' + str(returnCode) + ' output: ' + output )
         if "reboot required" in output:
             ThreadPool.Submit(RaspiConfig.RestartService)
@@ -44,7 +44,7 @@ class RaspiConfig:
         """Reboot the device"""
         sleep(5)
         command = "sudo shutdown -r now"
-        (output, returnCode) = ServiceManager.ExecuteCommand(command)
+        (output, returnCode) = executeCommand(command)
 
     @staticmethod
     def getConfig():
