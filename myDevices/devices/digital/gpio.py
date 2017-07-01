@@ -14,7 +14,6 @@
 
 import os
 import mmap
-import subprocess
 from time import sleep
 from myDevices.utils.types import M_JSON
 from myDevices.utils.logger import debug, info, error, exception
@@ -176,6 +175,9 @@ class NativeGPIO(GPIOPort):
             try:
                 with open("/sys/class/gpio/export", "a") as f:
                     f.write("%s" % channel)
+            except PermissionError:
+                command = 'sudo python3 -m myDevices.devices.writevalue -f /sys/class/gpio/export -t {}'.format(channel)
+                executeCommand(command)               
             except Exception as ex:
                 error('Failed on __checkFilesystemExport__: ' + str(channel) + ' ' + str(ex))
                 return False
@@ -247,7 +249,7 @@ class NativeGPIO(GPIOPort):
                 self.valueFile[channel].seek(0)
             except:
                 command = 'sudo python3 -m myDevices.devices.writevalue -f {} -t {}'.format(self.__getValueFilePath__(channel), value)
-                subprocess.call(command.split())
+                executeCommand(command)
         except:
             pass
 
@@ -303,7 +305,7 @@ class NativeGPIO(GPIOPort):
                 self.functionFile[channel].seek(0)
             except:
                 command = 'sudo python3 -m myDevices.devices.writevalue -f {} -t {}'.format(self.__getFunctionFilePath__(channel), value)
-                subprocess.call(command.split())
+                executeCommand(command)
             self.pinFunctionSet.add(channel)
         except Exception as ex:
             exception('Failed on __setFunction__: ' + str(channel) + ' ' + str(ex))
