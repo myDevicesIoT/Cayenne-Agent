@@ -245,7 +245,7 @@ class NativeGPIO(GPIOPort):
             else:
                 value = '0'
             try:
-                self.valueFile[channel].write('1')
+                self.valueFile[channel].write(value)
                 self.valueFile[channel].seek(0)
             except:
                 command = 'sudo python3 -m myDevices.devices.writevalue -f {} -t {}'.format(self.__getValueFilePath__(channel), value)
