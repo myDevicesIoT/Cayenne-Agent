@@ -18,31 +18,46 @@ import subprocess
 
 from myDevices.utils.logger import debug, info
 from myDevices.system.version import OS_VERSION, OS_JESSIE, OS_WHEEZY
+from myDevices.system.hardware import Hardware
 
-BUSLIST = {
-    "I2C": {
-        "enabled": False,
-        "gpio": {0:"SDA", 1:"SCL", 2:"SDA", 3:"SCL"},
-        "modules": ["i2c-bcm2708", "i2c-dev"]
-    },
+if Hardware().getModel() != 'Tinker Board':
+    BUSLIST = {
+        "I2C": {
+            "enabled": False,
+            "gpio": {0:"SDA", 1:"SCL", 2:"SDA", 3:"SCL"},
+            "modules": ["i2c-bcm2708", "i2c-dev"]
+        },
 
-    "SPI": {
-        "enabled": False,
-        "gpio": {7:"CE1", 8:"CE0", 9:"MISO", 10:"MOSI", 11:"SCLK"},
-        "modules": ["spi-bcm2708" if OS_VERSION == OS_WHEEZY else "spi-bcm2835"]
-    },
+        "SPI": {
+            "enabled": False,
+            "gpio": {7:"CE1", 8:"CE0", 9:"MISO", 10:"MOSI", 11:"SCLK"},
+            "modules": ["spi-bcm2708" if OS_VERSION == OS_WHEEZY else "spi-bcm2835"]
+        },
 
-    "UART": {
-        "enabled": False,
-        "gpio": {14:"TX", 15:"RX"}
-    },
+        "UART": {
+            "enabled": False,
+            "gpio": {14:"TX", 15:"RX"}
+        },
 
-    "ONEWIRE": {
-        "enabled": False,
-        "gpio": {4:"DATA"},
-        "modules": ["w1-gpio"],
-        "wait": 2}
-}
+        "ONEWIRE": {
+            "enabled": False,
+            "gpio": {4:"DATA"},
+            "modules": ["w1-gpio"],
+            "wait": 2}
+    }
+else:
+    # Tinker Board only supports I2C and SPI for now. These are enabled by default and 
+    # don't need to load any modules.
+    BUSLIST = {
+        "I2C": {
+            "enabled": True,
+        },
+
+        "SPI": {
+            "enabled": True,
+        }
+    }
+
 
 def loadModule(module):
     subprocess.call(["sudo", "modprobe", module])
