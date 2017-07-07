@@ -9,11 +9,12 @@ from myDevices.utils.logger import exception, info, warn, error, debug
 
 BOARD_REVISION = 0
 CPU_REVISION = "0"
+CPU_HARDWARE = ""
 
 try:
     with open("/proc/cpuinfo") as f:
-        rc = re.compile("Revision\s*:\s(.*)\n")
         info = f.read()
+        rc = re.compile("Revision\s*:\s(.*)\n")
         result = rc.search(info)
         if result:
             CPU_REVISION = result.group(1)
@@ -27,6 +28,9 @@ try:
                     BOARD_REVISION = 2
                 else:
                     BOARD_REVISION = 3
+        rc = re.compile("Hardware\s*:\s(.*)\n")
+        result = rc.search(info)
+        CPU_HARDWARE = result.group(1)
 except:
     exception("Error reading cpuinfo")
 
@@ -49,7 +53,8 @@ class Hardware:
         self.model["a21041"] = "Pi 2 Model B"
         self.model["900092"] = "Zero"
         self.model["a22082"] = self.model["a02082"] = "Pi 3 Model B"
-        self.model["0000"] = "Tinker Board"
+        if "Rockchip" in CPU_HARDWARE:
+            self.model["0000"] = "Tinker Board"
 
     def getManufacturer(self):
         """Return manufacturer name as string"""
@@ -61,7 +66,7 @@ class Hardware:
             return "Qisda"
         if self.Revision in ["0006", "0007", "000d"]:
             return "Egoman"
-        if self.Revision == "0000":
+        if self.Revision == "0000" and "Rockchip" in CPU_HARDWARE:
             return "ASUS"
         return "Element14/Premier Farnell"
 

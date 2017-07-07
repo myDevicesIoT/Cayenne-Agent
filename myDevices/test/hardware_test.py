@@ -1,6 +1,6 @@
 import unittest
 from myDevices.utils.logger import setInfo, info
-from myDevices.system.hardware import Hardware, BOARD_REVISION, CPU_REVISION
+from myDevices.system.hardware import Hardware, BOARD_REVISION, CPU_REVISION, CPU_HARDWARE
 
 class HarwareTest(unittest.TestCase):
     def setUp(self):
@@ -30,6 +30,11 @@ class HarwareTest(unittest.TestCase):
     def testCpuRevision(self):
         info(CPU_REVISION)
         self.assertNotEqual(CPU_REVISION, '0')
+
+    def testCpuHardware(self):
+        info(CPU_HARDWARE)
+        self.assertNotEqual(CPU_HARDWARE, '')
+
 
 if __name__ == '__main__':
     unittest.main()
