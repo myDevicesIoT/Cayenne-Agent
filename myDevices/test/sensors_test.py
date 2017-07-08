@@ -38,17 +38,17 @@ class SensorsClientTest(unittest.TestCase):
         self.assertTrue(bus)
 
     def testSetFunction(self):
-        self.setChannelFunction(GPIO.instance.pins[0], 'IN')
-        self.setChannelFunction(GPIO.instance.pins[0], 'OUT')
+        self.setChannelFunction(GPIO.instance.pins[7], 'IN')
+        self.setChannelFunction(GPIO.instance.pins[7], 'OUT')
 
     def testSetValue(self):
-        self.setChannelFunction(GPIO.instance.pins[0], 'OUT')
-        self.setChannelValue(GPIO.instance.pins[0], 1)
-        self.setChannelValue(GPIO.instance.pins[0], 0)
+        self.setChannelFunction(GPIO.instance.pins[7], 'OUT')
+        self.setChannelValue(GPIO.instance.pins[7], 1)
+        self.setChannelValue(GPIO.instance.pins[7], 0)
 
     def testSensors(self):
         #Test adding a sensor
-        channel = GPIO.instance.pins[4]
+        channel = GPIO.instance.pins[8]
         testSensor = {'description': 'Digital Input', 'device': 'DigitalSensor', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': channel}, 'name': 'testdevice'}
         compareKeys = ('args', 'description', 'device')
         retValue = SensorsClientTest.client.AddSensor(testSensor['name'], testSensor['description'], testSensor['device'], testSensor['args'])
@@ -71,7 +71,7 @@ class SensorsClientTest(unittest.TestCase):
         self.assertNotIn(testSensor['name'], deviceNames)
 
     def testSensorInfo(self):
-        channel = GPIO.instance.pins[6]
+        channel = GPIO.instance.pins[9]
         sensors = {'actuator' : {'description': 'Digital Output', 'device': 'DigitalActuator', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': channel}, 'name': 'test_actuator'},
                     # 'MCP3004' : {'description': 'MCP3004', 'device': 'MCP3004', 'args': {'chip': '0'}, 'name': 'test_MCP3004'},
                     # 'distance' : {'description': 'Analog Distance Sensor', 'device': 'DistanceSensor', 'args': {'adc': 'test_MCP3004', 'channel': 0}, 'name': 'test_distance'}
