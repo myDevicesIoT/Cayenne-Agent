@@ -48,6 +48,10 @@ setup(name             = 'myDevices',
 
 os.chmod('/etc/myDevices/scripts/config.sh', 0o0755)
 
+# Add conf file to create /var/run/myDevices at boot
+with open('/usr/lib/tmpfiles.d/cayenne.conf', 'w') as tmpfile:
+    tmpfile.write('d /run/myDevices 0744 {0} {0} -\n'.format(username))
+    
 # Add user to the i2c group if it isn't already a member
 groups = [g.gr_name for g in grp.getgrall() if username in g.gr_mem]
 if not 'i2c' in groups:
