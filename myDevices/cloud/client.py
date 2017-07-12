@@ -21,7 +21,7 @@ from myDevices.wifi import WifiManager
 from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
-from myDevices.system.raspiconfig import RaspiConfig
+from myDevices.system.systemconfig import SystemConfig
 from myDevices.utils.daemon import Daemon
 from myDevices.utils.threadpool import ThreadPool
 from myDevices.utils.history import History
@@ -401,7 +401,7 @@ class CloudServerClient:
                 raspberryValue['SystemInfo'] = self.sensorsClient.currentSystemInfo
                 raspberryValue['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
                 raspberryValue['BusInfo'] = self.sensorsClient.currentBusInfo
-            raspberryValue['OsSettings'] = RaspiConfig.getConfig()
+            raspberryValue['OsSettings'] = SystemConfig.getConfig()
             raspberryValue['NetworkId'] = WifiManager.Network.GetNetworkId()
             raspberryValue['WifiStatus'] = self.wifiManager.GetStatus()
             try:
@@ -925,7 +925,7 @@ class CloudServerClient:
             try:
                 config_id = parameters["id"]
                 arguments = parameters["arguments"]
-                (retValue, output) = RaspiConfig.ExecuteConfigCommand(config_id, arguments)
+                (retValue, output) = SystemConfig.ExecuteConfigCommand(config_id, arguments)
                 data["Output"] = output
                 retValue = str(retValue)
             except:

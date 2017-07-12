@@ -1,14 +1,15 @@
 """
-This module provides a class for modifying Raspberry Pi configuration settings.
+This module provides a class for modifying system configuration settings.
 """
+from time import sleep
 from myDevices.utils.logger import exception, info, warn, error, debug
 from myDevices.utils.subprocess import executeCommand
-from time import sleep
 from myDevices.utils.threadpool import ThreadPool
+from myDevices.system.hardware import Hardware
 
 CUSTOM_CONFIG_SCRIPT = "/etc/myDevices/scripts/config.sh"
 
-class RaspiConfig:
+class SystemConfig:
     """Class for modifying configuration settings"""
 
     @staticmethod
@@ -29,14 +30,16 @@ class RaspiConfig:
             config_id: Id of command to run
             parameters: Parameters to use when executing command
         """
-        debug('RaspiConfig::ExecuteConfigCommand')
+        if Hardware().getModel() == 'Tinker Board':
+            return (1, 'Not supported')
+        debug('SystemConfig::ExecuteConfigCommand')
         if config_id == 0:
-            return RaspiConfig.ExpandRootfs()
+            return SystemConfig.ExpandRootfs()
         command = "sudo " + CUSTOM_CONFIG_SCRIPT + " " + str(config_id) + " " + str(parameters)
         (output, returnCode) = executeCommand(command)        
         debug('ExecuteConfigCommand '+ str(config_id) + ' args: ' + str(parameters) + ' retCode: ' + str(returnCode) + ' output: ' + output )
         if "reboot required" in output:
-            ThreadPool.Submit(RaspiConfig.RestartService)
+            ThreadPool.Submit(SystemConfig.RestartService)
         return (returnCode, output)
 
     @staticmethod
@@ -50,8 +53,10 @@ class RaspiConfig:
     def getConfig():
         """Return dict containing configuration settings"""
         configItem = {}
+        if Hardware().getModel() == 'Tinker Board':
+            return configItem
         try:
-            (returnCode, output) = RaspiConfig.ExecuteConfigCommand(17, '')
+            (returnCode, output) = SystemConfig.ExecuteConfigCommand(17, '')
             if output:
                 values = output.strip().split(' ')
                 configItem['Camera'] = {}
@@ -64,19 +69,19 @@ class RaspiConfig:
             exception('Camera config')
 
         try:
-            (returnCode, output) = RaspiConfig.ExecuteConfigCommand(10, '')
+            (returnCode, output) = SystemConfig.ExecuteConfigCommand(10, '')
             if output:
                 configItem['DeviceTree'] = int(output.strip())
             del output
-            (returnCode, output) = RaspiConfig.ExecuteConfigCommand(18, '')
+            (returnCode, output) = SystemConfig.ExecuteConfigCommand(18, '')
             if output:
                 configItem['Serial'] = int(output.strip())
             del output
-            (returnCode, output) = RaspiConfig.ExecuteConfigCommand(20, '')
+            (returnCode, output) = SystemConfig.ExecuteConfigCommand(20, '')
             if output:
                 configItem['OneWire'] = int(output.strip())
             del output
         except:
             exception('Camera config')
-        info('RaspiConfig: {}'.format(configItem))
+        info('SystemConfig: {}'.format(configItem))
         return configItem
