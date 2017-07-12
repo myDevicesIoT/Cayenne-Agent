@@ -51,9 +51,23 @@ os.chmod('/etc/myDevices/scripts/config.sh', 0o0755)
 # Add conf file to create /var/run/myDevices at boot
 with open('/usr/lib/tmpfiles.d/cayenne.conf', 'w') as tmpfile:
     tmpfile.write('d /run/myDevices 0744 {0} {0} -\n'.format(username))
-    
+
+# Add spi group if it doesn't exist
+relogin = False
+all_groups = [g.gr_name for g in grp.getgrall()]
+if not 'spi' in all_groups:
+    os.system('groupadd -f -f spi')
+    os.system('adduser {} spi'.format(username))
+    with open('/etc/udev/rules.d/99-com.rules', 'w') as spirules:
+        spirules.write('SUBSYSTEM=="spidev", GROUP="spi", MODE="0660"\n') 
+    os.system('udevadm control --reload-rules && udevadm trigger')
+    relogin = True
+
 # Add user to the i2c group if it isn't already a member
-groups = [g.gr_name for g in grp.getgrall() if username in g.gr_mem]
-if not 'i2c' in groups:
-    os.system('usermod -a -G i2c {}'.format(username))
-    print('\nYou may need to re-login in order to use I2C devices')
+user_groups = [g.gr_name for g in grp.getgrall() if username in g.gr_mem]
+if not 'i2c' in user_groups:
+    os.system('adduser {} i2c'.format(username))
+    relogin = True
+
+if relogin:
+    print('\nYou may need to re-login in order to use I2C or SPI devices')
