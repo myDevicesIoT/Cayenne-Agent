@@ -22,16 +22,14 @@ def executeCommand(command, increaseMemoryLimit=False):
         setLimit = None
         if increaseMemoryLimit:
             setLimit = setMemoryLimits
-        process = Popen(command, stdout=PIPE, shell=True, preexec_fn=setLimit)
-        processOutput = process.communicate()
+        process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, preexec_fn=setLimit)
+        (stdout_data, stderr_data) = process.communicate()
         returncode = process.wait()
         returncode = process.returncode
-        debug('executeCommand: ' + str(processOutput))
-        if processOutput and processOutput[0]:
-            output = str(processOutput[0].decode('utf-8'))
-            processOutput = None
+        debug('executeCommand: stdout_data {}, stderr_data {}'.format(stdout_data, stderr_data))
+        if stdout_data:
+            output = stdout_data.decode('utf-8')
+            stdout_data = None
     except:
         exception('executeCommand failed: ' + command)
-    debug('executeCommand: ' +  command + ' ' + str(output))
-    retOut = str(output)
-    return (retOut, returncode)
+    return (output, returncode)
