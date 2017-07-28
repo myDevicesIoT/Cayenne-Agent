@@ -88,7 +88,7 @@ def addDeviceJSON(json):
     if 'args' in json:
         args = json["args"]
     else:
-        args = []
+        args = {}
 
     if 'description' in json:
         description = json["description"]
@@ -145,12 +145,12 @@ def addDevice(name, device, description, args, origin):
 
     instance = None
     try:
-
+        logger.info('addDevice: {}'.format(args))
         if len(args) > 0:
             instance = constructor(**args)
         else:
             instance = constructor()
-        logger.debug('Adding instance ' + str(instance))
+        logger.info('Adding instance ' + str(instance))
         addDeviceInstance(name, device, description, instance, args, origin)
         return 1
     except Exception as e:
