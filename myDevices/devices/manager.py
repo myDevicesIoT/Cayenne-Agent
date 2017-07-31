@@ -29,8 +29,6 @@ def deviceDetector():
     except Exception as e:
         logger.error("Device detector: %s" % e)
 
-    sleep(5)
-
 def findDeviceClass(name):
     for package in PACKAGES:
         if hasattr(package, name):
