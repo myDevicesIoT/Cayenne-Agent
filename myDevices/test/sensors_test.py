@@ -71,10 +71,12 @@ class SensorsClientTest(unittest.TestCase):
         self.assertNotIn(testSensor['name'], deviceNames)
 
     def testSensorInfo(self):
-        channel = GPIO.instance.pins[9]
-        sensors = {'actuator' : {'description': 'Digital Output', 'device': 'DigitalActuator', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': channel}, 'name': 'test_actuator'},
-                    # 'MCP3004' : {'description': 'MCP3004', 'device': 'MCP3004', 'args': {'chip': '0'}, 'name': 'test_MCP3004'},
-                    # 'distance' : {'description': 'Analog Distance Sensor', 'device': 'DistanceSensor', 'args': {'adc': 'test_MCP3004', 'channel': 0}, 'name': 'test_distance'}
+        actuator_channel = GPIO.instance.pins[9]
+        light_switch_channel = GPIO.instance.pins[9]
+        sensors = {'actuator' : {'description': 'Digital Output', 'device': 'DigitalActuator', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': actuator_channel}, 'name': 'test_actuator'},
+                   'light_switch' : {'description': 'Light Switch', 'device': 'LightSwitch', 'args': {'gpio': 'GPIO', 'invert': True, 'channel': light_switch_channel}, 'name': 'test_light_switch'},
+                   'MCP3004' : {'description': 'MCP3004', 'device': 'MCP3004', 'args': {'chip': '0'}, 'name': 'test_MCP3004'},
+                   'distance' : {'description': 'Analog Distance Sensor', 'device': 'DistanceSensor', 'args': {'adc': 'test_MCP3004', 'channel': 0}, 'name': 'test_distance'}
                   }
         for sensor in sensors.values():
             SensorsClientTest.client.AddSensor(sensor['name'], sensor['description'], sensor['device'], sensor['args'])
@@ -82,6 +84,8 @@ class SensorsClientTest(unittest.TestCase):
         #Test setting sensor values
         self.setSensorValue(sensors['actuator'], 1)
         self.setSensorValue(sensors['actuator'], 0)
+        self.setSensorValue(sensors['light_switch'], 1)
+        self.setSensorValue(sensors['light_switch'], 0)
         #Test getting analog value
         # retrievedSensorInfo = next(obj for obj in SensorsClientTest.client.SensorsInfo() if obj['name'] == sensors['distance']['name'])
         # self.assertEqual(retrievedSensorInfo['float'], 0.0)

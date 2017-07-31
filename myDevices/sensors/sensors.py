@@ -229,6 +229,7 @@ class SensorsClient():
 
     def GetDevices(self):
         """Return a list of current sensor/actuator devices"""
+        manager.deviceDetector()
         device_list = manager.getDeviceList()
         devices = []
         for dev in device_list:
@@ -297,14 +298,14 @@ class SensorsClient():
                         if value['type'] == 'Distance':
                             value['Centimeter'] = self.CallDeviceFunction(sensor.getCentimeter)
                             value['Inch'] = self.CallDeviceFunction(sensor.getInch)
-                        if value['type'] in ('ADC', 'DAC', 'PWM'):
+                        if value['type'] in ('ADC', 'DAC'):
                             value['channelCount'] = self.CallDeviceFunction(sensor.analogCount)
                             value['maxInteger'] = self.CallDeviceFunction(sensor.analogMaximum)
                             value['resolution'] = self.CallDeviceFunction(sensor.analogResolution)
                             value['allInteger'] = self.CallDeviceFunction(sensor.analogReadAll)
                             value['allVolt'] = self.CallDeviceFunction(sensor.analogReadAllVolt)
                             value['allFloat'] = self.CallDeviceFunction(sensor.analogReadAllFloat)
-                            if value['type'] in 'DAC':
+                            if value['type'] == 'DAC':
                                 value['vref'] = self.CallDeviceFunction(sensor.analogReference)
                         if value['type'] == 'PWM':
                             value['channelCount'] = self.CallDeviceFunction(sensor.pwmCount)
@@ -330,7 +331,7 @@ class SensorsClient():
                         if value['type'] == 'AnalogActuator':
                             value['float'] = self.CallDeviceFunction(sensor.readFloat)
                     except:
-                        exception("Sensor values failed: "+ value['type'] + " " + value['name'])
+                        exception("Sensor values failed: "+ value['type'] + " " + value['name']) 
                 try:
                     if 'hash' in value:
                         value['sensor'] = value['hash']

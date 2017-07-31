@@ -18,7 +18,6 @@ from myDevices.devices import instance
 from myDevices.devices.digital.gpio import NativeGPIO as GPIO
 
 
-
 class DigitalSensor():
     
     def __init__(self, gpio, channel, invert=False):
@@ -53,9 +52,8 @@ class DigitalSensor():
         self.setGPIOInstance()
         value = self.gpio.digitalRead(self.channel)
         if self.invert:
-            return not value
-        else:
-            return value
+            value = not value
+        return int(value)
         
 class MotionSensor(DigitalSensor):
     def __init__(self, gpio, channel, invert=False):
@@ -79,7 +77,7 @@ class DigitalActuator(DigitalSensor):
     @response("%d")
     def write(self, value):
         if self.invert:
-            value = not value
+            value = int(not value)
         self.gpio.digitalWrite(self.channel, value)
         return self.read()
 

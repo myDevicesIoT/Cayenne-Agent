@@ -88,7 +88,7 @@ def addDeviceJSON(json):
     if 'args' in json:
         args = json["args"]
     else:
-        args = []
+        args = {}
 
     if 'description' in json:
         description = json["description"]
@@ -145,7 +145,6 @@ def addDevice(name, device, description, args, origin):
 
     instance = None
     try:
-
         if len(args) > 0:
             instance = constructor(**args)
         else:

@@ -126,24 +126,24 @@ class Bus():
         if self.fd > 0:
             os.close(self.fd)
     
-    def read(self, size=1):
+    def readDevice(self, size=1):
         if self.fd > 0:
             return os.read(self.fd, size)
         raise Exception("Device %s not open" % self.device)
     
     def readBytes(self, size=1):
-        return bytearray(self.read(size))
+        return bytearray(self.readDevice(size))
     
     def readByte(self):
         return self.readBytes()[0]
 
-    def write(self, string):
+    def writeDevice(self, string):
         if self.fd > 0:
             return os.write(self.fd, string)
         raise Exception("Device %s not open" % self.device)
     
     def writeBytes(self, data):
-        return self.write(bytearray(data))
+        return self.writeDevice(bytearray(data))
 
     def writeByte(self, value):
         self.writeBytes([value])
