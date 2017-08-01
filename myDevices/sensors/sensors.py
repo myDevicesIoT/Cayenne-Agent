@@ -269,8 +269,6 @@ class SensorsClient():
                     if value['type'] == 'Humidity':
                         value['float']=self.CallDeviceFunction(sensor.getHumidity)
                         value['percent']=self.CallDeviceFunction(sensor.getHumidityPercent)
-                    if value['type'] == 'PiFaceDigital':
-                        value['all'] = self.CallDeviceFunction(sensor.readAll)
                     if value['type'] in ('DigitalSensor', 'DigitalActuator'):
                         value['value'] = self.CallDeviceFunction(sensor.read)
                     if value['type'] == 'GPIOPort':
