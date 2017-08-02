@@ -161,7 +161,7 @@ def addDevice(name, device, description, args, origin):
 def addDeviceConf(devices, origin):
     for (name, params) in devices:
         values = params.split(" ")
-        driver = values[0];
+        driver = values[0]
         description = name
         args = {}
         i = 1
