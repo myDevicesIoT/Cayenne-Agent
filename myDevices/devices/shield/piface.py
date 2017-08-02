@@ -20,7 +20,7 @@ from myDevices.decorators.rest import request, response
 class PiFaceDigital(MCP23S17):
     def __init__(self, board=0):
         self.board = toint(board)
-        MCP23S17.__init__(self, 0, 0x20 + toint(board))
+        MCP23S17.__init__(self, 0, 0x20 + self.board)
         self.writeRegister(self.getAddress(self.IODIR, 0), 0x00) # Port A as output
         self.writeRegister(self.getAddress(self.IODIR, 8), 0xFF) # Port B as input
         self.writeRegister(self.getAddress(self.GPPU,  0), 0x00) # Port A PU OFF
