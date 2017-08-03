@@ -230,6 +230,7 @@ class SensorsClient():
 
     def GetDevices(self):
         """Return a list of current sensor/actuator devices"""
+        manager.deviceDetector()
         device_list = manager.getDeviceList()
         devices = []
         for dev in device_list:
@@ -282,67 +283,65 @@ class SensorsClient():
 
     def SensorsInfo(self):
         """Return a dict with current sensor states for all enabled sensors"""
-        with self.sensorMutex:
-            devices = self.GetDevices()
-            debug(str(time()) + ' Got devices info ' + str(self.sensorsRefreshCount))
-            if devices is None:
-                return {}
-            for value in devices:
-                sensor = instance.deviceInstance(value['name'])
-                if 'enabled' not in value or value['enabled'] == 1:
-                    sleep(SENSOR_INFO_SLEEP)
-                    try:
-                        if value['type'] == 'Temperature':
-                            value['Celsius'] = self.CallDeviceFunction(sensor.getCelsius)
-                            value['Fahrenheit'] = self.CallDeviceFunction(sensor.getFahrenheit)
-                            value['Kelvin'] = self.CallDeviceFunction(sensor.getKelvin)
-                        if value['type'] == 'Pressure':
-                            value['Pascal'] = self.CallDeviceFunction(sensor.getPascal)
-                        if value['type'] == 'Luminosity':
-                            value['Lux'] = self.CallDeviceFunction(sensor.getLux)
-                        if value['type'] == 'Distance':
-                            value['Centimeter'] = self.CallDeviceFunction(sensor.getCentimeter)
-                            value['Inch'] = self.CallDeviceFunction(sensor.getInch)
-                        if value['type'] in ('ADC', 'DAC', 'PWM'):
-                            value['channelCount'] = self.CallDeviceFunction(sensor.analogCount)
-                            value['maxInteger'] = self.CallDeviceFunction(sensor.analogMaximum)
-                            value['resolution'] = self.CallDeviceFunction(sensor.analogResolution)
-                            value['allInteger'] = self.CallDeviceFunction(sensor.analogReadAll)
-                            value['allVolt'] = self.CallDeviceFunction(sensor.analogReadAllVolt)
-                            value['allFloat'] = self.CallDeviceFunction(sensor.analogReadAllFloat)
-                            if value['type'] in 'DAC':
-                                value['vref'] = self.CallDeviceFunction(sensor.analogReference)
-                        if value['type'] == 'PWM':
-                            value['channelCount'] = self.CallDeviceFunction(sensor.pwmCount)
-                            value['maxInteger'] = self.CallDeviceFunction(sensor.pwmMaximum)
-                            value['resolution'] = self.CallDeviceFunction(sensor.pwmResolution)
-                            value['all'] = self.CallDeviceFunction(sensor.pwmWildcard)
-                        if value['type'] == 'Humidity':
-                            value['float'] = self.CallDeviceFunction(sensor.getHumidity)
-                            value['percent'] = self.CallDeviceFunction(sensor.getHumidityPercent)
-                        if value['type'] == 'PiFaceDigital':
-                            value['all'] = self.CallDeviceFunction(sensor.readAll)
-                        if value['type'] in ('DigitalSensor', 'DigitalActuator'):
-                            value['value'] = self.CallDeviceFunction(sensor.read)
-                        if value['type'] == 'GPIOPort':
-                            value['channelCount'] = self.CallDeviceFunction(sensor.digitalCount)
-                            value['all'] = self.CallDeviceFunction(sensor.wildcard)
-                        if value['type'] == 'AnalogSensor':
-                            value['integer'] = self.CallDeviceFunction(sensor.read)
-                            value['float'] = self.CallDeviceFunction(sensor.readFloat)
-                            value['volt'] = self.CallDeviceFunction(sensor.readVolt)
-                        if value['type'] == 'ServoMotor':
-                            value['angle'] = self.CallDeviceFunction(sensor.readAngle)
-                        if value['type'] == 'AnalogActuator':
-                            value['float'] = self.CallDeviceFunction(sensor.readFloat)
-                    except:
-                        exception("Sensor values failed: "+ value['type'] + " " + value['name'])
+        devices = self.GetDevices()
+        debug(str(time()) + ' Got devices info ' + str(self.sensorsRefreshCount))
+        if devices is None:
+            return {}
+        for value in devices:
+            sensor = instance.deviceInstance(value['name'])
+            if 'enabled' not in value or value['enabled'] == 1:
+                sleep(SENSOR_INFO_SLEEP)
                 try:
-                    if 'hash' in value:
-                        value['sensor'] = value['hash']
-                        del value['hash']
-                except KeyError:
-                    pass
+                    if value['type'] == 'Temperature':
+                        value['Celsius'] = self.CallDeviceFunction(sensor.getCelsius)
+                        value['Fahrenheit'] = self.CallDeviceFunction(sensor.getFahrenheit)
+                        value['Kelvin'] = self.CallDeviceFunction(sensor.getKelvin)
+                    if value['type'] == 'Pressure':
+                        value['Pascal'] = self.CallDeviceFunction(sensor.getPascal)
+                    if value['type'] == 'Luminosity':
+                        value['Lux'] = self.CallDeviceFunction(sensor.getLux)
+                    if value['type'] == 'Distance':
+                        value['Centimeter'] = self.CallDeviceFunction(sensor.getCentimeter)
+                        value['Inch'] = self.CallDeviceFunction(sensor.getInch)
+                    if value['type'] in ('ADC', 'DAC'):
+                        value['channelCount'] = self.CallDeviceFunction(sensor.analogCount)
+                        value['maxInteger'] = self.CallDeviceFunction(sensor.analogMaximum)
+                        value['resolution'] = self.CallDeviceFunction(sensor.analogResolution)
+                        value['allInteger'] = self.CallDeviceFunction(sensor.analogReadAll)
+                        value['allVolt'] = self.CallDeviceFunction(sensor.analogReadAllVolt)
+                        value['allFloat'] = self.CallDeviceFunction(sensor.analogReadAllFloat)
+                        if value['type'] == 'DAC':
+                            value['vref'] = self.CallDeviceFunction(sensor.analogReference)
+                    if value['type'] == 'PWM':
+                        value['channelCount'] = self.CallDeviceFunction(sensor.pwmCount)
+                        value['maxInteger'] = self.CallDeviceFunction(sensor.pwmMaximum)
+                        value['resolution'] = self.CallDeviceFunction(sensor.pwmResolution)
+                        value['all'] = self.CallDeviceFunction(sensor.pwmWildcard)
+                    if value['type'] == 'Humidity':
+                        value['float'] = self.CallDeviceFunction(sensor.getHumidity)
+                        value['percent'] = self.CallDeviceFunction(sensor.getHumidityPercent)
+                    if value['type'] in ('DigitalSensor', 'DigitalActuator'):
+                        value['value'] = self.CallDeviceFunction(sensor.read)
+                    if value['type'] == 'GPIOPort':
+                        value['channelCount'] = self.CallDeviceFunction(sensor.digitalCount)
+                        value['all'] = self.CallDeviceFunction(sensor.wildcard)
+                    if value['type'] == 'AnalogSensor':
+                        value['integer'] = self.CallDeviceFunction(sensor.read)
+                        value['float'] = self.CallDeviceFunction(sensor.readFloat)
+                        value['volt'] = self.CallDeviceFunction(sensor.readVolt)
+                    if value['type'] == 'ServoMotor':
+                        value['angle'] = self.CallDeviceFunction(sensor.readAngle)
+                    if value['type'] == 'AnalogActuator':
+                        value['float'] = self.CallDeviceFunction(sensor.readFloat)
+                except:
+                    exception("Sensor values failed: "+ value['type'] + " " + value['name']) 
+            try:
+                if 'hash' in value:
+                    value['sensor'] = value['hash']
+                    del value['hash']
+            except KeyError:
+                pass
+        with self.sensorMutex:
             if self.currentSensorsInfo:
                 del self.currentSensorsInfo
                 self.currentSensorsInfo = None
