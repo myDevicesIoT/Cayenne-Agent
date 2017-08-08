@@ -6,7 +6,7 @@ The Cayenne agent is a full featured client for the `Cayenne IoT project builder
 ************
 Requirements
 ************
-* `Python 3 <https://www.python.org/downloads/>`_.
+* `Python 3.3 or newer <https://www.python.org/downloads/>`_.
 * pip3 - Python 3 package manager. This should already be available in Python 3.4+ and above. If it isn't in can be installed using the system package manager. Via `apt-get` this would be:
   ::
 
