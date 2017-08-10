@@ -44,7 +44,7 @@ class Hardware:
         try:
             with open('/proc/cpuinfo','r') as f:
                 for line in f:
-                    splitLine =  line.split(':')
+                    splitLine = line.split(':')
                     if len(splitLine) < 2:
                         continue
                     key = splitLine[0].strip()
@@ -85,8 +85,21 @@ class Hardware:
             self.manufacturer = 'Qisda'
         if self.Revision in ('0006', '0007', '000d'):
             self.manufacturer = 'Egoman'
-        if self.Revision == "0000" and "Rockchip" in CPU_HARDWARE:
-             self.manufacturer = 'ASUS'
+        if self.Revision == '0000':
+            if 'Rockchip' in CPU_HARDWARE:
+                self.manufacturer = 'ASUS'
+            else:
+                try:
+                    with open('/proc/device-tree/model', 'r') as model_file:
+                        for line in model_file:
+                            if 'BeagleBone' in line:
+                                index = line.index('BeagleBone')
+                                self.manufacturer = line[:index - 1].strip()
+                                self.model = line[index:].strip()
+                                break
+                except:
+                    exception ("Error reading model")
+
 
     def getManufacturer(self):
         """Return manufacturer name as string"""
