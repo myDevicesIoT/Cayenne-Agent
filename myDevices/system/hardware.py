@@ -94,8 +94,8 @@ class Hardware:
                         for line in model_file:
                             if 'BeagleBone' in line:
                                 index = line.index('BeagleBone')
-                                self.manufacturer = line[:index - 1].strip()
-                                self.model = line[index:].strip()
+                                self.manufacturer = line[:index - 1].strip(' \n\t\0')
+                                self.model = line[index:].strip(' \n\t\0')
                                 break
                 except:
                     exception ("Error reading model")
