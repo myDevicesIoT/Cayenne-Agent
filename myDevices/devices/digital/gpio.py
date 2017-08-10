@@ -75,6 +75,8 @@ class NativeGPIO(GPIOPort):
                 try:
                     with open('/dev/gpiomem', 'rb') as gpiomem:
                         self.gpio_map = mmap.mmap(gpiomem.fileno(), BLOCK_SIZE, prot=mmap.PROT_READ)
+                except FileNotFoundError:
+                    pass
                 except OSError as err:
                     error(err)
             NativeGPIO.instance = self
@@ -190,8 +192,8 @@ class NativeGPIO(GPIOPort):
             if not valRet:
                 return
             mode = 'w+'
-            if gpio_library and os.geteuid() != 0:
-                #On ASUS device open the file in read mode from non-root process
+            if (gpio_library or 'BeagleBone' in Hardware().getModel()) and os.geteuid() != 0:
+                #On devices with root permissions on gpio files open the file in read mode from non-root process
                 mode = 'r'
             for i in range(10):
                 try:
@@ -210,8 +212,8 @@ class NativeGPIO(GPIOPort):
             if not valRet:
                 return
             mode = 'w+'
-            if gpio_library and os.geteuid() != 0:
-                #On ASUS device open the file in read mode from non-root process
+            if (gpio_library or 'BeagleBone' in Hardware().getModel()) and os.geteuid() != 0:
+                #On devices with root permissions on gpio files open the file in read mode from non-root process
                 mode = 'r'
             for i in range(10):
                 try:
@@ -275,7 +277,7 @@ class NativeGPIO(GPIOPort):
                 if os.geteuid() == 0:
                     value = gpio_library.gpio_function(channel)
                 else:
-                    value, error = executeCommand('sudo python3 -m myDevices.devices.readvalue -c {}'.format(channel))
+                    value, err = executeCommand('sudo python3 -m myDevices.devices.readvalue -c {}'.format(channel))
                     return int(value.splitlines()[0])
                 # If this is not a GPIO function return it, otherwise check the function file to see
                 # if it is an IN or OUT pin since the ASUS library doesn't provide that info.
@@ -365,8 +367,11 @@ class NativeGPIO(GPIOPort):
         return function_string
 
     def setPinMapping(self):
-        if Hardware().getModel() == 'Tinker Board':
+        model = Hardware().getModel()
+        if model == 'Tinker Board':
             self.MAPPING = ["V33", "V50", 252, "V50", 253, "GND", 17, 161, "GND", 160, 164, 184, 166, "GND", 167, 162, "V33", 163, 257, "GND", 256, 171, 254, 255, "GND", 251, "DNC", "DNC" , 165, "GND", 168, 239, 238, "GND", 185, 223, 224, 187, "GND", 188]
+        elif 'BeagleBone' in model:
+            self.MAPPING = ["GND", "GND", "V33", "V33", "V50", "V50", "V50", "V50", "PWR", "RST", 30, 60, 31, 50, 48, 51, 5, 4, "I2C2_SCL", "I2C2_SDA", 3, 2, 49, 15, 117, 14, 115, "SPI1_CS0", "SPI1_D0", 112, "SPI1_CLK", "VDD_ADC", "AIN4", "GNDA_ADC", "AIN6", "AIN5", "AIN2", "AIN3", "AIN0", "AIN1", 20, 7, "GND", "GND", "GND", "GND", "GND", "GND", "MMC1_DAT6", "MMC1_DAT7", "MMC1_DAT2", "MMC1_DAT3", 66, 67, 69, 68, 45, 44, 23, 26, 47, 46, 27, 65, 22, "MMC1_CMD", "MMC1_CLK", "MMC1_DAT5", "MMC1_DAT4", "MMC1_DAT1", "MMC1_DAT0", 61, "LCD_VSYNC", "LCD_PCLK", "LCD_HSYNC", "LCD_ACBIAS", "LCD_DATA14", "LCD_DATA15", "LCD_DATA13", "LCD_DATA11", "LCD_DATA12", "LCD_DATA10", "LCD_DATA8", "LCD_DATA9", "LCD_DATA6", "LCD_DATA7", "LCD_DATA4", "LCD_DATA5", "LCD_DATA2", "LCD_DATA3", "LCD_DATA0", "LCD_DATA1"]
         else:
             if BOARD_REVISION == 1:
                 self.MAPPING = ["V33", "V50", 0, "V50", 1, "GND", 4, 14, "GND", 15, 17, 18, 21, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
