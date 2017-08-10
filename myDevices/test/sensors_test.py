@@ -22,7 +22,6 @@ class SensorsClientTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.client.StopMonitoring()
         del cls.client
-        del GPIO.instance
 
     def testBusInfo(self):
         bus = SensorsClientTest.client.BusInfo()
@@ -38,17 +37,17 @@ class SensorsClientTest(unittest.TestCase):
         self.assertTrue(bus)
 
     def testSetFunction(self):
-        self.setChannelFunction(GPIO.instance.pins[7], 'IN')
-        self.setChannelFunction(GPIO.instance.pins[7], 'OUT')
+        self.setChannelFunction(GPIO().pins[7], 'IN')
+        self.setChannelFunction(GPIO().pins[7], 'OUT')
 
     def testSetValue(self):
-        self.setChannelFunction(GPIO.instance.pins[7], 'OUT')
-        self.setChannelValue(GPIO.instance.pins[7], 1)
-        self.setChannelValue(GPIO.instance.pins[7], 0)
+        self.setChannelFunction(GPIO().pins[7], 'OUT')
+        self.setChannelValue(GPIO().pins[7], 1)
+        self.setChannelValue(GPIO().pins[7], 0)
 
     def testSensors(self):
         #Test adding a sensor
-        channel = GPIO.instance.pins[8]
+        channel = GPIO().pins[8]
         testSensor = {'description': 'Digital Input', 'device': 'DigitalSensor', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': channel}, 'name': 'testdevice'}
         compareKeys = ('args', 'description', 'device')
         retValue = SensorsClientTest.client.AddSensor(testSensor['name'], testSensor['description'], testSensor['device'], testSensor['args'])
@@ -58,7 +57,7 @@ class SensorsClientTest(unittest.TestCase):
             self.assertEqual(testSensor[key], retrievedSensor[key])
         #Test updating a sensor
         editedSensor = testSensor
-        editedSensor['args']['channel'] = GPIO.instance.pins[5]
+        editedSensor['args']['channel'] = GPIO().pins[5]
         retValue = SensorsClientTest.client.EditSensor(editedSensor['name'], editedSensor['description'], editedSensor['device'], editedSensor['args'])
         self.assertTrue(retValue)
         retrievedSensor = next(obj for obj in SensorsClientTest.client.GetDevices() if obj['name'] == editedSensor['name'])
@@ -71,12 +70,12 @@ class SensorsClientTest(unittest.TestCase):
         self.assertNotIn(testSensor['name'], deviceNames)
 
     def testSensorInfo(self):
-        actuator_channel = GPIO.instance.pins[9]
-        light_switch_channel = GPIO.instance.pins[9]
+        actuator_channel = GPIO().pins[9]
+        light_switch_channel = GPIO().pins[9]
         sensors = {'actuator' : {'description': 'Digital Output', 'device': 'DigitalActuator', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': actuator_channel}, 'name': 'test_actuator'},
                    'light_switch' : {'description': 'Light Switch', 'device': 'LightSwitch', 'args': {'gpio': 'GPIO', 'invert': True, 'channel': light_switch_channel}, 'name': 'test_light_switch'},
-                   'MCP3004' : {'description': 'MCP3004', 'device': 'MCP3004', 'args': {'chip': '0'}, 'name': 'test_MCP3004'},
-                   'distance' : {'description': 'Analog Distance Sensor', 'device': 'DistanceSensor', 'args': {'adc': 'test_MCP3004', 'channel': 0}, 'name': 'test_distance'}
+                #    'MCP3004' : {'description': 'MCP3004', 'device': 'MCP3004', 'args': {'chip': '0'}, 'name': 'test_MCP3004'},
+                #    'distance' : {'description': 'Analog Distance Sensor', 'device': 'DistanceSensor', 'args': {'adc': 'test_MCP3004', 'channel': 0}, 'name': 'test_distance'}
                   }
         for sensor in sensors.values():
             SensorsClientTest.client.AddSensor(sensor['name'], sensor['description'], sensor['device'], sensor['args'])
@@ -104,12 +103,12 @@ class SensorsClientTest(unittest.TestCase):
     def setChannelFunction(self, channel, function):
         SensorsClientTest.client.gpio.setFunctionString(channel, function)
         bus = SensorsClientTest.client.BusInfo()
-        self.assertEqual(function, bus['GPIO'][str(channel)]['function'])
+        self.assertEqual(function, bus['GPIO'][channel]['function'])
 
     def setChannelValue(self, channel, value):
         SensorsClientTest.client.gpio.digitalWrite(channel, value)
         bus = SensorsClientTest.client.BusInfo()
-        self.assertEqual(value, bus['GPIO'][str(channel)]['value'])
+        self.assertEqual(value, bus['GPIO'][channel]['value'])
 
 if __name__ == '__main__':
     setInfo()

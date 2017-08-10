@@ -42,7 +42,7 @@ class DigitalSensor():
             if self.gpioname != "GPIO":
                 self.gpio = instance.deviceInstance(self.gpioname)
             else:
-                self.gpio = GPIO.instance           
+                self.gpio = GPIO()
             if self.gpio:
                 self.gpio.setFunction(self.channel, GPIO.IN)
 

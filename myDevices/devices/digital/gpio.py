@@ -17,6 +17,7 @@ import mmap
 from time import sleep
 from myDevices.utils.types import M_JSON
 from myDevices.utils.logger import debug, info, error, exception
+from myDevices.utils.singleton import Singleton
 from myDevices.devices.digital import GPIOPort
 from myDevices.decorators.rest import request, response
 from myDevices.system.hardware import BOARD_REVISION, Hardware
@@ -32,7 +33,7 @@ PINLEVEL_OFFSET = 13 # 0x0034 / 4
 
 BLOCK_SIZE = (4*1024)
 
-class NativeGPIO(GPIOPort):
+class NativeGPIO(Singleton, GPIOPort):
     IN = 0
     OUT = 1
 
@@ -50,36 +51,32 @@ class NativeGPIO(GPIOPort):
 
     MAPPING = []
 
-    instance = None
-
     def __init__(self):
-        if not NativeGPIO.instance:
-            self.setPinMapping()
-            self.pins = [pin for pin in self.MAPPING if type(pin) is int]
-            GPIOPort.__init__(self, max(self.pins) + 1)
-            self.post_value = True
-            self.post_function = True
-            self.gpio_setup = []
-            self.gpio_reset = []
-            self.gpio_map = None
-            self.pinFunctionSet = set()
-            self.valueFile = {pin:None for pin in self.pins}
-            self.functionFile = {pin:None for pin in self.pins}
-            for pin in self.pins:
-                # Export the pins here to prevent a delay when accessing the values for the 
-                # first time while waiting for the file group to be set
-                self.__checkFilesystemExport__(pin)
-            if gpio_library:
-                gpio_library.setmode(gpio_library.ASUS)
-            else:
-                try:
-                    with open('/dev/gpiomem', 'rb') as gpiomem:
-                        self.gpio_map = mmap.mmap(gpiomem.fileno(), BLOCK_SIZE, prot=mmap.PROT_READ)
-                except FileNotFoundError:
-                    pass
-                except OSError as err:
-                    error(err)
-            NativeGPIO.instance = self
+        self.setPinMapping()
+        self.pins = [pin for pin in self.MAPPING if type(pin) is int]
+        GPIOPort.__init__(self, max(self.pins) + 1)
+        self.post_value = True
+        self.post_function = True
+        self.gpio_setup = []
+        self.gpio_reset = []
+        self.gpio_map = None
+        self.pinFunctionSet = set()
+        self.valueFile = {pin:None for pin in self.pins}
+        self.functionFile = {pin:None for pin in self.pins}
+        for pin in self.pins:
+            # Export the pins here to prevent a delay when accessing the values for the 
+            # first time while waiting for the file group to be set
+            self.__checkFilesystemExport__(pin)
+        if gpio_library:
+            gpio_library.setmode(gpio_library.ASUS)
+        else:
+            try:
+                with open('/dev/gpiomem', 'rb') as gpiomem:
+                    self.gpio_map = mmap.mmap(gpiomem.fileno(), BLOCK_SIZE, prot=mmap.PROT_READ)
+            except FileNotFoundError:
+                pass
+            except OSError as err:
+                error(err)
 
     def __del__(self):
         if self.gpio_map:

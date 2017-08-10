@@ -6,10 +6,6 @@ class GpioTest(unittest.TestCase):
     def setUp(self):
         self.gpio = NativeGPIO()
 
-    def tearDown(self):
-        self.gpio = None
-        NativeGPIO.instance = None
-
     def testGPIO(self):
         for pin in self.gpio.pins:
             info('Testing pin {}'.format(pin))
