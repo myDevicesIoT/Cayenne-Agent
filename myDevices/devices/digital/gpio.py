@@ -329,7 +329,7 @@ class NativeGPIO(Singleton, GPIOPort):
     def wildcard(self, compact=False):
         if gpio_library and os.geteuid() != 0:
             #If not root on an ASUS device get the pin states as root
-            value, error = executeCommand('sudo python3 -m myDevices.devices.readvalue --pins')
+            value, err = executeCommand('sudo python3 -m myDevices.devices.readvalue --pins')
             value = value.splitlines()[0]
             import json
             return json.loads(value)
