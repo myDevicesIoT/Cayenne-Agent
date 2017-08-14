@@ -20,7 +20,31 @@ from myDevices.utils.logger import debug, info
 from myDevices.system.version import OS_VERSION, OS_JESSIE, OS_WHEEZY
 from myDevices.system.hardware import Hardware
 
-if Hardware().getModel() != 'Tinker Board':
+MODEL = Hardware().getModel()
+if MODEL == 'Tinker Board':
+    # Tinker Board only supports I2C and SPI for now. These are enabled by default and 
+    # don't need to load any modules.
+    BUSLIST = {
+        "I2C": {
+            "enabled": True,
+        },
+
+        "SPI": {
+            "enabled": True,
+        }
+    }
+elif 'BeagleBone' in MODEL:
+    BUSLIST = {
+        "I2C": {
+            "enabled": True,
+        },
+
+        "SPI": {
+            "enabled": True,
+        }
+    }  
+else:
+    # Raspberry Pi
     BUSLIST = {
         "I2C": {
             "enabled": False,
@@ -44,18 +68,6 @@ if Hardware().getModel() != 'Tinker Board':
             "gpio": {4:"DATA"},
             "modules": ["w1-gpio"],
             "wait": 2}
-    }
-else:
-    # Tinker Board only supports I2C and SPI for now. These are enabled by default and 
-    # don't need to load any modules.
-    BUSLIST = {
-        "I2C": {
-            "enabled": True,
-        },
-
-        "SPI": {
-            "enabled": True,
-        }
     }
 
 
