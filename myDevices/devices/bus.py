@@ -40,7 +40,9 @@ elif 'BeagleBone' in MODEL:
         },
 
         "SPI": {
-            "enabled": True,
+            "enabled": False,
+            "gpio": {17:"SPI0_CS", 18:"SPI0_D1", 21:"SPI0_D1", 22:"SPI0_SCLK"},
+            "configure_pin_command": "config-pin P9.{} spi"
         }
     }  
 else:
@@ -70,6 +72,16 @@ else:
             "wait": 2}
     }
 
+def enableBus(bus):
+    loadModules(bus)
+    configurePins(bus)
+    BUSLIST[bus]["enabled"] = True
+    
+def configurePins(bus):
+    if "configure_pin_command" in BUSLIST[bus]:
+        for pin in BUSLIST[bus]["gpio"].keys():
+            command = BUSLIST[bus]["configure_pin_command"].format(pin)
+            subprocess.call(command.split(' '))
 
 def loadModule(module):
     subprocess.call(["sudo", "modprobe", module])
@@ -85,8 +97,6 @@ def loadModules(bus):
         if "wait" in BUSLIST[bus]:
             info("Sleeping %ds to let %s modules load" % (BUSLIST[bus]["wait"], bus))
             time.sleep(BUSLIST[bus]["wait"])
-
-    BUSLIST[bus]["enabled"] = True
 
 def unloadModules(bus):
     info("Unloading %s modules" % bus)
@@ -122,7 +132,7 @@ def checkAllBus():
 
 class Bus():
     def __init__(self, busName, device, flag=os.O_RDWR):
-        loadModules(busName)
+        enableBus(busName)
         self.busName = busName
         self.device = device
         self.flag = flag
