@@ -30,7 +30,7 @@ class SystemConfig:
             config_id: Id of command to run
             parameters: Parameters to use when executing command
         """
-        if Hardware().getModel() == 'Tinker Board':
+        if any(model in Hardware().getModel() for model in ('Tinker Board', 'BeagleBone')):
             return (1, 'Not supported')
         debug('SystemConfig::ExecuteConfigCommand')
         if config_id == 0:
@@ -53,7 +53,7 @@ class SystemConfig:
     def getConfig():
         """Return dict containing configuration settings"""
         configItem = {}
-        if Hardware().getModel() == 'Tinker Board':
+        if any(model in Hardware().getModel() for model in ('Tinker Board', 'BeagleBone')):
             return configItem
         try:
             (returnCode, output) = SystemConfig.ExecuteConfigCommand(17, '')
