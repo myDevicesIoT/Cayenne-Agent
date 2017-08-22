@@ -42,7 +42,7 @@ elif 'BeagleBone' in MODEL:
         "SPI": {
             "enabled": False,
             "gpio": {17:"SPI0_CS", 18:"SPI0_D1", 21:"SPI0_D1", 22:"SPI0_SCLK"},
-            "configure_pin_command": "config-pin P9.{} spi"
+            "configure_pin_command": "sudo config-pin P9.{} spi"
         }
     }  
 else:
