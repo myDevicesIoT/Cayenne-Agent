@@ -87,7 +87,7 @@ class SystemInfo():
         return info
 
     def getDiskInfo(self):
-        """Get system uptime as a dict
+        """Get disk usage info as a dict
 
         Returned dict example::
 
