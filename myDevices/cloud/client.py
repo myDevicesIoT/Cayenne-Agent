@@ -268,6 +268,7 @@ class CloudServerClient:
             self.installDate = int(time())
             self.config.set('Agent', 'InstallDate', self.installDate)
         self.networkConfig = Config(NETWORK_SETTINGS)
+        self.sensorsClient = sensors.SensorsClient()
         self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
         self.Initialize()
         self.CheckSubscription()
@@ -301,7 +302,6 @@ class CloudServerClient:
             self.count = 10000
             self.buff = bytearray(self.count)
             #start thread only after init of other fields
-            self.sensorsClient = sensors.SensorsClient()
             self.sensorsClient.SetDataChanged(self.OnDataChanged, self.BuildPT_SYSTEM_INFO)
             self.processManager = services.ProcessManager()
             self.serviceManager = services.ServiceManager()
@@ -471,6 +471,7 @@ class CloudServerClient:
             info('Registration succeeded for invite code {}, auth id = {}'.format(inviteCode, authId))
             self.config.set('Agent', 'Initialized', 'true')
             self.MachineId = authId
+            self.config.set('Agent', 'Id', self.MachineId)
 
     @property
     def Start(self):
@@ -622,9 +623,12 @@ class CloudServerClient:
     def RunAction(self, action):
         """Run a specified action"""
         debug('RunAction')
-        if 'MachineName' in action and self.MachineId != action['MachineName']:
-            debug('Scheduler action is not assigned for this machine: ' + str(action))
-            return
+        if 'MachineName' in action:
+            #Use the config file machine if self.MachineId has not been set yet due to connection issues 
+            machine_id = self.MachineId if self.MachineId else self.config.get('Agent', 'Id')
+            if machine_id != action['MachineName']:
+                debug('Scheduler action is not assigned for this machine: ' + str(action))
+                return
         self.ExecuteMessage(action)
 
     def SendNotification(self, notify, subject, body):
