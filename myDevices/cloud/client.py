@@ -28,7 +28,7 @@ from myDevices.utils.history import History
 from select import select
 from hashlib import sha256
 from myDevices.cloud.apiclient import CayenneApiClient
-
+import myDevices.cloud.cayennemqtt as cayennemqtt
 
 NETWORK_SETTINGS = '/etc/myDevices/Network.ini'
 APP_SETTINGS = '/etc/myDevices/AppSettings.ini'
@@ -194,13 +194,37 @@ class WriterThread(Thread):
         while self.Continue:
             sleep(GENERAL_SLEEP_THREAD)
             try:
-                if not self.cloudClient.connected:
+                if self.cloudClient.mqttClient.connected == False:
+                    info('WriterThread mqttClient not connected')
                     continue
                 message = self.cloudClient.DequeuePacket()
                 if not message:
+                    info('WriterThread mqttClient no message, {}'.format(message))
                     continue
+                # json_data = dumps(message) # + '\n'
+                info('WriterThread, topic: {} {}'.format(cayennemqtt.DATA_TOPIC, type(message)))
+                self.cloudClient.mqttClient.publish_packet(cayennemqtt.DATA_TOPIC, message)
                 self.cloudClient.SendMessage(message)
-                del message
+                # # topic = self.cloudClient.topics.get(int(message['PacketType']))
+                # topic = '{}/{}'.format(cayennemqtt.INTERNAL_RPI_DATA_TOPIC, self.cloudClient.MachineId)
+                # topic = cayennemqtt.INTERNAL_RPI_DATA_TOPIC
+                # info('WriterThread, type: {}, topic: {} {}'.format(int(message['PacketType']), topic, json_data))
+                # if topic:
+                #     #Debug hack to handle the fact that some packet types are used for both input and output.
+                #     #This should be changed when completely switched over to MQTT topics so the same topics aren't used for input and output.
+                #     if topic is cayennemqtt.SETTINGS_JSON_TOPIC: # If remove sensor response, use internal sensor update topic.
+                #         topic = cayennemqtt.INTERNAL_SENSOR_RESPONSE_TOPIC
+                #     if topic is cayennemqtt.INTERNAL_JSON_TOPIC:
+                #         topic = cayennemqtt.INTERNAL_REMOTE_RESPONSE_TOPIC
+                #     if topic is cayennemqtt.SYSTEM_JSON_TOPIC and not 'IpAddress' in message: # If variable system info, use data topic.
+                #         topic = cayennemqtt.DATA_JSON_TOPIC
+                #     self.cloudClient.mqttClient.publish_packet(topic, json_data)
+                # if int(message['PacketType']) != PacketTypes.PT_REQUEST_SCHEDULES.value: # Remove when completely switched to MQTT
+                #     self.cloudClient.SendMessage(json_data)
+                # packet = dumps(message, sort_keys=True) + '\n'
+                # self.cloudClient.mqttClient.publish_packet("packets", packet)
+                # del message
+                # del json_data
                 message = None
             except:
                 exception("WriterThread Unexpected error")
@@ -269,9 +293,14 @@ class CloudServerClient:
             self.config.set('Agent', 'InstallDate', self.installDate)
         self.networkConfig = Config(NETWORK_SETTINGS)
         self.sensorsClient = sensors.SensorsClient()
+        self.MachineId = None
+        self.username = None
+        self.password = None
+        self.clientId = None
+        self.CheckSubscription()
+        #self.defaultRDServer = self.networkConfig.get('CONFIG','RemoteDesktopServerAddress')
         self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
         self.Initialize()
-        self.CheckSubscription()
         self.FirstRun()
         self.updater = Updater(self.config)
         self.updater.start()
@@ -295,14 +324,14 @@ class CloudServerClient:
             self.hardware = Hardware()
             self.oSInfo = OSInfo()
             self.downloadSpeed = DownloadSpeed(self.config)
-            self.MachineId = None
+            self.downloadSpeed.getDownloadSpeed()
             self.connected = False
             self.exiting = False
             self.Start
             self.count = 10000
             self.buff = bytearray(self.count)
             #start thread only after init of other fields
-            self.sensorsClient.SetDataChanged(self.OnDataChanged, self.BuildPT_SYSTEM_INFO)
+            self.sensorsClient.SetDataChanged(self.OnDataChanged, self.SendSystemState)
             self.processManager = services.ProcessManager()
             self.serviceManager = services.ServiceManager()
             self.wifiManager = WifiManager.WifiManager()
@@ -313,6 +342,8 @@ class CloudServerClient:
             self.processorThread = ProcessorThread('processor', self)
             self.processorThread.start()
             TimerThread(self.CheckConnectionAndPing, self.pingRate)
+            TimerThread(self.SendSystemState, 30, 5)
+            self.previousSystemInfo = None
             self.sentHistoryData = {}
             self.historySendFails = 0
             self.historyThread = Thread(target=self.SendHistoryData)
@@ -342,10 +373,72 @@ class CloudServerClient:
 
     def FirstRun(self):
         """Send messages when client is first started"""
-        self.BuildPT_SYSTEM_INFO()
-        self.RequestSchedules()
+        self.SendSystemInfo()
+        # self.RequestSchedules()
+        # self.BuildPT_LOCATION()
+    # def BuildPT_LOCATION(self):
+    #     data = {}
+    #     data['position'] = {}
+    #     data['position']['latitude'] = '30.022112'
+    #     data['position']['longitude'] = '45.022112'
+    #     data['position']['accuracy'] = '20'
+    #     data['position']['method'] = 'Windows location provider'
+    #     data['provider'] = 'other'
+    #     data['time'] = int(time())
+    #     data['PacketType'] = PacketTypes.PT_LOCATION.value
+    #     data['MachineName'] = self.MachineId
+    #     self.EnqueuePacket(data)
 
-    def BuildPT_UTILIZATION(self):
+    def OnDataChanged(self, raspberryValue):
+        """Enqueue a packet containing changed system data to send to the server"""
+        data = {}
+        data['MachineName'] = self.MachineId
+        data['PacketType'] = PacketTypes.PT_DATA_CHANGED.value
+        data['Timestamp'] = int(time())
+        data['RaspberryInfo'] = raspberryValue
+        self.EnqueuePacket(data)
+        del data
+        del raspberryValue
+
+    def SendSystemInfo(self):
+        """Enqueue a packet containing system info to send to the server"""
+        try:
+            # debug('SendSystemInfo')
+            data = {}
+            data['MachineName'] = self.MachineId
+            data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
+            data['IpAddress'] = self.PublicIP
+            data['GatewayMACAddress'] = self.hardware.getMac()
+            raspberryValue = {}
+            # raspberryValue['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
+            raspberryValue['AntiVirus'] = 'None'
+            raspberryValue['Firewall'] = 'iptables'
+            raspberryValue['FirewallEnabled'] = 'true'
+            raspberryValue['ComputerMake'] =  self.hardware.getManufacturer()
+            raspberryValue['ComputerModel'] = self.hardware.getModel()
+            raspberryValue['OsName'] = self.oSInfo.ID
+            raspberryValue['OsBuild'] = self.oSInfo.ID_LIKE
+            raspberryValue['OsArchitecture'] = self.hardware.Revision
+            raspberryValue['OsVersion'] = self.oSInfo.VERSION_ID
+            raspberryValue['ComputerName'] = self.machineName
+            raspberryValue['AgentVersion'] = self.config.get('Agent','Version')
+            raspberryValue['GatewayMACAddress'] = self.hardware.getMac()
+            raspberryValue['OsSettings'] = RaspiConfig.getConfig()
+            raspberryValue['NetworkId'] = WifiManager.Network.GetNetworkId()
+            raspberryValue['WifiStatus'] = self.wifiManager.GetStatus()
+            data['RaspberryInfo'] = raspberryValue
+            if data != self.previousSystemInfo:
+                self.previousSystemInfo = data.copy()
+                data['Timestamp'] = int(time())
+                self.EnqueuePacket(data)
+                logJson('SendSystemInfo: ' + dumps(data), 'SendSystemInfo')
+            del raspberryValue
+            del data
+            data=None
+        except Exception as e:
+            exception('SendSystemInfo unexpected error: ' + str(e))
+
+    def SendSystemUtilization(self):
         """Enqueue a packet containing system utilization data to send to the server"""
         data = {}
         data['MachineName'] = self.MachineId
@@ -361,20 +454,12 @@ class CloudServerClient:
         data['PercentProcessorTime'] = self.processManager.PercentProcessorTime
         self.EnqueuePacket(data)
 
-    def OnDataChanged(self, raspberryValue):
-        """Enqueue a packet containing system utilization data to send to the server"""
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['PacketType'] = PacketTypes.PT_DATA_CHANGED.value
-        data['Timestamp'] = int(time())
-        data['RaspberryInfo'] = raspberryValue
-        self.EnqueuePacket(data)
-        del data
-        del raspberryValue
-
-    def BuildPT_SYSTEM_INFO(self):
+    def SendSystemState(self):
         """Enqueue a packet containing system information to send to the server"""
         try:
+            # debug('SendSystemState')
+            self.SendSystemInfo()
+            self.SendSystemUtilization()
             data = {}
             data['MachineName'] = self.MachineId
             data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
@@ -463,45 +548,63 @@ class CloudServerClient:
         """Check that an invite code is valid"""
         inviteCode = self.config.get('Agent', 'InviteCode')
         cayenneApiClient = CayenneApiClient(self.CayenneApiHost)
-        authId = cayenneApiClient.loginDevice(inviteCode)
-        if authId == None:
+        credentials = cayenneApiClient.loginDevice(inviteCode)
+        if credentials == None:
             error('Registration failed for invite code {}, closing the process'.format(inviteCode))
             Daemon.Exit()
         else:
-            info('Registration succeeded for invite code {}, auth id = {}'.format(inviteCode, authId))
+            info('Registration succeeded for invite code {}, credentials = {}'.format(inviteCode, credentials))
             self.config.set('Agent', 'Initialized', 'true')
-            self.MachineId = authId
-            self.config.set('Agent', 'Id', self.MachineId)
-
+            try:
+                self.MachineId = credentials#credentials['id']
+                # self.username = credentials['mqtt']['username']
+                # self.password = credentials['mqtt']['password']
+                # self.clientId = credentials['mqtt']['clientId']
+                self.config.set('Agent', 'Id', self.MachineId)
+            except:
+                exception('Invalid credentials, closing the process')
+                Daemon.Exit()
+        info('CheckSubscription: MachineId {}'.format(self.MachineId))
+ 
     @property
     def Start(self):
-        """Connect to the server"""
+        #debug('Start')
         if self.connected:
             ret = False
             error('Start already connected')
         else:
-            info('Connecting to: {}:{}'.format(self.HOST, self.PORT))
             count = 0
             with self.mutex:
-                count += 1
+                count+=1
                 while self.connected == False and count < 30:
                     try:
-                        self.sock = None
+                        self.sock  = None
                         self.wrappedSocket = None
+                        ##debug('Start wrap_socket')
                         self.sock = socket(AF_INET, SOCK_STREAM)
+                        #self.wrappedSocket = wrap_socket(self.sock, ca_certs="/etc/myDevices/ca.crt", cert_reqs=CERT_REQUIRED)
                         self.wrappedSocket = wrap_socket(self.sock)
-                        self.wrappedSocket.connect((self.HOST, self.PORT))
+                        self.wrappedSocket.connect(('cloud.mydevices.com', 8181))
                         info('myDevices cloud connected')
+                        self.mqttClient = cayennemqtt.CayenneMQTTClient()
+                        self.mqttClient.on_message = self.OnMessage
+                        self.mqttClient.on_command = self.OnCommand
+                        username = self.config.get('Agent', 'Username')
+                        password = self.config.get('Agent', 'Password')
+                        clientID = self.config.get('Agent', 'ClientID')
+                        self.mqttClient.begin(username, password, clientID, self.HOST, self.PORT)
+                        self.mqttClient.loop_start()
                         self.connected = True
                     except socket_error as serr:
                         Daemon.OnFailure('cloud', serr.errno)
-                        error('Start failed: ' + str(self.HOST) + ':' + str(self.PORT) + ' Error:' + str(serr))
+                        error ('Start failed: ' + str(self.HOST) + ':' + str(self.PORT) + ' Error:' + str(serr))
                         self.connected = False
                         sleep(30-count)
         return self.connected
 
     def Stop(self):
         """Disconnect from the server"""
+        #debug('Stop started')
         Daemon.Reset('cloud')
         ret = True
         if self.connected == False:
@@ -512,12 +615,14 @@ class CloudServerClient:
                 try:
                     self.wrappedSocket.shutdown(SHUT_RDWR)
                     self.wrappedSocket.close()
+                    self.mqttClient.loop_stop()
                     info('myDevices cloud disconnected')
                 except socket_error as serr:
                     debug(str(serr))
-                    error('myDevices cloud disconnected error:' + str(serr))
+                    error ('myDevices cloud disconnected error:' + str(serr))
                     ret = False
                 self.connected = False
+        #debug('Stop finished')
         return ret
 
     def Restart(self):
@@ -575,46 +680,87 @@ class CloudServerClient:
             return False
         return True
 
+    def OnMessage(self, topic, message):
+        """Add message from the server to the queue"""
+        info('OnMessage: {}'.format(message))
+        self.readQueue.put(message)
+
+    def OnCommand(self, channel, value):
+        """Handle command message from the server"""
+        info('OnCommand: channel {}, value {}'.format(channel, value))
+        try:
+            channel = int(channel)
+            value = int(value)
+        except ValueError:
+            pass
+        retValue = str(self.sensorsClient.GpioCommand('value', 'POST', channel, value))
+        if retValue == str(value):
+            return None
+        else:
+            return retValue
+
     def ReadMessage(self):
-        """Read a message from the server"""
+        """Read a message from the server and add it to the queue"""
         ret = True
         if self.connected == False:
-            ret = False
+             ret = False
         else:
             try:
-                self.count = 4096
-                timeout_in_seconds = 10
+                self.count=4096
+                timeout_in_seconds=10
                 ready = select([self.wrappedSocket], [], [], timeout_in_seconds)
                 if ready[0]:
                     message = self.wrappedSocket.recv(self.count).decode()
                     buffering = len(message) == 4096
                     while buffering and message:
-                        if self.CheckJson(message):
-                            buffering = False
-                        else:
-                            more = self.wrappedSocket.recv(self.count).decode()
-                            if not more:
-                                buffering = False
-                            else:
-                                message += more
+                         if self.CheckJson(message):
+                             buffering = False
+                         else:
+                             more = self.wrappedSocket.recv(self.count).decode()
+                             if not more:
+                                 buffering = False
+                             else:
+                                 message += more
                     try:
                         if message:
                             messageObject = loads(message)
+                            # topic = self.topics.get(int(messageObject['PacketType']))
+                            topic = cayennemqtt.COMMAND_TOPIC #'{}/{}'.format(cayennemqtt.COMMAND_TOPIC, self.MachineId)
+                            if messageObject:
+                                info('ReadMessage, type: {}, topic: {}'.format(int(messageObject['PacketType']), topic))
+                            # if topic:
+                                # #Debug hack for testing. This should be removed when completely switched over to MQTT.
+                                # if topic is cayennemqtt.COMMAND_JSON_TOPIC:
+                                #     info('ReadMessage, Service: {}'.format(messageObject['Service']))
+                                #     if messageObject['Service'] == 'gpio':
+                                #         info('ReadMessage, {}'.format(messageObject))
+                                #         info('ReadMessage, check success: {}'.format(messageObject['Service']))
+                                #         topic = 'cmd/{}'.format(messageObject['Parameters']['Channel'])
+                                #         message = '{},{}'.format(messageObject['Id'], messageObject['Parameters']['Value'])
+                                #         info('ReadMessage, topic: {}, message {}'.format(topic, message))
+                                #     self.mqttClient.publish_packet(topic, message)
+                                # elif topic is cayennemqtt.SETTINGS_SCHEDULE_JSON_TOPIC:
+                                #     self.mqttClient.publish_packet(topic, message, 1, True)
+                                # elif topic is not cayennemqtt.SYSTEM_JSON_TOPIC and topic is not cayennemqtt.DATA_JSON_TOPIC:
+                                #     self.mqttClient.publish_packet(topic, message)
+                                self.mqttClient.publish_packet(cayennemqtt.COMMAND_TOPIC, message)
+                            else:                                
+                                self.readQueue.put(messageObject)
                             del message
-                            self.readQueue.put(messageObject)
                         else:
                             error('ReadMessage received empty message string')
                     except:
-                        exception('ReadMessage error: ' + str(message))
+                        exception('ReadMessage error: ' + str(message)) 
                         return False
                     Daemon.Reset('cloud')
             except IOError as ioerr:
                 debug('IOError: ' + str(ioerr))
                 self.Restart()
+                #Daemon.OnFailure('cloud', ioerr.errno)
             except socket_error as serr:
                 Daemon.OnFailure('cloud', serr.errno)
             except:
-                exception('ReadMessage error')
+                exception('ReadMessage error') 
                 ret = False
                 sleep(1)
                 Daemon.OnFailure('cloud')
@@ -680,11 +826,12 @@ class CloudServerClient:
         info("ExecuteMessage: " + str(messageObject['PacketType']))
         packetType = int(messageObject['PacketType'])
         if packetType == PacketTypes.PT_UTILIZATION.value:
-            self.BuildPT_UTILIZATION()
+            self.SendSystemUtilization()
             info(PacketTypes.PT_UTILIZATION)
             return
         if packetType == PacketTypes.PT_SYSTEM_INFO.value:
-            self.BuildPT_SYSTEM_INFO()
+            info("ExecuteMessage - sysinfo - Calling SendSystemState")
+            self.SendSystemState()
             info(PacketTypes.PT_SYSTEM_INFO)
             return
         if packetType == PacketTypes.PT_UNINSTALL_AGENT.value:
@@ -706,7 +853,11 @@ class CloudServerClient:
         if packetType == PacketTypes.PT_PRODUCT_INFO.value:
             self.config.set('Subscription', 'ProductCode', messageObject['ProductCode'])
             info(PacketTypes.PT_PRODUCT_INFO)
-            return
+            return   
+        # if packetType == PacketTypes.PT_START_RDS_LOCAL_INIT.value:
+        #     error('PT_START_RDS_LOCAL_INIT not implemented')
+        #     info(PacketTypes.PT_START_RDS_LOCAL_INIT)
+        #     return   
         if packetType == PacketTypes.PT_RESTART_COMPUTER.value:
             info(PacketTypes.PT_RESTART_COMPUTER)
             data = {}
@@ -945,7 +1096,7 @@ class CloudServerClient:
     def EnqueuePacket(self, message):
         """Enqueue a message packet to send to the server"""
         message['PacketTime'] = GetTime()
-        json_data = dumps(message)+ '\n'
+        json_data = dumps(message) + '\n'
         message = None
         self.writeQueue.put(json_data)
 

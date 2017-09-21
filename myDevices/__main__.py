@@ -122,8 +122,8 @@ def main(argv):
     writePidToFile(pidfile)
     logToFile(logfile)
     config = Config(configfile)
-    HOST = config.get('CONFIG', 'ServerAddress', 'cloud.mydevices.com')
-    PORT = config.getInt('CONFIG', 'ServerPort', 8181)
+    HOST = config.get('CONFIG', 'ServerAddress', 'mqtt.mydevices.com')
+    PORT = config.getInt('CONFIG', 'ServerPort', 1883)
     CayenneApiHost = config.get('CONFIG', 'CayenneApi', 'https://api.mydevices.com')
     global client
     client = CloudServerClient(HOST, PORT, CayenneApiHost)
