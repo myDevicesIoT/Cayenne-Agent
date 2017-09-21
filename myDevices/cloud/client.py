@@ -122,35 +122,6 @@ class OSInfo():
             exception("OSInfo Unexpected error")
 
 
-class ReaderThread(Thread):
-    """Class for reading data from the server on a thread"""
-    
-    def __init__(self, name, client):
-        """Initialize reader thread"""
-        debug('ReaderThread init')
-        Thread.__init__(self, name=name)
-        self.cloudClient = client
-        self.Continue = True
-
-    def run(self):
-        """Read messages from the server until the thread is stopped"""
-        debug('ReaderThread run, continue: ' + str(self.Continue))
-        while self.Continue:
-            try:
-                sleep(GENERAL_SLEEP_THREAD)
-                if not self.cloudClient.connected:
-                    continue
-                self.cloudClient.ReadMessage()
-            except:
-                exception("ReaderThread Unexpected error")
-        return
-
-    def stop(self):
-        """Stop reading messages from the server"""
-        debug('ReaderThread stop')
-        self.Continue = False
-
-
 class ProcessorThread(Thread):
     """Class for processing messages from the server on a thread"""
 
@@ -201,30 +172,8 @@ class WriterThread(Thread):
                 if not message:
                     info('WriterThread mqttClient no message, {}'.format(message))
                     continue
-                # json_data = dumps(message) # + '\n'
-                info('WriterThread, topic: {} {}'.format(cayennemqtt.DATA_TOPIC, type(message)))
+                debug('WriterThread, topic: {} {}'.format(cayennemqtt.DATA_TOPIC, type(message)))
                 self.cloudClient.mqttClient.publish_packet(cayennemqtt.DATA_TOPIC, message)
-                self.cloudClient.SendMessage(message)
-                # # topic = self.cloudClient.topics.get(int(message['PacketType']))
-                # topic = '{}/{}'.format(cayennemqtt.INTERNAL_RPI_DATA_TOPIC, self.cloudClient.MachineId)
-                # topic = cayennemqtt.INTERNAL_RPI_DATA_TOPIC
-                # info('WriterThread, type: {}, topic: {} {}'.format(int(message['PacketType']), topic, json_data))
-                # if topic:
-                #     #Debug hack to handle the fact that some packet types are used for both input and output.
-                #     #This should be changed when completely switched over to MQTT topics so the same topics aren't used for input and output.
-                #     if topic is cayennemqtt.SETTINGS_JSON_TOPIC: # If remove sensor response, use internal sensor update topic.
-                #         topic = cayennemqtt.INTERNAL_SENSOR_RESPONSE_TOPIC
-                #     if topic is cayennemqtt.INTERNAL_JSON_TOPIC:
-                #         topic = cayennemqtt.INTERNAL_REMOTE_RESPONSE_TOPIC
-                #     if topic is cayennemqtt.SYSTEM_JSON_TOPIC and not 'IpAddress' in message: # If variable system info, use data topic.
-                #         topic = cayennemqtt.DATA_JSON_TOPIC
-                #     self.cloudClient.mqttClient.publish_packet(topic, json_data)
-                # if int(message['PacketType']) != PacketTypes.PT_REQUEST_SCHEDULES.value: # Remove when completely switched to MQTT
-                #     self.cloudClient.SendMessage(json_data)
-                # packet = dumps(message, sort_keys=True) + '\n'
-                # self.cloudClient.mqttClient.publish_packet("packets", packet)
-                # del message
-                # del json_data
                 message = None
             except:
                 exception("WriterThread Unexpected error")
@@ -316,10 +265,6 @@ class CloudServerClient:
             self.mutex = RLock()
             self.readQueue = Queue()
             self.writeQueue = Queue()
-            self.pingRate = 10
-            self.pingTimeout = 35
-            self.waitPing = 0
-            self.lastPing = time()-self.pingRate - 1
             self.PublicIP = ipgetter.myip()
             self.hardware = Hardware()
             self.oSInfo = OSInfo()
@@ -337,11 +282,8 @@ class CloudServerClient:
             self.wifiManager = WifiManager.WifiManager()
             self.writerThread = WriterThread('writer', self)
             self.writerThread.start()
-            self.readerThread = ReaderThread('reader', self)
-            self.readerThread.start()
             self.processorThread = ProcessorThread('processor', self)
             self.processorThread.start()
-            TimerThread(self.CheckConnectionAndPing, self.pingRate)
             TimerThread(self.SendSystemState, 30, 5)
             self.previousSystemInfo = None
             self.sentHistoryData = {}
@@ -556,10 +498,10 @@ class CloudServerClient:
             info('Registration succeeded for invite code {}, credentials = {}'.format(inviteCode, credentials))
             self.config.set('Agent', 'Initialized', 'true')
             try:
-                self.MachineId = credentials#credentials['id']
-                # self.username = credentials['mqtt']['username']
-                # self.password = credentials['mqtt']['password']
-                # self.clientId = credentials['mqtt']['clientId']
+                self.MachineId = credentials #credentials['id']
+                self.username = 'username' #credentials['mqtt']['username']
+                self.password = 'password' #credentials['mqtt']['password']
+                self.clientId = 'client_id' #credentials['mqtt']['clientId']
                 self.config.set('Agent', 'Id', self.MachineId)
             except:
                 exception('Invalid credentials, closing the process')
@@ -568,62 +510,31 @@ class CloudServerClient:
  
     @property
     def Start(self):
-        #debug('Start')
-        if self.connected:
-            ret = False
-            error('Start already connected')
-        else:
-            count = 0
-            with self.mutex:
-                count+=1
-                while self.connected == False and count < 30:
-                    try:
-                        self.sock  = None
-                        self.wrappedSocket = None
-                        ##debug('Start wrap_socket')
-                        self.sock = socket(AF_INET, SOCK_STREAM)
-                        #self.wrappedSocket = wrap_socket(self.sock, ca_certs="/etc/myDevices/ca.crt", cert_reqs=CERT_REQUIRED)
-                        self.wrappedSocket = wrap_socket(self.sock)
-                        self.wrappedSocket.connect(('cloud.mydevices.com', 8181))
-                        info('myDevices cloud connected')
-                        self.mqttClient = cayennemqtt.CayenneMQTTClient()
-                        self.mqttClient.on_message = self.OnMessage
-                        self.mqttClient.on_command = self.OnCommand
-                        username = self.config.get('Agent', 'Username')
-                        password = self.config.get('Agent', 'Password')
-                        clientID = self.config.get('Agent', 'ClientID')
-                        self.mqttClient.begin(username, password, clientID, self.HOST, self.PORT)
-                        self.mqttClient.loop_start()
-                        self.connected = True
-                    except socket_error as serr:
-                        Daemon.OnFailure('cloud', serr.errno)
-                        error ('Start failed: ' + str(self.HOST) + ':' + str(self.PORT) + ' Error:' + str(serr))
-                        self.connected = False
-                        sleep(30-count)
-        return self.connected
+        """Connect to the server"""
+        started = False
+        count = 0
+        while started == False and count < 30:
+            try:
+                self.mqttClient = cayennemqtt.CayenneMQTTClient()
+                self.mqttClient.on_message = self.OnMessage
+                self.mqttClient.begin(self.username, self.password, self.clientId, self.HOST, self.PORT)
+                self.mqttClient.loop_start()
+                started = True
+            except OSError as oserror:
+                Daemon.OnFailure('cloud', oserror.errno)
+                error ('Start failed: ' + str(self.HOST) + ':' + str(self.PORT) + ' Error:' + str(oserror))
+                started = False
+                sleep(30-count)
+        return started
 
     def Stop(self):
         """Disconnect from the server"""
-        #debug('Stop started')
         Daemon.Reset('cloud')
-        ret = True
-        if self.connected == False:
-            ret = False
-            error('Stop not connected')
-        else:
-            with self.mutex:
-                try:
-                    self.wrappedSocket.shutdown(SHUT_RDWR)
-                    self.wrappedSocket.close()
-                    self.mqttClient.loop_stop()
-                    info('myDevices cloud disconnected')
-                except socket_error as serr:
-                    debug(str(serr))
-                    error ('myDevices cloud disconnected error:' + str(serr))
-                    ret = False
-                self.connected = False
-        #debug('Stop finished')
-        return ret
+        try:
+            self.mqttClient.loop_stop()
+            info('myDevices cloud disconnected')
+        except:
+            exception('Error stopping client')
 
     def Restart(self):
         """Restart the server connection"""
@@ -685,87 +596,6 @@ class CloudServerClient:
         info('OnMessage: {}'.format(message))
         self.readQueue.put(message)
 
-    def OnCommand(self, channel, value):
-        """Handle command message from the server"""
-        info('OnCommand: channel {}, value {}'.format(channel, value))
-        try:
-            channel = int(channel)
-            value = int(value)
-        except ValueError:
-            pass
-        retValue = str(self.sensorsClient.GpioCommand('value', 'POST', channel, value))
-        if retValue == str(value):
-            return None
-        else:
-            return retValue
-
-    def ReadMessage(self):
-        """Read a message from the server and add it to the queue"""
-        ret = True
-        if self.connected == False:
-             ret = False
-        else:
-            try:
-                self.count=4096
-                timeout_in_seconds=10
-                ready = select([self.wrappedSocket], [], [], timeout_in_seconds)
-                if ready[0]:
-                    message = self.wrappedSocket.recv(self.count).decode()
-                    buffering = len(message) == 4096
-                    while buffering and message:
-                         if self.CheckJson(message):
-                             buffering = False
-                         else:
-                             more = self.wrappedSocket.recv(self.count).decode()
-                             if not more:
-                                 buffering = False
-                             else:
-                                 message += more
-                    try:
-                        if message:
-                            messageObject = loads(message)
-                            # topic = self.topics.get(int(messageObject['PacketType']))
-                            topic = cayennemqtt.COMMAND_TOPIC #'{}/{}'.format(cayennemqtt.COMMAND_TOPIC, self.MachineId)
-                            if messageObject:
-                                info('ReadMessage, type: {}, topic: {}'.format(int(messageObject['PacketType']), topic))
-                            # if topic:
-                                # #Debug hack for testing. This should be removed when completely switched over to MQTT.
-                                # if topic is cayennemqtt.COMMAND_JSON_TOPIC:
-                                #     info('ReadMessage, Service: {}'.format(messageObject['Service']))
-                                #     if messageObject['Service'] == 'gpio':
-                                #         info('ReadMessage, {}'.format(messageObject))
-                                #         info('ReadMessage, check success: {}'.format(messageObject['Service']))
-                                #         topic = 'cmd/{}'.format(messageObject['Parameters']['Channel'])
-                                #         message = '{},{}'.format(messageObject['Id'], messageObject['Parameters']['Value'])
-                                #         info('ReadMessage, topic: {}, message {}'.format(topic, message))
-                                #     self.mqttClient.publish_packet(topic, message)
-                                # elif topic is cayennemqtt.SETTINGS_SCHEDULE_JSON_TOPIC:
-                                #     self.mqttClient.publish_packet(topic, message, 1, True)
-                                # elif topic is not cayennemqtt.SYSTEM_JSON_TOPIC and topic is not cayennemqtt.DATA_JSON_TOPIC:
-                                #     self.mqttClient.publish_packet(topic, message)
-                                self.mqttClient.publish_packet(cayennemqtt.COMMAND_TOPIC, message)
-                            else:                                
-                                self.readQueue.put(messageObject)
-                            del message
-                        else:
-                            error('ReadMessage received empty message string')
-                    except:
-                        exception('ReadMessage error: ' + str(message)) 
-                        return False
-                    Daemon.Reset('cloud')
-            except IOError as ioerr:
-                debug('IOError: ' + str(ioerr))
-                self.Restart()
-                #Daemon.OnFailure('cloud', ioerr.errno)
-            except socket_error as serr:
-                Daemon.OnFailure('cloud', serr.errno)
-            except:
-                exception('ReadMessage error') 
-                ret = False
-                sleep(1)
-                Daemon.OnFailure('cloud')
-        return ret
-
     def RunAction(self, action):
         """Run a specified action"""
         debug('RunAction')
@@ -801,23 +631,7 @@ class CloudServerClient:
                 return False
         except Empty:
             return False
-        with self.mutex:
-            retVal = self.CheckPT_ACK(messageObject)
-        if retVal:
-            return
         self.ExecuteMessage(messageObject)
-
-    def CheckPT_ACK(self, messageObject):
-        """Check if message is a keep alive packet"""
-        try:
-            packetType = int(messageObject['PacketType'])
-            if packetType == PacketTypes.PT_ACK.value:
-                self.lastPing = time()
-                return True
-        except:
-            debug('')
-            error('CheckPT_ACK failure: ' + str(messageObject))
-        return False
 
     def ExecuteMessage(self, messageObject):
         """Execute an action described in a message object"""
@@ -1108,31 +922,6 @@ class CloudServerClient:
         except Empty:
             packet = None
         return packet
-
-    def CheckConnectionAndPing(self):
-        """Check that the server connection is still alive and send a keep alive packet at intervals"""
-        ticksStart = time()
-        with self.mutex:
-            try:
-                if ticksStart - self.lastPing > self.pingTimeout:
-                    self.Stop()
-                    self.Start
-                    self.lastPing = time() - self.pingRate - 1
-                    warn('Restarting cloud connection -> CheckConnectionAndPing EXPIRED: ' + str(self.lastPing))
-                if ticksStart - self.waitPing >= self.pingRate:
-                    self.SendAckPacket()
-            except:
-                error('CheckConnectionAndPing error')
-
-    def SendAckPacket(self):
-        """Enqueue a keep alive packet to send to the server"""
-        data = {}
-        debug('Last ping: ' + str(self.lastPing) + ' Wait ping: ' + str(self.waitPing))
-        data['MachineName'] = self.MachineId
-        data['IPAddress'] = self.PublicIP
-        data['PacketType'] = PacketTypes.PT_ACK.value
-        self.EnqueuePacket(data)
-        self.waitPing = time()
 
     def RequestSchedules(self):
         """Enqueue a packet to request schedules from the server"""

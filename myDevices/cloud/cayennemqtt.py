@@ -23,16 +23,11 @@ class CayenneMQTTClient:
     The on_message callback can be used by creating a function and assigning it to CayenneMQTTClient.on_message member.
     The callback function should have the following signature: on_message(topic, message)
     If it exists this callback is used as the default message handler.
-
-    The on_command callback can be used by creating a function and assigning it to CayenneMQTTClient.on_message member.
-    The callback function should have the following signature: on_command(channel, value)
-    If it exists this callback is used as the command message handler.
     """
     client = None
     rootTopic = ""
     connected = False
     on_message = None
-    on_command = None
     
     def begin(self, username, password, clientid, hostname='mqtt.mydevices.com', port=1883):
         """Initializes the client and connects to Cayenne.
@@ -105,8 +100,8 @@ class CayenneMQTTClient:
         userdata is the private user data as set in Client() or userdata_set().
         msg is the received message.
         """
-        info('message_callback')
         try:
+            topic = msg.topic
             if msg.topic.startswith(self.rootTopic):
                 topic = msg.topic[len(self.rootTopic) + 1:]
             message = loads(msg.payload.decode())

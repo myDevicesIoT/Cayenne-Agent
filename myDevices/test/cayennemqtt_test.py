@@ -15,7 +15,6 @@ class CayenneMQTTTest(unittest.TestCase):
         # print('setUp')
         self.mqttClient = cayennemqtt.CayenneMQTTClient()
         self.mqttClient.on_message = self.OnMessage
-        self.mqttClient.on_command = self.OnCommand
         self.mqttClient.begin(TEST_USERNAME, TEST_PASSWORD, TEST_CLIENT_ID, TEST_HOST, TEST_PORT)
         self.mqttClient.loop_start()
         self.testClient = mqtt.Client("testID")
@@ -36,10 +35,6 @@ class CayenneMQTTTest(unittest.TestCase):
         self.receivedTopic = self.mqttClient.get_topic_string(topic)
         self.receivedMessage = message
         # print('OnMessage: {} {}'.format(self.receivedTopic, self.receivedMessage))
-
-    def OnCommand(self, channel, value):
-        # print('OnCommand: {} {}'.format(channel, value))
-        return None
 
     def OnTestMessage(self, client, userdata, message):
         self.receivedTopic = message.topic
