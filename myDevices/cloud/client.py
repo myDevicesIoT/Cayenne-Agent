@@ -7,7 +7,6 @@ It also responds messages from the server, to set actuator values, change system
 from socket import SOCK_STREAM, socket, AF_INET, gethostname, SHUT_RDWR
 from ssl import CERT_REQUIRED, wrap_socket
 from json import dumps, loads
-from socket import error as socket_error
 from threading import Thread, RLock
 from time import strftime, localtime, tzset, time, sleep
 from queue import Queue, Empty
@@ -305,8 +304,6 @@ class CloudServerClient:
             self.updater.stop()
         if hasattr(self, 'writerThread'):
             self.writerThread.stop()
-        if hasattr(self, 'readerThread'):
-            self.readerThread.stop()
         if hasattr(self, 'processorThread'):
             self.processorThread.stop()
         ThreadPool.Shutdown()
@@ -316,20 +313,6 @@ class CloudServerClient:
     def FirstRun(self):
         """Send messages when client is first started"""
         self.SendSystemInfo()
-        # self.RequestSchedules()
-        # self.BuildPT_LOCATION()
-    # def BuildPT_LOCATION(self):
-    #     data = {}
-    #     data['position'] = {}
-    #     data['position']['latitude'] = '30.022112'
-    #     data['position']['longitude'] = '45.022112'
-    #     data['position']['accuracy'] = '20'
-    #     data['position']['method'] = 'Windows location provider'
-    #     data['provider'] = 'other'
-    #     data['time'] = int(time())
-    #     data['PacketType'] = PacketTypes.PT_LOCATION.value
-    #     data['MachineName'] = self.MachineId
-    #     self.EnqueuePacket(data)
 
     def OnDataChanged(self, raspberryValue):
         """Enqueue a packet containing changed system data to send to the server"""
@@ -544,45 +527,6 @@ class CloudServerClient:
             self.Stop()
             self.Start
 
-    def SendMessage(self, message):
-        """Send a message packet to the server"""
-        logJson(message, 'SendMessage')
-        ret = True
-        if self.connected == False:
-            error('SendMessage fail')
-            ret = False
-        else:
-            try:
-                data = bytes(message, 'UTF-8')
-                max_size = 16383
-                if len(data) > max_size:
-                    start = 0
-                    current = max_size
-                    end = len(data)
-                    self.wrappedSocket.send(data[start:current])
-                    while current < end:
-                        start = current
-                        current = start + max_size if start + max_size < end else end
-                        self.wrappedSocket.send(data[start:current])
-                else:
-                    self.wrappedSocket.send(data)
-                if self.onMessageSent:
-                    self.onMessageSent(message)
-                message = None
-            except socket_error as serr:
-                error('SendMessage:' + str(serr))
-                ret = False
-                Daemon.OnFailure('cloud', serr.errno)
-                sleep(1)
-            except IOError as ioerr:
-                debug('IOError: ' + str(ioerr))
-                self.Restart()
-            except socket_error as serr:
-                Daemon.OnFailure('cloud', serr.errno)
-            except:
-                exception('SendMessage error')
-        return ret
-
     def CheckJson(self, message):
         """Check if a JSON message is valid"""
         try:
@@ -668,10 +612,6 @@ class CloudServerClient:
             self.config.set('Subscription', 'ProductCode', messageObject['ProductCode'])
             info(PacketTypes.PT_PRODUCT_INFO)
             return   
-        # if packetType == PacketTypes.PT_START_RDS_LOCAL_INIT.value:
-        #     error('PT_START_RDS_LOCAL_INIT not implemented')
-        #     info(PacketTypes.PT_START_RDS_LOCAL_INIT)
-        #     return   
         if packetType == PacketTypes.PT_RESTART_COMPUTER.value:
             info(PacketTypes.PT_RESTART_COMPUTER)
             data = {}
