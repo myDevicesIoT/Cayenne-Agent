@@ -37,7 +37,6 @@ GENERAL_SLEEP_THREAD = 0.20
 @unique
 class PacketTypes(Enum):
     """Packet types used when sending/receiving messages"""
-    PT_ACK = 0
     PT_UTILIZATION = 3
     PT_SYSTEM_INFO = 4
     PT_PROCESS_LIST = 5
