@@ -23,6 +23,29 @@ class SensorsClientTest(unittest.TestCase):
         del cls.client
         del GPIO.instance
 
+    def OnDataChanged(self, sensor_data):
+        try:
+            self.previousBusInfo = self.currentBusInfo
+            self.currentBusInfo = sensor_data['BusInfo']
+            self.previousSensorsInfo = self.currentSensorsInfo
+            self.currentSensorsInfo = sensor_data['SensorsInfo']
+            if self.previousBusInfo and self.previousSensorsInfo:
+                self.done = True
+        except:
+            pass
+
+    def testSensorMonitor(self):
+        self.previousBusInfo = None
+        self.currentBusInfo = None
+        self.previousSensorsInfo = None
+        self.currentSensorsInfo = None
+        self.done = False
+        SensorsClientTest.client.SetDataChanged(self.OnDataChanged)
+        while not self.done:
+            sleep(1)
+        self.assertNotEqual(self.previousBusInfo, self.currentBusInfo)
+        self.assertNotEqual(self.previousSensorsInfo, self.currentSensorsInfo)
+
     def testBusInfo(self):
         bus = SensorsClientTest.client.BusInfo()
         # # Compare our GPIO function values with the ones from RPi.GPIO library

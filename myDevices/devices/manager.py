@@ -28,8 +28,7 @@ def deviceDetector():
                     saveDevice(dev['name'], int(time()))
     except Exception as e:
         logger.error("Device detector: %s" % e)
-
-    sleep(5)
+    # sleep(5)
 
 def findDeviceClass(name):
     for package in PACKAGES:

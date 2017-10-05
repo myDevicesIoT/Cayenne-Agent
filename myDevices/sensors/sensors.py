@@ -23,8 +23,8 @@ from myDevices.devices import instance
 from myDevices.utils.types import M_JSON
 from myDevices.system.systeminfo import SystemInfo
 
-REFRESH_FREQUENCY = 0.10 #seconds
-SENSOR_INFO_SLEEP = 0.05
+REFRESH_FREQUENCY = 5 #seconds
+# SENSOR_INFO_SLEEP = 0.05
 
 class SensorsClient():
     """Class for interfacing with sensors and actuators"""
@@ -116,10 +116,8 @@ class SensorsClient():
                 if self.previousSensorsInfo:
                     del self.previousSensorsInfo
                     self.previousSensorsInfo = None
-                if mergedSensors is None:
-                    self.previousSensorsInfo = self.currentSensorsInfo
-                    return
-                self.raspberryValue['SensorsInfo'] = mergedSensors
+                if mergedSensors:
+                    self.raspberryValue['SensorsInfo'] = mergedSensors
                 self.previousSensorsInfo = self.currentSensorsInfo
         debug(str(time()) + ' Merge sensors info ' + str(self.sensorsRefreshCount))
 
@@ -290,12 +288,12 @@ class SensorsClient():
         for value in devices:
             sensor = instance.deviceInstance(value['name'])
             if 'enabled' not in value or value['enabled'] == 1:
-                sleep(SENSOR_INFO_SLEEP)
+                # sleep(SENSOR_INFO_SLEEP)
                 try:
                     if value['type'] == 'Temperature':
                         value['Celsius'] = self.CallDeviceFunction(sensor.getCelsius)
-                        value['Fahrenheit'] = self.CallDeviceFunction(sensor.getFahrenheit)
-                        value['Kelvin'] = self.CallDeviceFunction(sensor.getKelvin)
+                        # value['Fahrenheit'] = self.CallDeviceFunction(sensor.getFahrenheit)
+                        # value['Kelvin'] = self.CallDeviceFunction(sensor.getKelvin)
                     if value['type'] == 'Pressure':
                         value['Pascal'] = self.CallDeviceFunction(sensor.getPascal)
                     if value['type'] == 'Luminosity':
@@ -305,17 +303,17 @@ class SensorsClient():
                         value['Inch'] = self.CallDeviceFunction(sensor.getInch)
                     if value['type'] in ('ADC', 'DAC'):
                         value['channelCount'] = self.CallDeviceFunction(sensor.analogCount)
-                        value['maxInteger'] = self.CallDeviceFunction(sensor.analogMaximum)
-                        value['resolution'] = self.CallDeviceFunction(sensor.analogResolution)
-                        value['allInteger'] = self.CallDeviceFunction(sensor.analogReadAll)
-                        value['allVolt'] = self.CallDeviceFunction(sensor.analogReadAllVolt)
+                        # value['maxInteger'] = self.CallDeviceFunction(sensor.analogMaximum)
+                        # value['resolution'] = self.CallDeviceFunction(sensor.analogResolution)
+                        # value['allInteger'] = self.CallDeviceFunction(sensor.analogReadAll)
+                        # value['allVolt'] = self.CallDeviceFunction(sensor.analogReadAllVolt)
                         value['allFloat'] = self.CallDeviceFunction(sensor.analogReadAllFloat)
-                        if value['type'] == 'DAC':
-                            value['vref'] = self.CallDeviceFunction(sensor.analogReference)
+                        # if value['type'] == 'DAC':
+                        #     value['vref'] = self.CallDeviceFunction(sensor.analogReference)
                     if value['type'] == 'PWM':
                         value['channelCount'] = self.CallDeviceFunction(sensor.pwmCount)
-                        value['maxInteger'] = self.CallDeviceFunction(sensor.pwmMaximum)
-                        value['resolution'] = self.CallDeviceFunction(sensor.pwmResolution)
+                        # value['maxInteger'] = self.CallDeviceFunction(sensor.pwmMaximum)
+                        # value['resolution'] = self.CallDeviceFunction(sensor.pwmResolution)
                         value['all'] = self.CallDeviceFunction(sensor.pwmWildcard)
                     if value['type'] == 'Humidity':
                         value['float'] = self.CallDeviceFunction(sensor.getHumidity)
@@ -326,9 +324,9 @@ class SensorsClient():
                         value['channelCount'] = self.CallDeviceFunction(sensor.digitalCount)
                         value['all'] = self.CallDeviceFunction(sensor.wildcard)
                     if value['type'] == 'AnalogSensor':
-                        value['integer'] = self.CallDeviceFunction(sensor.read)
+                        # value['integer'] = self.CallDeviceFunction(sensor.read)
                         value['float'] = self.CallDeviceFunction(sensor.readFloat)
-                        value['volt'] = self.CallDeviceFunction(sensor.readVolt)
+                        # value['volt'] = self.CallDeviceFunction(sensor.readVolt)
                     if value['type'] == 'ServoMotor':
                         value['angle'] = self.CallDeviceFunction(sensor.readAngle)
                     if value['type'] == 'AnalogActuator':
