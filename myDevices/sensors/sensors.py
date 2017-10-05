@@ -15,7 +15,6 @@ from myDevices.cloud.dbmanager import DbManager
 from myDevices.utils.threadpool import ThreadPool
 from hashlib import sha1
 import urllib.request as req
-from myDevices.system.hardware import MAPPING
 from myDevices.devices.bus import checkAllBus, BUSLIST
 from myDevices.devices.digital.gpio import NativeGPIO as GPIO
 from myDevices.devices import manager
@@ -269,13 +268,8 @@ class SensorsClient():
         json = {}
         for (bus, value) in BUSLIST.items():
             json[bus] = int(value["enabled"])
-        gpios = {}
-        for gpio in range(GPIO.GPIO_COUNT):
-            gpios[gpio] = {}
-            gpios[gpio]['function'] = self.gpio.getFunctionString(gpio)
-            gpios[gpio]['value'] = int(self.gpio.input(gpio))
-        json['GPIO'] = gpios
-        json['GpioMap'] = MAPPING
+        json['GPIO'] = self.gpio.wildcard()
+        json['GpioMap'] = self.gpio.MAPPING
         self.currentBusInfo = json
         return self.currentBusInfo
 

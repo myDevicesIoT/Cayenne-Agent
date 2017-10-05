@@ -1,7 +1,7 @@
 from myDevices.wifi.WirelessLib import Wireless
 from json import dumps, loads, JSONEncoder, JSONDecoder
 from myDevices.utils.logger import exception, info, warn, error, debug
-from myDevices.system.services import ServiceManager
+from myDevices.utils.subprocess import executeCommand
 
 class Network():
     def GetNetworkId():
@@ -16,7 +16,7 @@ class Network():
                ip = key
                network = val
             command = 'arp -n ' + ip + ' | grep ' + network + ' | awk \'{print $3}\''
-            (output, retCode) = ServiceManager.ExecuteCommand(command)
+            (output, retCode) = executeCommand(command)
             if int(retCode) > 0:
                 return None
             returnValue['Ip'] = ip

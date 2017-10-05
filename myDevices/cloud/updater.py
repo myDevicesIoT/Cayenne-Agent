@@ -1,7 +1,6 @@
 from myDevices.utils.logger import exception, info, warn, error, debug, setDebug
 from time import time, sleep
 from sched import scheduler
-from myDevices.system import services
 from distutils.version import LooseVersion, StrictVersion
 from os import mkdir, path
 from threading import Thread
@@ -9,6 +8,7 @@ from shutil import rmtree
 from datetime import datetime, timedelta
 import random
 from myDevices.utils.config import Config
+from myDevices.utils.subprocess import executeCommand
 
 SETUP_NAME = 'myDevicesSetup_raspberrypi.sh'
 INSTALL_PATH = '/etc/myDevices/'
@@ -105,7 +105,7 @@ class Updater(Thread):
             return
         sleep(1)
         # Run the update as root
-        retCode = services.ServiceManager.ExecuteCommand("sudo python3 -m myDevices.cloud.doupdatecheck")
+        executeCommand("sudo python3 -m myDevices.cloud.doupdatecheck")
 
     def DoUpdateCheck(self):
         mkdir(UPDATE_PATH)
@@ -184,11 +184,11 @@ class Updater(Thread):
         if retValue is False:
             return retValue
         command = "chmod +x " + SETUP_PATH
-        (output, returncode) = services.ServiceManager.ExecuteCommand(command)
+        (output, returncode) = executeCommand(command)
         del output
         command = "nohup " + SETUP_PATH + ' -update >/var/log/myDevices/myDevices.update 2>/var/log/myDevices/myDevices.update.err'
         debug('execute command started: {}'.format(command))
-        (output, returncode) = services.ServiceManager.ExecuteCommand(command)
+        (output, returncode) = executeCommand(command)
         del output
         debug('Updater execute command finished')
 

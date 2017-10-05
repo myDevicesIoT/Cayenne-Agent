@@ -78,7 +78,7 @@ class DS2408(OneWire, GPIOPort):
     def writeByte(self, value):
         try:
             info('DS2408 writeByte {} {} {}'.format(self.slave, value, bytearray([value])))
-            command = 'sudo python3 -m myDevices.devices.writevalue /sys/bus/w1/devices/{}/output {}'.format(self.slave, value)
+            command = 'sudo python3 -m myDevices.devices.writevalue -f /sys/bus/w1/devices/{}/output -b {}'.format(self.slave, value)
             subprocess.call(command.split())
         except Exception as ex:
             error('DS2408 writeByte error: {}'.format(ex))

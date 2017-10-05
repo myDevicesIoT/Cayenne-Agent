@@ -74,7 +74,7 @@ class OneWire(Bus):
                         devices.append(line)
             else:
                 devices = lines
-        return devices;
+        return devices
     
     def read(self):
         data = ""
@@ -90,15 +90,18 @@ def detectOneWireDevices():
     devices = []
     debug('detectOneWireDevices')
     slaveList = "/sys/bus/w1/devices/w1_bus_master1/w1_master_slaves"
-    with open(slaveList) as f:
-        lines = f.read().split("\n")
-        for line in lines:
-            debug(line)
-            if (len(line) > 0) and ('-' in line):
-                (family, addr) = line.split("-")
-                if family in FAMILIES:
-                    device = {'name': addr, 'description': FAMILIES[family], 'device': FAMILIES[family], 'args': {'slave': line}}
-                    debug(str(device))
-                    devices.append(device)
+    try:
+        with open(slaveList) as f:
+            lines = f.read().split("\n")
+            for line in lines:
+                debug(line)
+                if (len(line) > 0) and ('-' in line):
+                    (family, addr) = line.split("-")
+                    if family in FAMILIES:
+                        device = {'name': addr, 'description': FAMILIES[family], 'device': FAMILIES[family], 'args': {'slave': line}}
+                        debug(str(device))
+                        devices.append(device)
+    except FileNotFoundError as err:
+        debug('Error detecting 1-wire devices: {}'.format(err))
     return devices
 

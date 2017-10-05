@@ -14,7 +14,7 @@
 
 import fcntl
 
-from myDevices.system.hardware import BOARD_REVISION
+from myDevices.system.hardware import BOARD_REVISION, Hardware
 from myDevices.devices.bus import Bus
 
 # /dev/i2c-X ioctl commands.  The ioctl's parameter is always an
@@ -52,8 +52,11 @@ class I2C(Bus):
             raise Exception("SLAVE_ADDRESS_USED")
         
         self.channel = 0
-        if BOARD_REVISION > 1:
+        model = Hardware().getModel()
+        if BOARD_REVISION > 1 or model == 'Tinker Board':
             self.channel = 1
+        elif 'BeagleBone' in model:
+            self.channel = 2
 
         Bus.__init__(self, "I2C", "/dev/i2c-%d" % self.channel)
         self.slave = slave

@@ -19,6 +19,7 @@ import struct
 
 from sys import version_info
 from myDevices.devices.bus import Bus
+from myDevices.system.hardware import Hardware
 
 # from spi/spidev.h
 _IOC_NRBITS   =  8
@@ -84,11 +85,17 @@ SPI_IOC_RD_MAX_SPEED_HZ     = _IOR(SPI_IOC_MAGIC, 4, 4)
 SPI_IOC_WR_MAX_SPEED_HZ     = _IOW(SPI_IOC_MAGIC, 4, 4)
 
 class SPI(Bus):
-    def __init__(self, chip=0, mode=0, bits=8, speed=0):
-        Bus.__init__(self, "SPI", "/dev/spidev0.%d" % chip)
+    def __init__(self, chip=0, mode=0, bits=8, speed=0, init=True):
+        bus = 0
+        model = Hardware().getModel()
+        if model == 'Tinker Board':
+            bus = 2
+        elif 'BeagleBone' in model:
+            bus = 1
+        Bus.__init__(self, "SPI", "/dev/spidev%d.%d" % (bus, chip))
         self.chip = chip
 
-        val8 = array.array('B', [0])
+        val8 = array.array('B', [0])        
         val8[0] = mode
         if fcntl.ioctl(self.fd, SPI_IOC_WR_MODE, val8):
             raise Exception("Cannot write SPI Mode")
@@ -114,7 +121,7 @@ class SPI(Bus):
             raise Exception("Cannot read SPI Max speed")
         self.speed = struct.unpack('I', val32)[0]
         assert((self.speed == speed) or (speed == 0))
-    
+
     def __str__(self):
         return "SPI(chip=%d, mode=%d, speed=%dHz)" % (self.chip, self.mode, self.speed)
         
@@ -142,4 +149,3 @@ class SPI(Bus):
         fcntl.ioctl(self.fd, SPI_IOC_MESSAGE(len(data)), data)
         _rxbuff = ctypes.string_at(_rxptr, length)
         return bytearray(_rxbuff)
-        

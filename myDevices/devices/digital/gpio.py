@@ -16,66 +16,76 @@ import os
 import mmap
 from time import sleep
 from myDevices.utils.types import M_JSON
-from myDevices.utils.logger import debug, info, error
+from myDevices.utils.logger import debug, info, error, exception
+from myDevices.utils.singleton import Singleton
 from myDevices.devices.digital import GPIOPort
 from myDevices.decorators.rest import request, response
+from myDevices.system.hardware import BOARD_REVISION, Hardware
+from myDevices.utils.subprocess import executeCommand
+try:
+    import ASUS.GPIO as gpio_library
+except:
+    gpio_library = None
+
 
 FSEL_OFFSET = 0 # 0x0000
 PINLEVEL_OFFSET = 13 # 0x0034 / 4
 
 BLOCK_SIZE = (4*1024)
 
-GPIO_COUNT  = 54
-FUNCTIONS   = ["IN", "OUT", "ALT5", "ALT4", "ALT0", "ALT1", "ALT2", "ALT3", "PWM"]
+class NativeGPIO(Singleton, GPIOPort):
+    IN = 0
+    OUT = 1
 
-class NativeGPIO(GPIOPort):
-    GPIO_COUNT      = 54
+    ASUS_GPIO = 44
 
-    IN              = 0
-    OUT		        = 1
-    ALT5	        = 2
-    ALT4	        = 3
-    ALT0	        = 4
-    ALT1	        = 5
-    ALT2	        = 6
-    ALT3	        = 7
-    PWM		        = 8
+    LOW = 0
+    HIGH = 1
 
-    LOW		        = 0
-    HIGH	        = 1
+    PUD_OFF = 0
+    PUD_DOWN = 1
+    PUD_UP = 2
 
-    PUD_OFF	        = 0
-    PUD_DOWN	    = 1
-    PUD_UP	        = 2
+    RATIO = 1
+    ANGLE = 2
 
-    RATIO	        = 1
-    ANGLE	        = 2
-    instance        = None
+    MAPPING = []
 
     def __init__(self):
-        if not NativeGPIO.instance:
-            GPIOPort.__init__(self, 54)
-            self.export = range(54)
-            self.post_value = True
-            self.post_function = True
-            self.gpio_setup = []
-            self.gpio_reset = []
-            self.valueFile = [0 for i in range(54)]
-            self.functionFile = [0 for i in range(54)]
-            for i in range(54):
-                # Export the pins here to prevent a delay when accessing the values for the 
-                # first time while waiting for the file group to be set
-                self.__checkFilesystemExport__(i)
+        self.setPinMapping()
+        GPIOPort.__init__(self, max(self.pins) + 1)
+        self.post_value = True
+        self.post_function = True
+        self.gpio_setup = []
+        self.gpio_reset = []
+        self.gpio_map = None
+        self.pinFunctionSet = set()
+        self.valueFile = {pin:None for pin in self.pins}
+        self.functionFile = {pin:None for pin in self.pins}
+        for pin in self.pins:
+            # Export the pins here to prevent a delay when accessing the values for the 
+            # first time while waiting for the file group to be set
+            self.__checkFilesystemExport__(pin)
+        if gpio_library:
+            gpio_library.setmode(gpio_library.ASUS)
+        else:
             try:
                 with open('/dev/gpiomem', 'rb') as gpiomem:
                     self.gpio_map = mmap.mmap(gpiomem.fileno(), BLOCK_SIZE, prot=mmap.PROT_READ)
+            except FileNotFoundError:
+                pass
             except OSError as err:
                 error(err)
-            NativeGPIO.instance = self
 
     def __del__(self):
         if self.gpio_map:
             self.gpio_map.close()
+        for value in self.valueFile.values():
+            if value:
+                value.close()
+        for value in self.functionFile.values():
+            if value:
+                value.close()
 
     class SetupException(BaseException):
         pass
@@ -139,7 +149,7 @@ class NativeGPIO(GPIOPort):
                 self.__digitalWrite__(gpio, g["value"])
 
     def checkDigitalChannelExported(self, channel):
-        if not channel in self.export:
+        if not channel in self.pins:
             raise Exception("Channel %d is not allowed" % channel)
 
     def checkPostingFunctionAllowed(self):
@@ -149,6 +159,12 @@ class NativeGPIO(GPIOPort):
     def checkPostingValueAllowed(self):
         if not self.post_value:
             raise ValueError("POSTing value to native GPIO not allowed")
+    
+    def __getFunctionFilePath__(self, channel):
+        return "/sys/class/gpio/gpio%s/direction" % channel
+
+    def __getValueFilePath__(self, channel):
+        return "/sys/class/gpio/gpio%s/value" % channel
 
     def __checkFilesystemExport__(self, channel):
         #debug("checkExport for channel %d" % channel)
@@ -157,36 +173,47 @@ class NativeGPIO(GPIOPort):
             try:
                 with open("/sys/class/gpio/export", "a") as f:
                     f.write("%s" % channel)
+            except PermissionError:
+                command = 'sudo python3 -m myDevices.devices.writevalue -f /sys/class/gpio/export -t {}'.format(channel)
+                executeCommand(command)               
             except Exception as ex:
-                #error('Failed on __checkFilesystemExport__: ' + str(channel) + ' ' + str(ex))
+                error('Failed on __checkFilesystemExport__: ' + str(channel) + ' ' + str(ex))
                 return False
         return True
 
     def __checkFilesystemFunction__(self, channel):
-        if self.functionFile[channel] == 0:
+        if not self.functionFile[channel]:
             #debug("function file %d not open" %channel)
             valRet = self.__checkFilesystemExport__(channel)
             if not valRet:
                 return
+            mode = 'w+'
+            if (gpio_library or 'BeagleBone' in Hardware().getModel()) and os.geteuid() != 0:
+                #On devices with root permissions on gpio files open the file in read mode from non-root process
+                mode = 'r'
             for i in range(10):
                 try:
-                    self.functionFile[channel] = open("/sys/class/gpio/gpio%s/direction" % channel, "w+")
+                    self.functionFile[channel] = open(self.__getFunctionFilePath__(channel), mode)
                     break
                 except PermissionError:
                     # Try again since the file group might not have been set to the gpio group
                     # since there is a delay when the gpio channel is first exported
                     sleep(0.01)
-            
+
 
     def __checkFilesystemValue__(self, channel):
-        if self.valueFile[channel] == 0:
+        if not self.valueFile[channel]:
             #debug("value file %d not open" %channel)
             valRet = self.__checkFilesystemExport__(channel)
             if not valRet:
                 return
+            mode = 'w+'
+            if (gpio_library or 'BeagleBone' in Hardware().getModel()) and os.geteuid() != 0:
+                #On devices with root permissions on gpio files open the file in read mode from non-root process
+                mode = 'r'
             for i in range(10):
                 try:
-                    self.valueFile[channel] = open("/sys/class/gpio/gpio%s/value" % channel, "w+")
+                    self.valueFile[channel] = open(self.__getValueFilePath__(channel), mode)
                     break
                 except PermissionError:
                     # Try again since the file group might not have been set to the gpio group
@@ -197,14 +224,13 @@ class NativeGPIO(GPIOPort):
         self.__checkFilesystemValue__(channel)
         #self.checkDigitalChannelExported(channel)
         try:
-            r = self.valueFile[channel].read(1)
+            value = self.valueFile[channel].read(1)
             self.valueFile[channel].seek(0)
-            if r[0] == '1':
+            if value[0] == '1':
                 return self.HIGH
             else:
                 return self.LOW
         except:
-            #error('Error' + str(ex))
             return -1
 
     def __digitalWrite__(self, channel, value):
@@ -212,12 +238,16 @@ class NativeGPIO(GPIOPort):
         #self.checkDigitalChannelExported(channel)
         #self.checkPostingValueAllowed()
         try:
-            if (value == 1):
-                self.valueFile[channel].write('1')
+            if value == 1:
+                value = '1'
             else:
-                self.valueFile[channel].write('0')
-            self.valueFile[channel].seek(0)
-            pass
+                value = '0'
+            try:
+                self.valueFile[channel].write(value)
+                self.valueFile[channel].seek(0)
+            except:
+                command = 'sudo python3 -m myDevices.devices.writevalue -f {} -t {}'.format(self.__getValueFilePath__(channel), value)
+                executeCommand(command)
         except:
             pass
 
@@ -235,14 +265,28 @@ class NativeGPIO(GPIOPort):
         self.__checkFilesystemFunction__(channel)
         self.checkDigitalChannelExported(channel)
         try:
-            r = self.functionFile[channel].read()
+            # If we haven't already set the channel function on an ASUS device, we use the GPIO 
+            # library to get the function. Otherwise we just fall through and read the file itself
+            # since we can assume the pin is a GPIO pin and reading the function file is quicker
+            #  than launching a separate process.
+            if gpio_library and channel not in self.pinFunctionSet:
+                if os.geteuid() == 0:
+                    value = gpio_library.gpio_function(channel)
+                else:
+                    value, err = executeCommand('sudo python3 -m myDevices.devices.readvalue -c {}'.format(channel))
+                    return int(value.splitlines()[0])
+                # If this is not a GPIO function return it, otherwise check the function file to see
+                # if it is an IN or OUT pin since the ASUS library doesn't provide that info.
+                if value != self.ASUS_GPIO:
+                    return value
+            function = self.functionFile[channel].read()
             self.functionFile[channel].seek(0)
-            if (r.startswith("out")):
+            if function.startswith("out"):
                 return self.OUT
             else:
                 return self.IN
         except Exception as ex:
-            #error('Failed on __getFunction__: '+  str(channel) + ' ' + str(ex))
+            error('Failed on __getFunction__: '+  str(channel) + ' ' + str(ex))
             return -1
 
     def __setFunction__(self, channel, value):
@@ -250,24 +294,30 @@ class NativeGPIO(GPIOPort):
         self.checkDigitalChannelExported(channel)
         self.checkPostingFunctionAllowed()
         try:
-            if (value == self.IN):
-                self.functionFile[channel].write("in")
+            if value == self.IN:
+                value = 'in'
             else:
-                self.functionFile[channel].write("out")
-            self.functionFile[channel].seek(0)
+                value = 'out'
+            try:               
+                self.functionFile[channel].write(value)
+                self.functionFile[channel].seek(0)
+            except:
+                command = 'sudo python3 -m myDevices.devices.writevalue -f {} -t {}'.format(self.__getFunctionFilePath__(channel), value)
+                executeCommand(command)
+            self.pinFunctionSet.add(channel)
         except Exception as ex:
-            error('Failed on __setFunction__: ' + str(channel) + ' ' + str(ex))
+            exception('Failed on __setFunction__: ' + str(channel) + ' ' + str(ex))
             pass
 
     def __portRead__(self):
         value = 0
-        for i in self.export:
+        for i in self.pins:
             value |= self.__digitalRead__(i) << i
         return value
 
     def __portWrite__(self, value):
-        if len(self.export) < 54:
-            for i in self.export:
+        if len(self.pins) <= value.bit_length():
+            for i in self.pins:
                 if self.getFunction(i) == self.OUT:
                     self.__digitalWrite__(i, (value >> i) & 1)
         else:
@@ -276,15 +326,20 @@ class NativeGPIO(GPIOPort):
     #@request("GET", "*")
     @response(contentType=M_JSON)
     def wildcard(self, compact=False):
+        if gpio_library and os.geteuid() != 0:
+            #If not root on an ASUS device get the pin states as root
+            value, err = executeCommand('sudo python3 -m myDevices.devices.readvalue --pins')
+            value = value.splitlines()[0]
+            import json
+            return json.loads(value)
         if compact:
             f = "f"
             v = "v"
         else:
             f = "function"
             v = "value"
-
         values = {}
-        for i in self.export:
+        for i in self.pins:
             if compact:
                 func = self.getFunction(i)
             else:
@@ -297,13 +352,34 @@ class NativeGPIO(GPIOPort):
     
     def getFunctionString(self, channel):
         f = self.getFunction(channel)
-        try:
-            function_string = FUNCTIONS[f]
-        except:
-            function_string = 'UNKNOWN'
+        function_string = 'UNKNOWN'
+        functions = {0:'IN', 1:'OUT', 2:'ALT5', 3:'ATL4', 4:'ALT0', 5:'ALT1', 6:'ALT2', 7:'ALT3', 8:'PWM',
+                    40:'SERIAL', 41:'SPI', 42:'I2C', 43:'PWM', 44:'GPIO', 45:'TS_XXXX', 46:'RESERVED', 47:'I2S'}
+        if f >= 0:
+            try:
+                function_string = functions[f]
+            except:
+                pass
         return function_string
 
-    def input(self, channel):
-        value =  self.__digitalRead__(channel)
-        return value
-
+    def setPinMapping(self):
+        model = Hardware().getModel()
+        if model == 'Tinker Board':
+            self.MAPPING = ["V33", "V50", 252, "V50", 253, "GND", 17, 161, "GND", 160, 164, 184, 166, "GND", 167, 162, "V33", 163, 257, "GND", 256, 171, 254, 255, "GND", 251, "DNC", "DNC" , 165, "GND", 168, 239, 238, "GND", 185, 223, 224, 187, "GND", 188]
+        elif 'BeagleBone' in model:
+            self.MAPPING = {"headers": {"P9": ["GND", "GND", "V33", "V33", "V50", "V50", "V50", "V50", "PWR", "RST", 30, 60, 31, 50, 48, 51, 5, 4, "I2C2_SCL", "I2C2_SDA", 3, 2, 49, 15, 117, 14, 115, "SPI1_CS0", "SPI1_D0", 112, "SPI1_CLK", "VDD_ADC", "AIN4", "GNDA_ADC", "AIN6", "AIN5", "AIN2", "AIN3", "AIN0", "AIN1", 20, 7, "GND", "GND", "GND", "GND"],
+                                        "P8": ["GND", "GND", "MMC1_DAT6", "MMC1_DAT7", "MMC1_DAT2", "MMC1_DAT3", 66, 67, 69, 68, 45, 44, 23, 26, 47, 46, 27, 65, 22, "MMC1_CMD", "MMC1_CLK", "MMC1_DAT5", "MMC1_DAT4", "MMC1_DAT1", "MMC1_DAT0", 61, "LCD_VSYNC", "LCD_PCLK", "LCD_HSYNC", "LCD_ACBIAS", "LCD_DATA14", "LCD_DATA15", "LCD_DATA13", "LCD_DATA11", "LCD_DATA12", "LCD_DATA10", "LCD_DATA8", "LCD_DATA9", "LCD_DATA6", "LCD_DATA7", "LCD_DATA4", "LCD_DATA5", "LCD_DATA2", "LCD_DATA3", "LCD_DATA0", "LCD_DATA1"]},
+                            "order": ["P9", "P8"]}
+        else:
+            if BOARD_REVISION == 1:
+                self.MAPPING = ["V33", "V50", 0, "V50", 1, "GND", "1-WIRE", 14, "GND", 15, 17, 18, 21, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
+            elif BOARD_REVISION == 2:
+                self.MAPPING = ["V33", "V50", 2, "V50", 3, "GND", "1-WIRE", 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
+            elif BOARD_REVISION == 3:
+                self.MAPPING = ["V33", "V50", 2, "V50", 3, "GND", "1-WIRE", 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7, "DNC", "DNC" , 5, "GND", 6, 12, 13, "GND", 19, 16, 26, 20, "GND", 21]
+        if isinstance(self.MAPPING, list):
+            self.pins = [pin for pin in self.MAPPING if type(pin) is int]
+        elif 'headers' in self.MAPPING:
+            self.pins = []
+            for header in self.MAPPING['headers'].values():
+                self.pins.extend([pin for pin in header if type(pin) is int])

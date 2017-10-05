@@ -20,10 +20,11 @@ from myDevices.wifi import WifiManager
 from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
-from myDevices.system.raspiconfig import RaspiConfig
+from myDevices.system.systemconfig import SystemConfig
 from myDevices.utils.daemon import Daemon
 from myDevices.utils.threadpool import ThreadPool
 from myDevices.utils.history import History
+from myDevices.utils.subprocess import executeCommand
 from select import select
 from hashlib import sha256
 from myDevices.cloud.apiclient import CayenneApiClient
@@ -347,7 +348,7 @@ class CloudServerClient:
             raspberryValue['ComputerName'] = self.machineName
             raspberryValue['AgentVersion'] = self.config.get('Agent','Version')
             raspberryValue['GatewayMACAddress'] = self.hardware.getMac()
-            raspberryValue['OsSettings'] = RaspiConfig.getConfig()
+            raspberryValue['OsSettings'] = SystemConfig.getConfig()
             raspberryValue['NetworkId'] = WifiManager.Network.GetNetworkId()
             raspberryValue['WifiStatus'] = self.wifiManager.GetStatus()
             data['RaspberryInfo'] = raspberryValue
@@ -409,7 +410,7 @@ class CloudServerClient:
                 raspberryValue['SystemInfo'] = self.sensorsClient.currentSystemInfo
                 raspberryValue['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
                 raspberryValue['BusInfo'] = self.sensorsClient.currentBusInfo
-            raspberryValue['OsSettings'] = RaspiConfig.getConfig()
+            raspberryValue['OsSettings'] = SystemConfig.getConfig()
             raspberryValue['NetworkId'] = WifiManager.Network.GetNetworkId()
             raspberryValue['WifiStatus'] = self.wifiManager.GetStatus()
             try:
@@ -593,7 +594,7 @@ class CloudServerClient:
             return
         if packetType == PacketTypes.PT_UNINSTALL_AGENT.value:
             command = "sudo /etc/myDevices/uninstall/uninstall.sh"
-            services.ServiceManager.ExecuteCommand(command)
+            executeCommand(command)
             return
         if packetType == PacketTypes.PT_STARTUP_APPLICATIONS.value:
             self.BuildPT_STARTUP_APPLICATIONS()
@@ -619,7 +620,7 @@ class CloudServerClient:
             data['Message'] = 'Computer Restarted!'
             self.EnqueuePacket(data)
             command = "sudo shutdown -r now"
-            services.ServiceManager.ExecuteCommand(command)
+            executeCommand(command)
             return
         if packetType == PacketTypes.PT_SHUTDOWN_COMPUTER.value:
             info(PacketTypes.PT_SHUTDOWN_COMPUTER)
@@ -629,7 +630,7 @@ class CloudServerClient:
             data['Message'] = 'Computer Powered Off!'
             self.EnqueuePacket(data)
             command = "sudo shutdown -h now"
-            services.ServiceManager.ExecuteCommand(command)
+            executeCommand(command)
             return
         if packetType == PacketTypes.PT_AGENT_CONFIGURATION.value:
             info('PT_AGENT_CONFIGURATION: ' + str(messageObject.Data))
@@ -832,7 +833,7 @@ class CloudServerClient:
             try:
                 config_id = parameters["id"]
                 arguments = parameters["arguments"]
-                (retValue, output) = RaspiConfig.ExecuteConfigCommand(config_id, arguments)
+                (retValue, output) = SystemConfig.ExecuteConfigCommand(config_id, arguments)
                 data["Output"] = output
                 retValue = str(retValue)
             except:

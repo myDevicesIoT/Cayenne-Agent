@@ -9,27 +9,28 @@ from myDevices.utils.logger import exception, info, warn, error, debug
 
 BOARD_REVISION = 0
 CPU_REVISION = "0"
-MAPPING = []
+CPU_HARDWARE = ""
 
 try:
     with open("/proc/cpuinfo") as f:
-        rc = re.compile("Revision\s*:\s(.*)\n")
         info = f.read()
+        rc = re.compile("Revision\s*:\s(.*)\n")
         result = rc.search(info)
         if result:
             CPU_REVISION = result.group(1)
             if CPU_REVISION.startswith("1000"):
                 CPU_REVISION = CPU_REVISION[-4:]
-            cpurev = int(CPU_REVISION, 16)
-            if cpurev < 0x04:
-                BOARD_REVISION = 1
-                MAPPING = ["V33", "V50", 0, "V50", 1, "GND", 4, 14, "GND", 15, 17, 18, 21, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
-            elif cpurev < 0x10:
-                BOARD_REVISION = 2
-                MAPPING = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
-            else:
-                BOARD_REVISION = 3
-                MAPPING = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7, "DNC", "DNC" , 5, "GND", 6, 12, 13, "GND", 19, 16, 26, 20, "GND", 21]
+            if CPU_REVISION != "0000":
+                cpurev = int(CPU_REVISION, 16)
+                if cpurev < 0x04:
+                    BOARD_REVISION = 1
+                elif cpurev < 0x10:
+                    BOARD_REVISION = 2
+                else:
+                    BOARD_REVISION = 3
+        rc = re.compile("Hardware\s*:\s(.*)\n")
+        result = rc.search(info)
+        CPU_HARDWARE = result.group(1)
 except:
     exception("Error reading cpuinfo")
 
@@ -38,8 +39,20 @@ class Hardware:
     """Class for getting hardware info, including manufacturer, model and MAC address."""
 
     def __init__(self):
-        """Initialize board revision and model dict"""
-        self.Revision = CPU_REVISION
+        """Initialize board revision and model info"""
+        self.Revision  = "0"
+        try:
+            with open('/proc/cpuinfo','r') as f:
+                for line in f:
+                    splitLine = line.split(':')
+                    if len(splitLine) < 2:
+                        continue
+                    key = splitLine[0].strip()
+                    value = splitLine[1].strip()
+                    if key=='Revision':
+                        self.Revision = value
+        except:
+            exception ("Error reading cpuinfo")
         self.model = 'Unknown'
         if self.Revision == 'Beta':
             self.model = 'Model B (Beta)'
@@ -61,6 +74,8 @@ class Hardware:
             self.model = 'Zero W'
         if self.Revision in ('a02082', 'a22082'):
             self.model = 'Pi 3 Model B'            
+        if 'Rockchip' in CPU_HARDWARE:
+            self.model = 'Tinker Board'
         self.manufacturer = 'Element14/Premier Farnell'
         if self.Revision in ('a01041', '900092', 'a02082', '0012', '0011', '0010', '000e', '0008', '0004'):
             self.manufacturer = 'Sony, UK'
@@ -70,6 +85,21 @@ class Hardware:
             self.manufacturer = 'Qisda'
         if self.Revision in ('0006', '0007', '000d'):
             self.manufacturer = 'Egoman'
+        if self.Revision == '0000':
+            if 'Rockchip' in CPU_HARDWARE:
+                self.manufacturer = 'ASUS'
+            else:
+                try:
+                    with open('/proc/device-tree/model', 'r') as model_file:
+                        for line in model_file:
+                            if 'BeagleBone' in line:
+                                index = line.index('BeagleBone')
+                                self.manufacturer = line[:index - 1].strip(' \n\t\0')
+                                self.model = line[index:].strip(' \n\t\0')
+                                break
+                except:
+                    exception ("Error reading model")
+
 
     def getManufacturer(self):
         """Return manufacturer name as string"""
