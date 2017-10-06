@@ -314,16 +314,16 @@ class CloudServerClient:
         """Send messages when client is first started"""
         self.SendSystemInfo()
 
-    def OnDataChanged(self, raspberryValue):
+    def OnDataChanged(self, systemData):
         """Enqueue a packet containing changed system data to send to the server"""
         data = {}
         data['MachineName'] = self.MachineId
         data['PacketType'] = PacketTypes.PT_DATA_CHANGED.value
         data['Timestamp'] = int(time())
-        data['RaspberryInfo'] = raspberryValue
+        data['RaspberryInfo'] = systemData
         self.EnqueuePacket(data)
         del data
-        del raspberryValue
+        del systemData
 
     def SendSystemInfo(self):
         """Enqueue a packet containing system info to send to the server"""
@@ -334,30 +334,30 @@ class CloudServerClient:
             data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
             data['IpAddress'] = self.PublicIP
             data['GatewayMACAddress'] = self.hardware.getMac()
-            raspberryValue = {}
-            # raspberryValue['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
-            raspberryValue['AntiVirus'] = 'None'
-            raspberryValue['Firewall'] = 'iptables'
-            raspberryValue['FirewallEnabled'] = 'true'
-            raspberryValue['ComputerMake'] =  self.hardware.getManufacturer()
-            raspberryValue['ComputerModel'] = self.hardware.getModel()
-            raspberryValue['OsName'] = self.oSInfo.ID
-            raspberryValue['OsBuild'] = self.oSInfo.ID_LIKE
-            raspberryValue['OsArchitecture'] = self.hardware.Revision
-            raspberryValue['OsVersion'] = self.oSInfo.VERSION_ID
-            raspberryValue['ComputerName'] = self.machineName
-            raspberryValue['AgentVersion'] = self.config.get('Agent','Version')
-            raspberryValue['GatewayMACAddress'] = self.hardware.getMac()
-            raspberryValue['OsSettings'] = SystemConfig.getConfig()
-            raspberryValue['NetworkId'] = WifiManager.Network.GetNetworkId()
-            raspberryValue['WifiStatus'] = self.wifiManager.GetStatus()
-            data['RaspberryInfo'] = raspberryValue
+            systemData = {}
+            # systemData['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
+            systemData['AntiVirus'] = 'None'
+            systemData['Firewall'] = 'iptables'
+            systemData['FirewallEnabled'] = 'true'
+            systemData['ComputerMake'] =  self.hardware.getManufacturer()
+            systemData['ComputerModel'] = self.hardware.getModel()
+            systemData['OsName'] = self.oSInfo.ID
+            systemData['OsBuild'] = self.oSInfo.ID_LIKE
+            systemData['OsArchitecture'] = self.hardware.Revision
+            systemData['OsVersion'] = self.oSInfo.VERSION_ID
+            systemData['ComputerName'] = self.machineName
+            systemData['AgentVersion'] = self.config.get('Agent','Version')
+            systemData['GatewayMACAddress'] = self.hardware.getMac()
+            systemData['OsSettings'] = SystemConfig.getConfig()
+            systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
+            systemData['WifiStatus'] = self.wifiManager.GetStatus()
+            data['RaspberryInfo'] = systemData
             if data != self.previousSystemInfo:
                 self.previousSystemInfo = data.copy()
                 data['Timestamp'] = int(time())
                 self.EnqueuePacket(data)
                 logJson('SendSystemInfo: ' + dumps(data), 'SendSystemInfo')
-            del raspberryValue
+            del systemData
             del data
             data=None
         except Exception as e:
@@ -391,37 +391,37 @@ class CloudServerClient:
             data['Timestamp'] = int(time())
             data['IpAddress'] = self.PublicIP
             data['GatewayMACAddress'] = self.hardware.getMac()
-            raspberryValue = {}
-            raspberryValue['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
-            raspberryValue['AntiVirus'] = 'None'
-            raspberryValue['Firewall'] = 'iptables'
-            raspberryValue['FirewallEnabled'] = 'true'
-            raspberryValue['ComputerMake'] = self.hardware.getManufacturer()
-            raspberryValue['ComputerModel'] = self.hardware.getModel()
-            raspberryValue['OsName'] = self.oSInfo.ID
-            raspberryValue['OsBuild'] = self.oSInfo.ID_LIKE if hasattr(self.oSInfo, 'ID_LIKE') else self.oSInfo.ID
-            raspberryValue['OsArchitecture'] = self.hardware.Revision
-            raspberryValue['OsVersion'] = self.oSInfo.VERSION_ID
-            raspberryValue['ComputerName'] = self.machineName
-            raspberryValue['AgentVersion'] = self.config.get('Agent', 'Version', fallback='1.0.1.0')
-            raspberryValue['InstallDate'] = self.installDate
-            raspberryValue['GatewayMACAddress'] = self.hardware.getMac()
+            systemData = {}
+            systemData['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
+            systemData['AntiVirus'] = 'None'
+            systemData['Firewall'] = 'iptables'
+            systemData['FirewallEnabled'] = 'true'
+            systemData['ComputerMake'] = self.hardware.getManufacturer()
+            systemData['ComputerModel'] = self.hardware.getModel()
+            systemData['OsName'] = self.oSInfo.ID
+            systemData['OsBuild'] = self.oSInfo.ID_LIKE if hasattr(self.oSInfo, 'ID_LIKE') else self.oSInfo.ID
+            systemData['OsArchitecture'] = self.hardware.Revision
+            systemData['OsVersion'] = self.oSInfo.VERSION_ID
+            systemData['ComputerName'] = self.machineName
+            systemData['AgentVersion'] = self.config.get('Agent', 'Version', fallback='1.0.1.0')
+            systemData['InstallDate'] = self.installDate
+            systemData['GatewayMACAddress'] = self.hardware.getMac()
             with self.sensorsClient.sensorMutex:
-                raspberryValue['SystemInfo'] = self.sensorsClient.currentSystemInfo
-                raspberryValue['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
-                raspberryValue['BusInfo'] = self.sensorsClient.currentBusInfo
-            raspberryValue['OsSettings'] = SystemConfig.getConfig()
-            raspberryValue['NetworkId'] = WifiManager.Network.GetNetworkId()
-            raspberryValue['WifiStatus'] = self.wifiManager.GetStatus()
+                systemData['SystemInfo'] = self.sensorsClient.currentSystemInfo
+                systemData['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
+                systemData['BusInfo'] = self.sensorsClient.currentBusInfo
+            systemData['OsSettings'] = SystemConfig.getConfig()
+            systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
+            systemData['WifiStatus'] = self.wifiManager.GetStatus()
             try:
                 history = History()
-                history.SaveAverages(raspberryValue)
+                history.SaveAverages(systemData)
             except:
                 exception('History error')
-            data['RaspberryInfo'] = raspberryValue
+            data['RaspberryInfo'] = systemData
             self.EnqueuePacket(data)
             logJson('PT_SYSTEM_INFO: ' + dumps(data), 'PT_SYSTEM_INFO')
-            del raspberryValue
+            del systemData
             del data
             data = None
         except Exception as e:

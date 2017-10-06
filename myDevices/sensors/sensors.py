@@ -80,8 +80,7 @@ class SensorsClient():
         while self.continueMonitoring:
             try:
                 if datetime.now() > nextTime:
-                    self.raspberryValue = None
-                    self.raspberryValue = {}
+                    self.systemData = {}
                     refreshTime = int(time())
                     if datetime.now() > nextTimeSystemInfo:
                         with self.systemMutex:
@@ -90,8 +89,8 @@ class SensorsClient():
                         nextTimeSystemInfo = datetime.now() + timedelta(seconds=5)
                     self.MonitorSensors()
                     self.MonitorBus()
-                    if self.onDataChanged and self.raspberryValue:
-                        self.onDataChanged(self.raspberryValue)
+                    if self.onDataChanged and self.systemData:
+                        self.onDataChanged(self.systemData)
                     bResult = self.RemoveRefresh(refreshTime)
                     if bResult and self.onSystemInfo:
                         self.onSystemInfo()
@@ -116,7 +115,7 @@ class SensorsClient():
                     del self.previousSensorsInfo
                     self.previousSensorsInfo = None
                 if mergedSensors:
-                    self.raspberryValue['SensorsInfo'] = mergedSensors
+                    self.systemData['SensorsInfo'] = mergedSensors
                 self.previousSensorsInfo = self.currentSensorsInfo
         debug(str(time()) + ' Merge sensors info ' + str(self.sensorsRefreshCount))
 
@@ -148,7 +147,7 @@ class SensorsClient():
         self.BusInfo()
         debug(str(time()) + ' Got bus info ' + str(self.sensorsRefreshCount))
         if self.SHA_Calc(self.currentBusInfo) != self.SHA_Calc(self.previousBusInfo):
-            self.raspberryValue['BusInfo'] = self.currentBusInfo
+            self.systemData['BusInfo'] = self.currentBusInfo
             if self.previousBusInfo:
                 del self.previousBusInfo
                 self.previousBusInfo = None
@@ -168,7 +167,7 @@ class SensorsClient():
                 del self.previousSystemInfo
                 self.previousSystemInfo = None
             self.previousSystemInfo = self.currentSystemInfo
-            self.raspberryValue['SystemInfo'] = self.currentSystemInfo
+            self.systemData['SystemInfo'] = self.currentSystemInfo
 
     def SystemInformation(self):
         """Return dict containing current system info, including CPU, RAM, storage and network info"""
@@ -410,13 +409,13 @@ class SensorsClient():
                         currentSensorsDictionary = dict((i['sensor'], i) for i in self.currentSensorsInfo)
                         sensorData = currentSensorsDictionary[hashKey]
                         sensor = sensorData[hashKey]
-                        raspberryValue = {}
+                        systemData = {}
                         sensor['args'] = args
                         sensor['description'] = description
-                        raspberryValue['SensorsInfo'] = []
-                        raspberryValue['SensorsInfo'].append(sensor)
+                        systemData['SensorsInfo'] = []
+                        systemData['SensorsInfo'].append(sensor)
                         if self.onDataChanged:
-                            self.onDataChanged(raspberryValue)
+                            self.onDataChanged(systemData)
             except:
                 pass
             if retValue[0] == 200:
