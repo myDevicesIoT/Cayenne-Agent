@@ -24,25 +24,34 @@ class SensorsClientTest(unittest.TestCase):
         del cls.client
 
     def OnDataChanged(self, sensor_data):
-        try:
+        if 'BusInfo' in sensor_data:
             self.previousBusInfo = self.currentBusInfo
             self.currentBusInfo = sensor_data['BusInfo']
+        if 'SensorsInfo' in sensor_data:
             self.previousSensorsInfo = self.currentSensorsInfo
             self.currentSensorsInfo = sensor_data['SensorsInfo']
-            if self.previousBusInfo and self.previousSensorsInfo:
-                self.done = True
-        except:
-            pass
+        if 'SystemInfo' in sensor_data:
+            self.previousSystemInfo = self.currentSystemInfo
+            self.currentSystemInfo = sensor_data['SystemInfo']
+        if self.previousBusInfo and self.previousSensorsInfo and self.previousSystemInfo:
+            self.done = True
 
-    def testSensorMonitor(self):
+    def testMonitor(self):
         self.previousBusInfo = None
         self.currentBusInfo = None
         self.previousSensorsInfo = None
         self.currentSensorsInfo = None
+        self.previousSystemInfo = None
+        self.currentSystemInfo = None
         self.done = False
         SensorsClientTest.client.SetDataChanged(self.OnDataChanged)
-        while not self.done:
-            sleep(1)
+        self.setChannelFunction(GPIO().pins[7], 'OUT')
+        for i in range(5):
+            sleep(5)
+            self.setChannelValue(GPIO().pins[7], i % 2)
+            if self.done:
+                break
+        self.assertNotEqual(self.previousSystemInfo, self.currentSystemInfo)
         self.assertNotEqual(self.previousBusInfo, self.currentBusInfo)
         self.assertNotEqual(self.previousSensorsInfo, self.currentSensorsInfo)
 
