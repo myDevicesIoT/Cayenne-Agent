@@ -160,14 +160,16 @@ class SensorsClient():
         debug(str(time()) + ' Get system info ' + str(self.sensorsRefreshCount))
         self.SystemInformation()
         debug(str(time()) + ' Got system info ' + str(self.sensorsRefreshCount))
-        firstSHA = self.SHA_Calc(self.currentSystemInfo)
-        secondSHA = self.SHA_Calc(self.previousSystemInfo)
-        if firstSHA != secondSHA:
-            if self.previousSystemInfo:
-                del self.previousSystemInfo
-                self.previousSystemInfo = None
+        if self.currentSystemInfo != self.previousSystemInfo:
+            changedSystemInfo = {}
+            for key in self.currentSystemInfo.keys():
+                if self.previousSystemInfo and key in self.previousSystemInfo:
+                    if self.currentSystemInfo[key] != self.previousSystemInfo[key]:
+                        changedSystemInfo[key] = self.currentSystemInfo[key]
+                else:
+                    changedSystemInfo[key] = self.currentSystemInfo[key]
+            self.systemData['SystemInfo'] = changedSystemInfo
             self.previousSystemInfo = self.currentSystemInfo
-            self.systemData['SystemInfo'] = self.currentSystemInfo
 
     def SystemInformation(self):
         """Return dict containing current system info, including CPU, RAM, storage and network info"""
