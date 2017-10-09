@@ -40,17 +40,17 @@ class PacketTypes(Enum):
     """Packet types used when sending/receiving messages"""
     PT_UTILIZATION = 3
     PT_SYSTEM_INFO = 4
-    PT_PROCESS_LIST = 5
-    PT_STARTUP_APPLICATIONS = 8
+    # PT_PROCESS_LIST = 5
+    # PT_STARTUP_APPLICATIONS = 8
     PT_START_RDS = 11
     PT_STOP_RDS = 12
     PT_RESTART_COMPUTER = 25
     PT_SHUTDOWN_COMPUTER = 26
-    PT_KILL_PROCESS = 27
+    # PT_KILL_PROCESS = 27
     PT_REQUEST_SCHEDULES = 40
     PT_UPDATE_SCHEDULES = 41
     PT_AGENT_MESSAGE = 45
-    PT_PRODUCT_INFO = 50
+    # PT_PRODUCT_INFO = 50
     PT_UNINSTALL_AGENT = 51
     PT_ADD_SENSOR = 61
     PT_REMOVE_SENSOR = 62
@@ -336,14 +336,14 @@ class CloudServerClient:
             data['GatewayMACAddress'] = self.hardware.getMac()
             systemData = {}
             # systemData['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
-            systemData['AntiVirus'] = 'None'
-            systemData['Firewall'] = 'iptables'
-            systemData['FirewallEnabled'] = 'true'
+            # systemData['AntiVirus'] = 'None'
+            # systemData['Firewall'] = 'iptables'
+            # systemData['FirewallEnabled'] = 'true'
             systemData['ComputerMake'] =  self.hardware.getManufacturer()
             systemData['ComputerModel'] = self.hardware.getModel()
             systemData['OsName'] = self.oSInfo.ID
-            systemData['OsBuild'] = self.oSInfo.ID_LIKE
-            systemData['OsArchitecture'] = self.hardware.Revision
+            # systemData['OsBuild'] = self.oSInfo.ID_LIKE
+            # systemData['OsArchitecture'] = self.hardware.Revision
             systemData['OsVersion'] = self.oSInfo.VERSION_ID
             systemData['ComputerName'] = self.machineName
             systemData['AgentVersion'] = self.config.get('Agent','Version')
@@ -399,8 +399,8 @@ class CloudServerClient:
             systemData['ComputerMake'] = self.hardware.getManufacturer()
             systemData['ComputerModel'] = self.hardware.getModel()
             systemData['OsName'] = self.oSInfo.ID
-            systemData['OsBuild'] = self.oSInfo.ID_LIKE if hasattr(self.oSInfo, 'ID_LIKE') else self.oSInfo.ID
-            systemData['OsArchitecture'] = self.hardware.Revision
+            # systemData['OsBuild'] = self.oSInfo.ID_LIKE if hasattr(self.oSInfo, 'ID_LIKE') else self.oSInfo.ID
+            # systemData['OsArchitecture'] = self.hardware.Revision
             systemData['OsVersion'] = self.oSInfo.VERSION_ID
             systemData['ComputerName'] = self.machineName
             systemData['AgentVersion'] = self.config.get('Agent', 'Version', fallback='1.0.1.0')
@@ -427,47 +427,47 @@ class CloudServerClient:
         except Exception as e:
             exception('ThreadSystemInfo unexpected error: ' + str(e))
 
-    def BuildPT_STARTUP_APPLICATIONS(self):
-        """Schedule a function to run for retrieving a list of services"""
-        ThreadPool.Submit(self.ThreadServiceManager)
+    # def BuildPT_STARTUP_APPLICATIONS(self):
+    #     """Schedule a function to run for retrieving a list of services"""
+    #     ThreadPool.Submit(self.ThreadServiceManager)
 
-    def ThreadServiceManager(self):
-        """Enqueue a packet containing a list of services to send to the server"""
-        self.serviceManager.Run()
-        sleep(GENERAL_SLEEP_THREAD)
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['PacketType'] = PacketTypes.PT_STARTUP_APPLICATIONS.value
-        data['ProcessList'] = self.serviceManager.GetServiceList()
-        self.EnqueuePacket(data)
+    # def ThreadServiceManager(self):
+    #     """Enqueue a packet containing a list of services to send to the server"""
+    #     self.serviceManager.Run()
+    #     sleep(GENERAL_SLEEP_THREAD)
+    #     data = {}
+    #     data['MachineName'] = self.MachineId
+    #     data['PacketType'] = PacketTypes.PT_STARTUP_APPLICATIONS.value
+    #     data['ProcessList'] = self.serviceManager.GetServiceList()
+    #     self.EnqueuePacket(data)
 
-    def BuildPT_PROCESS_LIST(self):
-        """Schedule a function to run for retrieving a list of processes"""
-        ThreadPool.Submit(self.ThreadProcessManager)
+    # def BuildPT_PROCESS_LIST(self):
+    #     """Schedule a function to run for retrieving a list of processes"""
+    #     ThreadPool.Submit(self.ThreadProcessManager)
 
-    def ThreadProcessManager(self):
-        """Enqueue a packet containing a list of processes to send to the server"""
-        self.processManager.Run()
-        sleep(GENERAL_SLEEP_THREAD)
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['PacketType'] = PacketTypes.PT_PROCESS_LIST.value
-        data['ProcessList'] = self.processManager.GetProcessList()
-        self.EnqueuePacket(data)
+    # def ThreadProcessManager(self):
+    #     """Enqueue a packet containing a list of processes to send to the server"""
+    #     self.processManager.Run()
+    #     sleep(GENERAL_SLEEP_THREAD)
+    #     data = {}
+    #     data['MachineName'] = self.MachineId
+    #     data['PacketType'] = PacketTypes.PT_PROCESS_LIST.value
+    #     data['ProcessList'] = self.processManager.GetProcessList()
+    #     self.EnqueuePacket(data)
 
-    def ProcessPT_KILL_PROCESS(self, message):
-        """Kill a process specified in message"""
-        pid = message['Pid']
-        retVal = self.processManager.KillProcess(int(pid))
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
-        data['Type'] = 'Info'
-        if retVal:
-            data['Message'] = 'Process Killed!'
-        else:
-            data['Message'] = 'Process not Killed!'
-        self.EnqueuePacket(data)
+    # def ProcessPT_KILL_PROCESS(self, message):
+    #     """Kill a process specified in message"""
+    #     pid = message['Pid']
+    #     retVal = self.processManager.KillProcess(int(pid))
+    #     data = {}
+    #     data['MachineName'] = self.MachineId
+    #     data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
+    #     data['Type'] = 'Info'
+    #     if retVal:
+    #         data['Message'] = 'Process Killed!'
+    #     else:
+    #         data['Message'] = 'Process not Killed!'
+    #     self.EnqueuePacket(data)
 
     def CheckSubscription(self):
         """Check that an invite code is valid"""
@@ -596,22 +596,22 @@ class CloudServerClient:
             command = "sudo /etc/myDevices/uninstall/uninstall.sh"
             executeCommand(command)
             return
-        if packetType == PacketTypes.PT_STARTUP_APPLICATIONS.value:
-            self.BuildPT_STARTUP_APPLICATIONS()
-            info(PacketTypes.PT_STARTUP_APPLICATIONS)
-            return
-        if packetType == PacketTypes.PT_PROCESS_LIST.value:
-            self.BuildPT_PROCESS_LIST()
-            info(PacketTypes.PT_PROCESS_LIST)
-            return
-        if packetType == PacketTypes.PT_KILL_PROCESS.value:
-            self.ProcessPT_KILL_PROCESS(messageObject)
-            info(PacketTypes.PT_KILL_PROCESS)
-            return
-        if packetType == PacketTypes.PT_PRODUCT_INFO.value:
-            self.config.set('Subscription', 'ProductCode', messageObject['ProductCode'])
-            info(PacketTypes.PT_PRODUCT_INFO)
-            return   
+        # if packetType == PacketTypes.PT_STARTUP_APPLICATIONS.value:
+        #     self.BuildPT_STARTUP_APPLICATIONS()
+        #     info(PacketTypes.PT_STARTUP_APPLICATIONS)
+        #     return
+        # if packetType == PacketTypes.PT_PROCESS_LIST.value:
+        #     self.BuildPT_PROCESS_LIST()
+        #     info(PacketTypes.PT_PROCESS_LIST)
+        #     return
+        # if packetType == PacketTypes.PT_KILL_PROCESS.value:
+        #     self.ProcessPT_KILL_PROCESS(messageObject)
+        #     info(PacketTypes.PT_KILL_PROCESS)
+        #     return
+        # if packetType == PacketTypes.PT_PRODUCT_INFO.value:
+        #     self.config.set('Subscription', 'ProductCode', messageObject['ProductCode'])
+        #     info(PacketTypes.PT_PRODUCT_INFO)
+        #     return   
         if packetType == PacketTypes.PT_RESTART_COMPUTER.value:
             info(PacketTypes.PT_RESTART_COMPUTER)
             data = {}

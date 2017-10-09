@@ -55,18 +55,18 @@ class SystemConfig:
         configItem = {}
         if any(model in Hardware().getModel() for model in ('Tinker Board', 'BeagleBone')):
             return configItem
-        try:
-            (returnCode, output) = SystemConfig.ExecuteConfigCommand(17, '')
-            if output:
-                values = output.strip().split(' ')
-                configItem['Camera'] = {}
-                for i in values:
-                    if '=' in i:
-                        val1 = i.split('=')
-                        configItem['Camera'][val1[0]] = int(val1[1])
-            del output
-        except:
-            exception('Camera config')
+        # try:
+        #     (returnCode, output) = SystemConfig.ExecuteConfigCommand(17, '')
+        #     if output:
+        #         values = output.strip().split(' ')
+        #         configItem['Camera'] = {}
+        #         for i in values:
+        #             if '=' in i:
+        #                 val1 = i.split('=')
+        #                 configItem['Camera'][val1[0]] = int(val1[1])
+        #     del output
+        # except:
+        #     exception('Get camera config')
 
         try:
             (returnCode, output) = SystemConfig.ExecuteConfigCommand(10, '')
@@ -82,6 +82,6 @@ class SystemConfig:
                 configItem['OneWire'] = int(output.strip())
             del output
         except:
-            exception('Camera config')
+            exception('Get config')
         info('SystemConfig: {}'.format(configItem))
         return configItem
