@@ -3,29 +3,29 @@ from json import dumps, loads, JSONEncoder, JSONDecoder
 from myDevices.utils.logger import exception, info, warn, error, debug
 from myDevices.utils.subprocess import executeCommand
 
-class Network():
-    def GetNetworkId():
-        ip = None
-        network = None
-        returnValue = {}
-        try:
-            import netifaces
-            gws=netifaces.gateways()
-            defaultNet = gws['default'].values()
-            for key, val in defaultNet:
-               ip = key
-               network = val
-            command = 'arp -n ' + ip + ' | grep ' + network + ' | awk \'{print $3}\''
-            (output, retCode) = executeCommand(command)
-            if int(retCode) > 0:
-                return None
-            returnValue['Ip'] = ip
-            returnValue['Network'] = network
-            returnValue['MAC'] = output.strip()
-            del output
-        except Exception as ex:
-            debug('Could not initialize netifaces module: ' + str(ex))
-        return returnValue
+# class Network():
+#     def GetNetworkId():
+#         ip = None
+#         network = None
+#         returnValue = {}
+#         try:
+#             import netifaces
+#             gws=netifaces.gateways()
+#             defaultNet = gws['default'].values()
+#             for key, val in defaultNet:
+#                ip = key
+#                network = val
+#             command = 'arp -n ' + ip + ' | grep ' + network + ' | awk \'{print $3}\''
+#             (output, retCode) = executeCommand(command)
+#             if int(retCode) > 0:
+#                 return None
+#             returnValue['Ip'] = ip
+#             returnValue['Network'] = network
+#             returnValue['MAC'] = output.strip()
+#             del output
+#         except Exception as ex:
+#             debug('Could not initialize netifaces module: ' + str(ex))
+#         return returnValue
 
 #{'stats': {'updated': 75, 'noise': 0, 'quality': 67, 'level': 213}, 'Frequency': b'2.412 GHz', 'Access Point': b'B8:55:10:AC:8F:D8', 'Mode': b'Master', 'Key': b'off', 'BitRate': b'54 Mb/s', 'ESSID': b'SRX-WR300WH'}
 class WifiEndpoint(object):

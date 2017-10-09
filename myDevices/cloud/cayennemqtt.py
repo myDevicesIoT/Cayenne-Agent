@@ -5,13 +5,22 @@ import paho.mqtt.client as mqtt
 from myDevices.utils.logger import debug, error, exception, info, logJson, warn
 
 # Topics
-DATA_TOPIC = "data"
-COMMAND_TOPIC = "cmd"
+DATA_TOPIC = 'data.json'
+COMMAND_TOPIC = 'cmd'
+
+# Data Channels
+SYS_HARDWARE_MAKE = 'sys:hw:make'
+SYS_HARDWARE_MODEL = 'sys:hw:model'
+SYS_OS_NAME = 'sys:os:name'
+SYS_OS_VERSION = 'sys:os:version'
+SYS_AGENT_VERSION = 'sys:agent:version'
+SYS_ETHERNET_ADDRESS = 'sys:eth:{};address'
+SYS_ETHERNET_SPEED = 'sys:eth:{};speed'
 
 class CayenneMQTTClient:
     """Cayenne MQTT Client class.
     
-    This is the main client class for connecting to Cayenne and sending and receiving data.
+    This is the main client class for connecting to Cayenne and sending and recFUeiving data.
     
     Standard usage:
     * Set on_message callback, if you are receiving data.
@@ -38,7 +47,7 @@ class CayenneMQTTClient:
         hostname is the MQTT broker hostname.
         port is the MQTT broker port.
         """
-        self.rootTopic = "v0.9/%s/things/%s" % (username, clientid)
+        self.rootTopic = "v2/things/%s" % clientid
         self.client = mqtt.Client(client_id=clientid, clean_session=True, userdata=self)
         self.client.on_connect = self.connect_callback
         self.client.on_disconnect = self.disconnect_callback

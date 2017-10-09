@@ -38,7 +38,7 @@ GENERAL_SLEEP_THREAD = 0.20
 @unique
 class PacketTypes(Enum):
     """Packet types used when sending/receiving messages"""
-    PT_UTILIZATION = 3
+    # PT_UTILIZATION = 3
     PT_SYSTEM_INFO = 4
     # PT_PROCESS_LIST = 5
     # PT_STARTUP_APPLICATIONS = 8
@@ -249,7 +249,7 @@ class CloudServerClient:
         #self.defaultRDServer = self.networkConfig.get('CONFIG','RemoteDesktopServerAddress')
         self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
         self.Initialize()
-        self.FirstRun()
+        # self.FirstRun()
         self.updater = Updater(self.config)
         self.updater.start()
         self.initialized = True
@@ -283,6 +283,7 @@ class CloudServerClient:
             self.writerThread.start()
             self.processorThread = ProcessorThread('processor', self)
             self.processorThread.start()
+            TimerThread(self.SendSystemInfo, 300)
             TimerThread(self.SendSystemState, 30, 5)
             self.previousSystemInfo = None
             self.sentHistoryData = {}
@@ -310,9 +311,9 @@ class CloudServerClient:
         self.Stop()
         info('Client shut down')
 
-    def FirstRun(self):
-        """Send messages when client is first started"""
-        self.SendSystemInfo()
+    # def FirstRun(self):
+    #     """Send messages when client is first started"""
+    #     self.SendSystemInfo()
 
     def OnDataChanged(self, systemData):
         """Enqueue a packet containing changed system data to send to the server"""
@@ -325,66 +326,80 @@ class CloudServerClient:
         del data
         del systemData
 
+    def AppendDataChannel(self, data_list, channel, value):
+        """Create data dict and append it to a list"""
+        data = {}
+        data['channel'] = channel
+        data['value'] = value
+        data_list.append(data)
+
     def SendSystemInfo(self):
         """Enqueue a packet containing system info to send to the server"""
         try:
             # debug('SendSystemInfo')
-            data = {}
-            data['MachineName'] = self.MachineId
-            data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
-            data['IpAddress'] = self.PublicIP
-            data['GatewayMACAddress'] = self.hardware.getMac()
-            systemData = {}
-            # systemData['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
-            # systemData['AntiVirus'] = 'None'
-            # systemData['Firewall'] = 'iptables'
-            # systemData['FirewallEnabled'] = 'true'
-            systemData['ComputerMake'] =  self.hardware.getManufacturer()
-            systemData['ComputerModel'] = self.hardware.getModel()
-            systemData['OsName'] = self.oSInfo.ID
-            # systemData['OsBuild'] = self.oSInfo.ID_LIKE
-            # systemData['OsArchitecture'] = self.hardware.Revision
-            systemData['OsVersion'] = self.oSInfo.VERSION_ID
-            systemData['ComputerName'] = self.machineName
-            systemData['AgentVersion'] = self.config.get('Agent','Version')
-            systemData['GatewayMACAddress'] = self.hardware.getMac()
-            systemData['OsSettings'] = SystemConfig.getConfig()
-            systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
-            systemData['WifiStatus'] = self.wifiManager.GetStatus()
-            data['RaspberryInfo'] = systemData
-            if data != self.previousSystemInfo:
-                self.previousSystemInfo = data.copy()
-                data['Timestamp'] = int(time())
-                self.EnqueuePacket(data)
-                logJson('SendSystemInfo: ' + dumps(data), 'SendSystemInfo')
-            del systemData
-            del data
-            data=None
-        except Exception as e:
-            exception('SendSystemInfo unexpected error: ' + str(e))
+            data_list = []
+            self.AppendDataChannel(data_list, cayennemqtt.SYS_HARDWARE_MAKE, self.hardware.getManufacturer())
+            self.AppendDataChannel(data_list, cayennemqtt.SYS_HARDWARE_MODEL, self.hardware.getModel())
+            self.AppendDataChannel(data_list, cayennemqtt.SYS_OS_NAME, self.oSInfo.ID)
+            self.AppendDataChannel(data_list, cayennemqtt.SYS_OS_VERSION, self.oSInfo.VERSION_ID)
+            self.AppendDataChannel(data_list, cayennemqtt.SYS_AGENT_VERSION, self.config.get('Agent','Version'))
+            self.EnqueuePacket(data_list)
+            # data = {}
+            # data['MachineName'] = self.MachineId
+            # data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
+            # data['IpAddress'] = self.PublicIP
+            # data['GatewayMACAddress'] = self.hardware.getMac()
+            # systemData = {}
+            # # systemData['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
+            # # systemData['AntiVirus'] = 'None'
+            # # systemData['Firewall'] = 'iptables'
+            # # systemData['FirewallEnabled'] = 'true'
+            # systemData['ComputerMake'] =  self.hardware.getManufacturer()
+            # systemData['ComputerModel'] = self.hardware.getModel()
+            # systemData['OsName'] = self.oSInfo.ID
+            # # systemData['OsBuild'] = self.oSInfo.ID_LIKE
+            # # systemData['OsArchitecture'] = self.hardware.Revision
+            # systemData['OsVersion'] = self.oSInfo.VERSION_ID
+            # systemData['ComputerName'] = self.machineName
+            # systemData['AgentVersion'] = self.config.get('Agent','Version')
+            # systemData['GatewayMACAddress'] = self.hardware.getMac()
+            # systemData['OsSettings'] = SystemConfig.getConfig()
+            # systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
+            # systemData['WifiStatus'] = self.wifiManager.GetStatus()
+            # data['RaspberryInfo'] = systemData
+            # if data != self.previousSystemInfo:
+            #     self.previousSystemInfo = data.copy()
+            #     data['Timestamp'] = int(time())
+            #     self.EnqueuePacket(data)
+            #     logJson('SendSystemInfo: ' + dumps(data), 'SendSystemInfo')
+            # del systemData
+            # del data
+            # data=None
+        except Exception:
+            exception('SendSystemInfo unexpected error')
 
-    def SendSystemUtilization(self):
-        """Enqueue a packet containing system utilization data to send to the server"""
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['Timestamp'] = int(time())
-        data['PacketType'] = PacketTypes.PT_UTILIZATION.value
-        self.processManager.RefreshProcessManager()
-        data['VisibleMemory'] = self.processManager.VisibleMemory
-        data['AvailableMemory'] = self.processManager.AvailableMemory
-        data['AverageProcessorUsage'] = self.processManager.AverageProcessorUsage
-        data['PeakProcessorUsage'] = self.processManager.PeakProcessorUsage
-        data['AverageMemoryUsage'] = self.processManager.AverageMemoryUsage
-        data['PeakMemoryUsage'] = self.processManager.AverageMemoryUsage
-        data['PercentProcessorTime'] = self.processManager.PercentProcessorTime
-        self.EnqueuePacket(data)
+    # def SendSystemUtilization(self):
+    #     """Enqueue a packet containing system utilization data to send to the server"""
+    #     data = {}
+    #     data['MachineName'] = self.MachineId
+    #     data['Timestamp'] = int(time())
+    #     data['PacketType'] = PacketTypes.PT_UTILIZATION.value
+    #     self.processManager.RefreshProcessManager()
+    #     data['VisibleMemory'] = self.processManager.VisibleMemory
+    #     data['AvailableMemory'] = self.processManager.AvailableMemory
+    #     data['AverageProcessorUsage'] = self.processManager.AverageProcessorUsage
+    #     data['PeakProcessorUsage'] = self.processManager.PeakProcessorUsage
+    #     data['AverageMemoryUsage'] = self.processManager.AverageMemoryUsage
+    #     data['PeakMemoryUsage'] = self.processManager.AverageMemoryUsage
+    #     data['PercentProcessorTime'] = self.processManager.PercentProcessorTime
+    #     self.EnqueuePacket(data)
 
     def SendSystemState(self):
         """Enqueue a packet containing system information to send to the server"""
         try:
             # debug('SendSystemState')
-            self.SendSystemInfo()
-            self.SendSystemUtilization()
+            # self.SendSystemInfo()
+            # self.SendSystemUtilization()
             data = {}
             data['MachineName'] = self.MachineId
             data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
@@ -411,7 +426,7 @@ class CloudServerClient:
                 systemData['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
                 systemData['BusInfo'] = self.sensorsClient.currentBusInfo
             systemData['OsSettings'] = SystemConfig.getConfig()
-            systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
+            # systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
             systemData['WifiStatus'] = self.wifiManager.GetStatus()
             try:
                 history = History()
@@ -583,10 +598,10 @@ class CloudServerClient:
             return
         info("ExecuteMessage: " + str(messageObject['PacketType']))
         packetType = int(messageObject['PacketType'])
-        if packetType == PacketTypes.PT_UTILIZATION.value:
-            self.SendSystemUtilization()
-            info(PacketTypes.PT_UTILIZATION)
-            return
+        # if packetType == PacketTypes.PT_UTILIZATION.value:
+        #     self.SendSystemUtilization()
+        #     info(PacketTypes.PT_UTILIZATION)
+        #     return
         if packetType == PacketTypes.PT_SYSTEM_INFO.value:
             info("ExecuteMessage - sysinfo - Calling SendSystemState")
             self.SendSystemState()
@@ -849,7 +864,8 @@ class CloudServerClient:
 
     def EnqueuePacket(self, message):
         """Enqueue a message packet to send to the server"""
-        message['PacketTime'] = GetTime()
+        if isinstance(message, dict):
+            message['PacketTime'] = GetTime()
         json_data = dumps(message) + '\n'
         message = None
         self.writeQueue.put(json_data)
