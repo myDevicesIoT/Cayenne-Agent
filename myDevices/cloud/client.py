@@ -16,7 +16,7 @@ from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from myDevices.system import services, ipgetter
 from myDevices.sensors import sensors
 from myDevices.system.hardware import Hardware
-from myDevices.wifi import WifiManager
+# from myDevices.wifi import WifiManager
 from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
@@ -278,7 +278,7 @@ class CloudServerClient:
             self.sensorsClient.SetDataChanged(self.OnDataChanged, self.SendSystemState)
             self.processManager = services.ProcessManager()
             self.serviceManager = services.ServiceManager()
-            self.wifiManager = WifiManager.WifiManager()
+            # self.wifiManager = WifiManager.WifiManager()
             self.writerThread = WriterThread('writer', self)
             self.writerThread.start()
             self.processorThread = ProcessorThread('processor', self)
@@ -326,23 +326,16 @@ class CloudServerClient:
         del data
         del systemData
 
-    def AppendDataChannel(self, data_list, channel, value):
-        """Create data dict and append it to a list"""
-        data = {}
-        data['channel'] = channel
-        data['value'] = value
-        data_list.append(data)
-
     def SendSystemInfo(self):
         """Enqueue a packet containing system info to send to the server"""
         try:
             # debug('SendSystemInfo')
             data_list = []
-            self.AppendDataChannel(data_list, cayennemqtt.SYS_HARDWARE_MAKE, self.hardware.getManufacturer())
-            self.AppendDataChannel(data_list, cayennemqtt.SYS_HARDWARE_MODEL, self.hardware.getModel())
-            self.AppendDataChannel(data_list, cayennemqtt.SYS_OS_NAME, self.oSInfo.ID)
-            self.AppendDataChannel(data_list, cayennemqtt.SYS_OS_VERSION, self.oSInfo.VERSION_ID)
-            self.AppendDataChannel(data_list, cayennemqtt.AGENT_VERSION, self.config.get('Agent','Version'))
+            cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_HARDWARE_MAKE, value=self.hardware.getManufacturer())
+            cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_HARDWARE_MODEL, value=self.hardware.getModel())
+            cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
+            cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
+            cayennemqtt.DataChannel.add(data_list, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent','Version'))
             self.EnqueuePacket(data_list)
             # data = {}
             # data['MachineName'] = self.MachineId
@@ -403,7 +396,7 @@ class CloudServerClient:
             data_list = []
             download_speed = self.downloadSpeed.getDownloadSpeed()
             if download_speed:
-                self.AppendDataChannel(data_list, cayennemqtt.SYS_ETHERNET_SPEED.format(self.downloadSpeed.interface), download_speed)
+                cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_ETHERNET, self.downloadSpeed.interface, value=download_speed)
             self.EnqueuePacket(data_list)
             data = {}
             data['MachineName'] = self.MachineId
@@ -432,7 +425,7 @@ class CloudServerClient:
                 systemData['BusInfo'] = self.sensorsClient.currentBusInfo
             systemData['OsSettings'] = SystemConfig.getConfig()
             # systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
-            systemData['WifiStatus'] = self.wifiManager.GetStatus()
+            # systemData['WifiStatus'] = self.wifiManager.GetStatus()
             try:
                 history = History()
                 history.SaveAverages(systemData)
@@ -782,27 +775,27 @@ class CloudServerClient:
             sensorId = messageObject['SensorId']
         data = {}
         retValue = ''
-        if commandService == 'wifi':
-            if commandType == 'status':
-                retValue = self.wifiManager.GetStatus()
-            if commandType == 'scan':
-                retValue = self.wifiManager.GetWirelessNetworks()
-            if commandType == 'setup':
-                try:
-                    ssid = parameters["ssid"]
-                    password = parameters["password"]
-                    interface = parameters["interface"]
-                    retValue = self.wifiManager.Setup(ssid, password, interface)
-                except:
-                    retValue = False
-        if commandService == 'services':
-            serviceName = parameters['ServiceName']
-            if commandType == 'status':
-                retValue = self.serviceManager.Status(serviceName)
-            if commandType == 'start':
-                retValue = self.serviceManager.Start(serviceName)
-            if commandType == 'stop':
-                retValue = self.serviceManager.Stop(serviceName)
+        # if commandService == 'wifi':
+        #     if commandType == 'status':
+        #         retValue = self.wifiManager.GetStatus()
+        #     if commandType == 'scan':
+        #         retValue = self.wifiManager.GetWirelessNetworks()
+        #     if commandType == 'setup':
+        #         try:
+        #             ssid = parameters["ssid"]
+        #             password = parameters["password"]
+        #             interface = parameters["interface"]
+        #             retValue = self.wifiManager.Setup(ssid, password, interface)
+        #         except:
+        #             retValue = False
+        # if commandService == 'services':
+        #     serviceName = parameters['ServiceName']
+        #     if commandType == 'status':
+        #         retValue = self.serviceManager.Status(serviceName)
+        #     if commandType == 'start':
+        #         retValue = self.serviceManager.Start(serviceName)
+        #     if commandType == 'stop':
+        #         retValue = self.serviceManager.Stop(serviceName)
         if commandService == 'sensor':
             debug('SENSOR_COMMAND processing: ' + str(parameters))
             method = None

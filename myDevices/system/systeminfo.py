@@ -6,7 +6,8 @@ import psutil
 import netifaces
 from myDevices.utils.logger import exception
 from myDevices.system.cpu import CpuInfo
-
+from myDevices.cloud import cayennemqtt
+from myDevices.wifi import WifiManager
 
 class SystemInfo():
     """Class to get system CPU, memory, uptime, storage and network info"""
@@ -131,51 +132,36 @@ class SystemInfo():
         return info
 
     def getNetworkInfo(self):
-        """Get network information as a dict
+        """Get network information as a list formatted for Cayenne MQTT
 
-        Returned dict example::
+        Returned list example::
 
-            {
-                "eth0": {
-                    "ip": {
-                        "address": "192.168.0.25",
-                    },
-                    "ipv6": [{
-                        "address": "2001:db8:3c4d::1a2f:1a2b",
-                    }],
-                    "mac": "aa:bb:cc:dd:ee:ff",
-                },
-                "wlan0": {
-                    "ipv6": [{
-                        "address": "2001:db8:3c4d::1a2f:1a2b",
-                    }],
-                    "mac": "aa:bb:cc:dd:ee:ff"
-                }
-            }
+            [{
+                'channel': 'sys:eth:eth0;address'
+                'value': '192.168.0.2',
+            }, {
+                'channel': 'sys:wifi:wlan0;address'
+                'value': '192.168.0.3',
+            }, {
+                'channel': 'sys:wifi:wlan0;ssid'
+                'value': 'myWifi',
+            }]
         """
-        network_info = {}
+        network_data = []
         try:
-            for interface in netifaces.interfaces():
+            wifi_manager = WifiManager.WifiManager()
+            wifi_status = wifi_manager.GetStatus()
+            for interface in wifi_status.keys():
+                cayennemqtt.DataChannel.add(network_data, cayennemqtt.SYS_WIFI, interface, cayennemqtt.SSID, wifi_status[interface]['ssid'])
+            interfaces = (interface for interface in netifaces.interfaces() if interface != 'lo')
+            for interface in interfaces:
                 addresses = netifaces.ifaddresses(interface)
-                interface_info = {}
                 try:
                     addr = addresses[netifaces.AF_INET][0]['addr']
-                    interface_info['ip'] = {}
-                    interface_info['ip']['address'] = addr
+                    prefix = cayennemqtt.SYS_WIFI if interface in wifi_status else cayennemqtt.SYS_ETHERNET
+                    data_channel.add(network_data, prefix, interface, cayennemqtt.ADDRESS, addr)
                 except:
-                    pass
-                try:
-                    interface_info['ipv6'] = [{'address': addr['addr'].split('%')[0]} for addr in addresses[netifaces.AF_INET6]]
-                except:
-                    pass
-                try:
-                    interface_info['mac'] = addresses[netifaces.AF_LINK][0]['addr']
-                except:
-                    pass
-                if interface_info:
-                    network_info[interface] = interface_info
+                    exception('exception')
         except:
             exception('Error getting network info')
-        info = {}
-        info['list'] = network_info
-        return info
+        return network_data

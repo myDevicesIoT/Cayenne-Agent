@@ -13,10 +13,32 @@ SYS_HARDWARE_MAKE = 'sys:hw:make'
 SYS_HARDWARE_MODEL = 'sys:hw:model'
 SYS_OS_NAME = 'sys:os:name'
 SYS_OS_VERSION = 'sys:os:version'
-SYS_ETHERNET_ADDRESS = 'sys:eth:{};address'
-SYS_ETHERNET_SPEED = 'sys:eth:{};speed'
+SYS_ETHERNET = 'sys:eth'
+SYS_WIFI = 'sys:wifi'
+SYS_STORAGE = 'sys:storage'
 AGENT_VERSION = 'agent:version'
 
+# Channel Suffixes
+ADDRESS = 'address'
+SPEED = 'speed'
+SSID = 'ssid'
+USAGE = 'usage'
+CAPACITY = 'capacity'
+
+class DataChannel:
+    @staticmethod
+    def add(data_list, prefix, channel=None, suffix=None, value=None):
+        """Create data channel dict and append it to a list"""
+        data_channel = prefix
+        if channel:
+            data_channel += ':' + channel
+        if suffix:
+            data_channel += ';' + suffix
+        data = {}
+        data['channel'] = data_channel
+        data['value'] = value
+        data_list.append(data)
+        
 
 class CayenneMQTTClient:
     """Cayenne MQTT Client class.
