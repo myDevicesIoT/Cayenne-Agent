@@ -13,9 +13,10 @@ SYS_HARDWARE_MAKE = 'sys:hw:make'
 SYS_HARDWARE_MODEL = 'sys:hw:model'
 SYS_OS_NAME = 'sys:os:name'
 SYS_OS_VERSION = 'sys:os:version'
-SYS_AGENT_VERSION = 'sys:agent:version'
 SYS_ETHERNET_ADDRESS = 'sys:eth:{};address'
 SYS_ETHERNET_SPEED = 'sys:eth:{};speed'
+AGENT_VERSION = 'agent:version'
+
 
 class CayenneMQTTClient:
     """Cayenne MQTT Client class.

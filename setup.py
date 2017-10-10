@@ -44,7 +44,7 @@ setup(name             = 'myDevices',
       url              = 'https://www.mydevices.com/',
       classifiers      = classifiers,
       packages         = ["myDevices", "myDevices.cloud", "myDevices.utils", "myDevices.system", "myDevices.sensors" , "myDevices.wifi", "myDevices.schedule", "myDevices.requests_futures", "myDevices.devices", "myDevices.devices.analog", "myDevices.devices.digital", "myDevices.devices.sensor", "myDevices.devices.shield", "myDevices.decorators"],
-      install_requires = ['enum34', 'iwlib', 'jsonpickle', 'netifaces', 'psutil >= 0.7.0', 'requests'],
+      install_requires = ['enum34', 'iwlib', 'jsonpickle', 'netifaces >= 0.10.5', 'psutil >= 0.7.0', 'requests'],
       data_files       = [('/etc/myDevices/scripts', ['scripts/config.sh'])]
       )
 

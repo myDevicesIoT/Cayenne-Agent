@@ -342,7 +342,7 @@ class CloudServerClient:
             self.AppendDataChannel(data_list, cayennemqtt.SYS_HARDWARE_MODEL, self.hardware.getModel())
             self.AppendDataChannel(data_list, cayennemqtt.SYS_OS_NAME, self.oSInfo.ID)
             self.AppendDataChannel(data_list, cayennemqtt.SYS_OS_VERSION, self.oSInfo.VERSION_ID)
-            self.AppendDataChannel(data_list, cayennemqtt.SYS_AGENT_VERSION, self.config.get('Agent','Version'))
+            self.AppendDataChannel(data_list, cayennemqtt.AGENT_VERSION, self.config.get('Agent','Version'))
             self.EnqueuePacket(data_list)
             # data = {}
             # data['MachineName'] = self.MachineId
@@ -400,6 +400,11 @@ class CloudServerClient:
             # debug('SendSystemState')
             # self.SendSystemInfo()
             # self.SendSystemUtilization()
+            data_list = []
+            download_speed = self.downloadSpeed.getDownloadSpeed()
+            if download_speed:
+                self.AppendDataChannel(data_list, cayennemqtt.SYS_ETHERNET_SPEED.format(self.downloadSpeed.interface), download_speed)
+            self.EnqueuePacket(data_list)
             data = {}
             data['MachineName'] = self.MachineId
             data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
