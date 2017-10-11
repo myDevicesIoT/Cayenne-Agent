@@ -16,14 +16,18 @@ SYS_OS_VERSION = 'sys:os:version'
 SYS_ETHERNET = 'sys:eth'
 SYS_WIFI = 'sys:wifi'
 SYS_STORAGE = 'sys:storage'
+SYS_RAM = 'sys:ram'
+SYS_CPU = 'sys:cpu'
 AGENT_VERSION = 'agent:version'
 
 # Channel Suffixes
-ADDRESS = 'address'
-SPEED = 'speed'
+IP = 'ip'
+SPEEDTEST = 'speedtest'
 SSID = 'ssid'
 USAGE = 'usage'
 CAPACITY = 'capacity'
+LOAD = 'load'
+TEMPERATURE = 'temp'
 
 class DataChannel:
     @staticmethod

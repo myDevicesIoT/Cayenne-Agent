@@ -7,7 +7,8 @@ from myDevices.utils.logger import exception
 class CpuInfo(object):
     """Class for retrieving CPU info"""
 
-    def get_cpu_info(self):
+    @staticmethod
+    def get_cpu_info():
         """Return CPU temperature, load average and usage info as a dict"""
         info = {}
         info['temperature'] = self.get_cpu_temp()
@@ -15,7 +16,8 @@ class CpuInfo(object):
         info["usage"] = self.get_cpu_usage()
         return info
 
-    def get_cpu_usage(self):
+    @staticmethod
+    def get_cpu_usage():
         """Return dict with overall CPU usage"""
         usage = {}
         try:
@@ -25,8 +27,9 @@ class CpuInfo(object):
         except:
             exception('Error getting CPU usage info')
         return usage
-
-    def get_cpu_load(self, interval = 1):
+    
+    @staticmethod
+    def get_cpu_load(interval = 1):
         """Return CPU load
 
         :param interval: time interval in seconds to wait when calculating CPU usage
@@ -39,7 +42,8 @@ class CpuInfo(object):
             exception('Error getting CPU load info')
         return cpu_load
 
-    def get_cpu_temp(self):
+    @staticmethod
+    def get_cpu_temp():
         """Get CPU temperature"""
         info = {}
         thermal_dirs = glob('/sys/class/thermal/thermal_zone*')
@@ -62,7 +66,8 @@ class CpuInfo(object):
             exception('Error getting CPU temperature')
         return temp
 
-    def get_load_avg(self):
+    @staticmethod
+    def get_load_avg():
         """Get CPU average load for the last one, five, and 10 minute periods"""
         info = {}
         file = "/proc/loadavg"

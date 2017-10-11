@@ -14,122 +14,114 @@ class SystemInfo():
 
     def getSystemInformation(self):
         """Get a dict containing CPU, memory, uptime, storage and network info"""
-        system_info = {}
+        system_info = []
         try:
-            cpu_info = CpuInfo()
-            system_info['Cpu'] = cpu_info.get_cpu_info()
-            system_info['CpuLoad'] = cpu_info.get_cpu_load()
-            system_info['Memory'] = self.getMemoryInfo()
-            system_info['Uptime'] = self.getUptime()
-            system_info['Storage'] = self.getDiskInfo()
-            system_info['Network'] = self.getNetworkInfo()
+            system_info += self.getCpuInfo()
+            system_info += self.getMemoryInfo()
+            system_info += self.getDiskInfo()
+            system_info += self.getNetworkInfo()
         except:
             exception('Error retrieving system info')
         return system_info
 
-    def getMemoryInfo(self):
-        """Get a dict containing the memory info
+    def getCpuInfo(self):
+        """Get CPU information as a list formatted for Cayenne MQTT
 
-        Returned dict example::
+        Returned list example::
 
-            {
-                'used': 377036800,
-                'total': 903979008,
-                'buffers': 129654784,
-                'cached': 135168000,
-                'processes': 112214016,
-                'free': 526942208,
-                'swap': {
-                    'used': 0,
-                    'free': 104853504,
-                    'total': 104853504
-                }
-            }
+            [{
+                'channel': 'sys:cpu;load',
+                'value': 12.8
+            }, {
+                'channel': 'sys:cpu;temp',
+                'value': 50.843
+            }]
         """
-        memory = {}
+        cpu_info = []
+        try:
+            cayennemqtt.DataChannel.add(cpu_info, cayennemqtt.SYS_CPU, suffix=cayennemqtt.LOAD, value=psutil.cpu_percent(1))
+            cayennemqtt.DataChannel.add(cpu_info, cayennemqtt.SYS_CPU, suffix=cayennemqtt.TEMPERATURE, value=CpuInfo.get_cpu_temp())
+        except:
+            exception('Error getting CPU info')
+        return cpu_info
+
+    def getMemoryInfo(self):
+        """Get disk usage information as a list formatted for Cayenne MQTT
+
+        Returned list example::
+
+            [{
+                'channel': 'sys:ram;capacity',
+                'value': 968208384
+            }, {
+                'channel': 'sys:ram;usage',
+                'value': 296620032
+            }]
+        """
+        memory_info = []
         try:
             vmem = psutil.virtual_memory()
-            memory['total'] = vmem.total
-            memory['free'] = vmem.available
-            memory['used'] = memory['total'] - memory['free']
-            memory['buffers'] = vmem.buffers
-            memory['cached'] = vmem.cached
-            memory['processes'] = memory['used']
-            swap = psutil.swap_memory()
-            memory['swap'] = {}
-            memory['swap']['total'] = swap.total
-            memory['swap']['free'] = swap.free
-            memory['swap']['used'] = swap.used
+            cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.USAGE, value=vmem.total - vmem.available)
+            cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.CAPACITY, value=vmem.total)
         except:
             exception('Error getting memory info')
-        return memory
+        return memory_info
 
-    def getUptime(self):
-        """Get system uptime as a dict
+    # def getUptime(self):
+    #     """Get system uptime as a dict
 
-        Returned dict example::
+    #     Returned dict example::
 
-            {
-                'uptime': 90844.69,
-                'idle': 391082.64
-            }
-        """
-        info = {}
-        uptime = 0.0
-        idle = 0.0
-        try:
-            with open('/proc/uptime', 'r') as f_stat:
-                lines = [line.split(' ') for content in f_stat.readlines() for line in content.split('\n') if line != '']
-                uptime = float(lines[0][0])
-                idle = float(lines[0][1])
-        except:
-            exception('Error getting uptime')
-        info['uptime'] = uptime
-        return info
+    #         {
+    #             'uptime': 90844.69,
+    #             'idle': 391082.64
+    #         }
+    #     """
+    #     info = {}
+    #     uptime = 0.0
+    #     idle = 0.0
+    #     try:
+    #         with open('/proc/uptime', 'r') as f_stat:
+    #             lines = [line.split(' ') for content in f_stat.readlines() for line in content.split('\n') if line != '']
+    #             uptime = float(lines[0][0])
+    #             idle = float(lines[0][1])
+    #     except:
+    #         exception('Error getting uptime')
+    #     info['uptime'] = uptime
+    #     return info
 
     def getDiskInfo(self):
-        """Get disk usage info as a dict
+        """Get disk usage information as a list formatted for Cayenne MQTT
 
-        Returned dict example::
+        Returned list example::
 
-            {
-                'list': [{
-                    'filesystem': 'ext4',
-                    'size': 13646516224,
-                    'use': 0.346063,
-                    'mount': '/',
-                    'device': '/dev/root',
-                    'available': 8923963392,
-                    'used': 4005748736
-                }, {
-                    "device": "/dev/mmcblk0p5",
-                    "filesystem": "vfat",
-                    "mount": "/boot",
-                }]
-            }
+            [{
+                'channel': 'sys:storage:/;capacity',
+                'value': 13646516224
+            }, {
+                'channel': 'sys:storage:/;usage',
+                'value': 6353821696
+            }, {
+                'channel': 'sys:storage:/dev;capacity',
+                'value': 479383552
+            }, {
+                'channel': 'sys:storage:/dev;usage',
+                'value': 0
+            }]
         """
-        disk_list = []
+        storage_info = []
         try:
             for partition in psutil.disk_partitions(True):
-                disk = {}
-                disk['filesystem'] = partition.fstype
-                disk['mount'] = partition.mountpoint
-                disk['device'] = partition.device
                 try:
                     usage = psutil.disk_usage(partition.mountpoint)
                     if usage.total:
-                        disk['size'] = usage.total
-                        disk['used'] = usage.used
-                        disk['available'] = usage.free
-                        disk['use'] = round((usage.total - usage.free) / usage.total, 6)
+                        cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.USAGE, usage.used)
+                        cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.CAPACITY, usage.total)
                 except:
                     pass
-                disk_list.append(disk)
         except:
             exception('Error getting disk info')
-        info = {}
-        info['list'] = disk_list
-        return info
+        return storage_info
 
     def getNetworkInfo(self):
         """Get network information as a list formatted for Cayenne MQTT
@@ -147,21 +139,21 @@ class SystemInfo():
                 'value': 'myWifi',
             }]
         """
-        network_data = []
+        network_info = []
         try:
             wifi_manager = WifiManager.WifiManager()
             wifi_status = wifi_manager.GetStatus()
             for interface in wifi_status.keys():
-                cayennemqtt.DataChannel.add(network_data, cayennemqtt.SYS_WIFI, interface, cayennemqtt.SSID, wifi_status[interface]['ssid'])
+                cayennemqtt.DataChannel.add(network_info, cayennemqtt.SYS_WIFI, interface, cayennemqtt.SSID, wifi_status[interface]['ssid'])
             interfaces = (interface for interface in netifaces.interfaces() if interface != 'lo')
             for interface in interfaces:
                 addresses = netifaces.ifaddresses(interface)
                 try:
                     addr = addresses[netifaces.AF_INET][0]['addr']
                     prefix = cayennemqtt.SYS_WIFI if interface in wifi_status else cayennemqtt.SYS_ETHERNET
-                    data_channel.add(network_data, prefix, interface, cayennemqtt.ADDRESS, addr)
+                    cayennemqtt.DataChannel.add(network_info, prefix, interface, cayennemqtt.IP, addr)
                 except:
                     exception('exception')
         except:
             exception('Error getting network info')
-        return network_data
+        return network_info
