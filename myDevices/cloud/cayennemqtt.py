@@ -18,7 +18,10 @@ SYS_WIFI = 'sys:wifi'
 SYS_STORAGE = 'sys:storage'
 SYS_RAM = 'sys:ram'
 SYS_CPU = 'sys:cpu'
+SYS_BUS = 'sys:bus'
+SYS_GPIO = 'sys:gpio'
 AGENT_VERSION = 'agent:version'
+RPI_DEVICETREE = 'hw:rpi:devicetree'
 
 # Channel Suffixes
 IP = 'ip'
@@ -28,6 +31,9 @@ USAGE = 'usage'
 CAPACITY = 'capacity'
 LOAD = 'load'
 TEMPERATURE = 'temp'
+VALUE = 'value'
+FUNCTION = 'function'
+
 
 class DataChannel:
     @staticmethod
@@ -35,9 +41,9 @@ class DataChannel:
         """Create data channel dict and append it to a list"""
         data_channel = prefix
         if channel:
-            data_channel += ':' + channel
+            data_channel += ':' + str(channel)
         if suffix:
-            data_channel += ';' + suffix
+            data_channel += ';' + str(suffix)
         data = {}
         data['channel'] = data_channel
         data['value'] = value

@@ -397,33 +397,39 @@ class CloudServerClient:
             download_speed = self.downloadSpeed.getDownloadSpeed()
             if download_speed:
                 cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_ETHERNET, self.downloadSpeed.interface, value=download_speed)
+            with self.sensorsClient.sensorMutex:
+                data_list += self.sensorsClient.currentSystemInfo
+                data_list += self.sensorsClient.currentBusInfo
+            config = SystemConfig.getConfig()
+            if config:
+                cayennemqtt.DataChannel.add(data_list, cayennemqtt.RPI_DEVICETREE, value=config['DeviceTree'])
             self.EnqueuePacket(data_list)
-            data = {}
-            data['MachineName'] = self.MachineId
-            data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
-            data['Timestamp'] = int(time())
-            data['IpAddress'] = self.PublicIP
-            data['GatewayMACAddress'] = self.hardware.getMac()
-            systemData = {}
-            systemData['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
-            systemData['AntiVirus'] = 'None'
-            systemData['Firewall'] = 'iptables'
-            systemData['FirewallEnabled'] = 'true'
-            systemData['ComputerMake'] = self.hardware.getManufacturer()
-            systemData['ComputerModel'] = self.hardware.getModel()
-            systemData['OsName'] = self.oSInfo.ID
+            # data = {}
+            # data['MachineName'] = self.MachineId
+            # data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
+            # data['Timestamp'] = int(time())
+            # data['IpAddress'] = self.PublicIP
+            # data['GatewayMACAddress'] = self.hardware.getMac()
+            # systemData = {}
+            # systemData['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
+            # systemData['AntiVirus'] = 'None'
+            # systemData['Firewall'] = 'iptables'
+            # systemData['FirewallEnabled'] = 'true'
+            # systemData['ComputerMake'] = self.hardware.getManufacturer()
+            # systemData['ComputerModel'] = self.hardware.getModel()
+            # systemData['OsName'] = self.oSInfo.ID
             # systemData['OsBuild'] = self.oSInfo.ID_LIKE if hasattr(self.oSInfo, 'ID_LIKE') else self.oSInfo.ID
             # systemData['OsArchitecture'] = self.hardware.Revision
-            systemData['OsVersion'] = self.oSInfo.VERSION_ID
-            systemData['ComputerName'] = self.machineName
-            systemData['AgentVersion'] = self.config.get('Agent', 'Version', fallback='1.0.1.0')
-            systemData['InstallDate'] = self.installDate
-            systemData['GatewayMACAddress'] = self.hardware.getMac()
+            # systemData['OsVersion'] = self.oSInfo.VERSION_ID
+            # systemData['ComputerName'] = self.machineName
+            # systemData['AgentVersion'] = self.config.get('Agent', 'Version', fallback='1.0.1.0')
+            # systemData['InstallDate'] = self.installDate
+            # systemData['GatewayMACAddress'] = self.hardware.getMac()
             with self.sensorsClient.sensorMutex:
                 systemData['SystemInfo'] = self.sensorsClient.currentSystemInfo
                 systemData['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
                 systemData['BusInfo'] = self.sensorsClient.currentBusInfo
-            systemData['OsSettings'] = SystemConfig.getConfig()
+            # systemData['OsSettings'] = SystemConfig.getConfig()
             # systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
             # systemData['WifiStatus'] = self.wifiManager.GetStatus()
             try:

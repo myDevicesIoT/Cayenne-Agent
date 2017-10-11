@@ -21,6 +21,7 @@ from myDevices.devices import manager
 from myDevices.devices import instance
 from myDevices.utils.types import M_JSON
 from myDevices.system.systeminfo import SystemInfo
+from myDevices.cloud import cayennemqtt
 
 REFRESH_FREQUENCY = 5 #seconds
 # SENSOR_INFO_SLEEP = 0.05
@@ -266,12 +267,15 @@ class SensorsClient():
 
     def BusInfo(self):
         """Return a dict with current bus info"""
-        json = {}
-        for (bus, value) in BUSLIST.items():
-            json[bus] = int(value["enabled"])
-        json['GPIO'] = self.gpio.wildcard()
-        json['GpioMap'] = self.gpio.MAPPING
-        self.currentBusInfo = json
+        bus_info = []
+        bus_items = {bus.lower():int(value["enabled"]) for (bus, value) in BUSLIST.items() if bus != 'ONEWIRE'}
+        for (bus, value) in bus_items.items():
+            cayennemqtt.DataChannel.add(bus_info, cayennemqtt.SYS_BUS, suffix=bus, value=value)
+        gpio_state = self.gpio.wildcard()
+        for key, value in gpio_state.items():
+            cayennemqtt.DataChannel.add(bus_info, cayennemqtt.SYS_GPIO, key, cayennemqtt.VALUE, value['value'])
+            cayennemqtt.DataChannel.add(bus_info, cayennemqtt.SYS_GPIO, key, cayennemqtt.FUNCTION, value['function'])
+        self.currentBusInfo = bus_info
         return self.currentBusInfo
 
     def SensorsInfo(self):
