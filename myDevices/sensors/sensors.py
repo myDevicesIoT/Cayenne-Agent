@@ -32,15 +32,12 @@ class SensorsClient():
     def __init__(self):
         """Initialize the bus and sensor info and start monitoring sensor states"""
         self.sensorMutex = RLock()
-        self.systemMutex = RLock()
         self.continueMonitoring = False
         self.onDataChanged = None
         self.onSystemInfo = None
-        self.currentBusInfo = self.previousBusInfo = None
-        self.currentSensorsInfo = self.previousSensorsInfo = None
-        self.currentSystemInfo = self.previousSystemInfo = None
+        self.systemData = []
+        self.currentSystemState = []
         self.disabledSensors = {}
-        self.sensorsRefreshCount = 0
         self.retrievingSystemInfo = False
         self.disabledSensorTable = "disabled_sensors"
         self.systemInfoRefreshList = []
@@ -81,21 +78,17 @@ class SensorsClient():
         while self.continueMonitoring:
             try:
                 if datetime.now() > nextTime:
-                    self.systemData = {}
-                    refreshTime = int(time())
-                    if datetime.now() > nextTimeSystemInfo:
-                        with self.systemMutex:
-                            if not self.retrievingSystemInfo:
-                                ThreadPool.Submit(self.MonitorSystemInformation())
-                        nextTimeSystemInfo = datetime.now() + timedelta(seconds=5)
+                    self.currentSystemState = []
+                    self.MonitorSystemInformation()
                     self.MonitorSensors()
                     self.MonitorBus()
-                    if self.onDataChanged and self.systemData:
-                        self.onDataChanged(self.systemData)
-                    bResult = self.RemoveRefresh(refreshTime)
-                    if bResult and self.onSystemInfo:
-                        self.onSystemInfo()
-                    self.sensorsRefreshCount += 1
+                    if self.currentSystemState != self.systemData:
+                        changedSystemData = self.currentSystemState
+                        if self.systemData:
+                            changedSystemData = [x for x in self.currentSystemState if x not in self.systemData]
+                        if self.onDataChanged and changedSystemData:
+                            self.onDataChanged(changedSystemData)
+                    self.systemData = self.currentSystemState
                     nextTime = datetime.now() + timedelta(seconds=REFRESH_FREQUENCY)
                 sleep(REFRESH_FREQUENCY)
             except:
@@ -106,86 +99,29 @@ class SensorsClient():
         """Check sensor states for changes"""
         if not self.continueMonitoring:
             return
-        debug(str(time()) + ' Get sensors info ' + str(self.sensorsRefreshCount))
-        self.SensorsInfo()
-        debug(str(time()) + ' Got sensors info ' + str(self.sensorsRefreshCount))
-        with self.sensorMutex:
-            if self.SHA_Calc(self.currentSensorsInfo) != self.SHA_Calc(self.previousSensorsInfo):
-                mergedSensors = self.ChangedSensorsList()
-                if self.previousSensorsInfo:
-                    del self.previousSensorsInfo
-                    self.previousSensorsInfo = None
-                if mergedSensors:
-                    self.systemData['SensorsInfo'] = mergedSensors
-                self.previousSensorsInfo = self.currentSensorsInfo
-        debug(str(time()) + ' Merge sensors info ' + str(self.sensorsRefreshCount))
-
-    def ChangedSensorsList(self):
-        """Return list of changed sensors"""
-        if self.continueMonitoring == False:
-            return None
-        if self.previousSensorsInfo == None:
-            return None
-        if self.currentSensorsInfo == None:
-            return None
-        changedSensors = []
-        previousSensorsDictionary = dict((i['sensor'], i) for i in self.previousSensorsInfo)
-        for item in self.currentSensorsInfo:
-            oldItem = None
-            if item['sensor'] in previousSensorsDictionary:
-                oldItem = previousSensorsDictionary[item['sensor']]
-                if self.SHA_Calc(item) != self.SHA_Calc(oldItem):
-                    changedSensors.append(item)
-            else:
-                changedSensors.append(item)
-        return changedSensors
+        self.currentSystemState += self.SensorsInfo()
 
     def MonitorBus(self):
         """Check bus states for changes"""
         if self.continueMonitoring == False:
             return
-        debug(str(time()) + ' Get bus info ' + str(self.sensorsRefreshCount))
-        self.BusInfo()
-        debug(str(time()) + ' Got bus info ' + str(self.sensorsRefreshCount))
-        if self.SHA_Calc(self.currentBusInfo) != self.SHA_Calc(self.previousBusInfo):
-            self.systemData['BusInfo'] = self.currentBusInfo
-            if self.previousBusInfo:
-                del self.previousBusInfo
-                self.previousBusInfo = None
-            self.previousBusInfo = self.currentBusInfo
+        self.currentSystemState += self.BusInfo()
 
     def MonitorSystemInformation(self):
         """Check system info for changes"""
         if self.continueMonitoring == False:
             return
-        debug(str(time()) + ' Get system info ' + str(self.sensorsRefreshCount))
-        self.SystemInformation()
-        debug(str(time()) + ' Got system info ' + str(self.sensorsRefreshCount))
-        if self.currentSystemInfo != self.previousSystemInfo:
-            changedSystemInfo = {}
-            for key in self.currentSystemInfo.keys():
-                if self.previousSystemInfo and key in self.previousSystemInfo:
-                    if self.currentSystemInfo[key] != self.previousSystemInfo[key]:
-                        changedSystemInfo[key] = self.currentSystemInfo[key]
-                else:
-                    changedSystemInfo[key] = self.currentSystemInfo[key]
-            self.systemData['SystemInfo'] = changedSystemInfo
-            self.previousSystemInfo = self.currentSystemInfo
+        self.currentSystemState += self.SystemInformation()
 
     def SystemInformation(self):
         """Return dict containing current system info, including CPU, RAM, storage and network info"""
-        with self.systemMutex:
-            self.retrievingSystemInfo = True
+        newSystemInfo = []
         try:
             systemInfo = SystemInfo()
             newSystemInfo = systemInfo.getSystemInformation()
-            if newSystemInfo:
-                self.currentSystemInfo = newSystemInfo
-        except Exception as ex:
-            exception('SystemInformation failed: '+str(ex))
-        with self.systemMutex:
-            self.retrievingSystemInfo = False
-        return self.currentSystemInfo
+        except Exception:
+            exception('SystemInformation failed')
+        return newSystemInfo
 
     def SHA_Calc(self, object):
         """Return SHA value for an object"""
@@ -276,18 +212,15 @@ class SensorsClient():
         for key, value in gpio_state.items():
             cayennemqtt.DataChannel.add(bus_info, cayennemqtt.SYS_GPIO, key, cayennemqtt.VALUE, value['value'])
             cayennemqtt.DataChannel.add(bus_info, cayennemqtt.SYS_GPIO, key, cayennemqtt.FUNCTION, value['function'])
-        self.currentBusInfo = bus_info
-        return self.currentBusInfo
+        return bus_info
 
     def SensorsInfo(self):
-        """Return a dict with current sensor states for all enabled sensors"""
+        """Return a list with current sensor states for all enabled sensors"""
         devices = self.GetDevices()
         sensors_info = []
-        debug(str(time()) + ' Got devices info ' + str(self.sensorsRefreshCount))
         if devices is None:
             return sensors_info
         for device in devices:
-            print(device)
             sensor = instance.deviceInstance(device['name'])
             if 'enabled' not in device or device['enabled'] == 1:
                 sensor_types = {'Temperature': {'function': 'getCelsius', 'data_args': {'type': 'temp', 'unit': 'c'}},
@@ -320,14 +253,8 @@ class SensorsClient():
                             cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['hash'] + ':' + str(pin), cayennemqtt.VALUE, value)
                     except:
                         exception('Failed to get extension data: {} {}'.format(device['type'], device['name']))
-        with self.sensorMutex:
-            self.currentSensorsInfo = sensors_info
-            devices = None
-        if self.sensorsRefreshCount == 0:
-            info('System sensors info at start '+str(self.currentSensorsInfo))
-        debug(('New sensors info retrieved: {}').format(self.sensorsRefreshCount))
-        logJson('Sensors Info updated: ' + str(self.currentSensorsInfo))
-        return self.currentSensorsInfo
+        logJson('Sensors info: {}'.format(sensors_info))
+        return sensors_info
 
     def AddSensor(self, name, description, device, args):
         """Add a new sensor/actuator
@@ -358,7 +285,6 @@ class SensorsClient():
             info('Add device returned: {}'.format(retValue))
             if retValue[0] == 200:
                 bVal = True
-                self.AddRefresh()
         except:
             bVal = False
         return bVal
@@ -387,25 +313,8 @@ class SensorsClient():
             with self.sensorMutex:
                 retValue = manager.updateDevice(name, sensorEdit)
             info('Edit device returned: {}'.format(retValue))
-            try:
-                hashKey = self.SHA_Calc_str(name+device)
-                with self.sensorMutex:
-                    if self.currentSensorsInfo:
-                        currentSensorsDictionary = dict((i['sensor'], i) for i in self.currentSensorsInfo)
-                        sensorData = currentSensorsDictionary[hashKey]
-                        sensor = sensorData[hashKey]
-                        systemData = {}
-                        sensor['args'] = args
-                        sensor['description'] = description
-                        systemData['SensorsInfo'] = []
-                        systemData['SensorsInfo'].append(sensor)
-                        if self.onDataChanged:
-                            self.onDataChanged(systemData)
-            except:
-                pass
             if retValue[0] == 200:
                 bVal = True
-                self.AddRefresh()
         except:
             exception("Edit sensor failed")
             bVal = False
@@ -428,7 +337,6 @@ class SensorsClient():
             info('Remove device returned: {}'.format(retValue))
             if retValue[0] == 200:
                 bVal = True
-                self.AddRefresh()
         except:
             exception("Remove sensor failed")
             bVal = False
@@ -467,26 +375,6 @@ class SensorsClient():
             return False
         self.AddRefresh()
         return True
-
-    def AddRefresh(self):
-        """Add the time to list of system info changed times"""
-        self.systemInfoRefreshList.append(int(time()))
-
-    def RemoveRefresh(self, cutoff):
-        """Remove times from refresh list and check if system info was changed
-
-        Args:
-            cutoff: Cutoff time to use when checking for system info changes
-
-        Returns:
-            True if system info has changed before cutoff, False otherwise.
-        """
-        bReturn = False
-        for i in self.systemInfoRefreshList:
-            if i < cutoff:
-                self.systemInfoRefreshList.remove(i)
-                bReturn = True
-        return bReturn
 
     def GpioCommand(self, commandType, method, channel, value):
         """Execute onboard GPIO command
@@ -544,7 +432,6 @@ class SensorsClient():
         retVal = False
         info('SensorCommand: {} SensorName {} SensorType {} DriverClass {} Method {} Channel {} Value {}'.format(commandType, sensorName, sensorType, driverClass, method, channel, value) )
         try:
-            self.AddRefresh()
             actuators = ('GPIOPort', 'ServoMotor', 'AnalogActuator', 'LoadSensor', 'PiFaceDigital', 'DistanceSensor', 'Thermistor', 'Photoresistor', 'LightDimmer', 'LightSwitch', 'DigitalSensor', 'DigitalActuator', 'MotorSwitch', 'RelaySwitch', 'ValveSwitch', 'MotionSensor')
             gpioExtensions = ('GPIOPort', 'PiFaceDigital')
             if driverClass is None:

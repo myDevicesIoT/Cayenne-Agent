@@ -129,8 +129,8 @@ class SystemInfo():
         Returned list example::
 
             [{
-                'channel': 'sys:net;ip'
-                'value': '192.168.0.2',
+                'channel': 'sys:net;ip',
+                'value': '192.168.0.2'
             }, {
                 'channel': 'sys:net;ssid',
                 'value': 'myWifi'

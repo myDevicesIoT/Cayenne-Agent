@@ -275,7 +275,7 @@ class CloudServerClient:
             self.count = 10000
             self.buff = bytearray(self.count)
             #start thread only after init of other fields
-            self.sensorsClient.SetDataChanged(self.OnDataChanged, self.SendSystemState)
+            self.sensorsClient.SetDataChanged(self.OnDataChanged)
             self.processManager = services.ProcessManager()
             self.serviceManager = services.ServiceManager()
             # self.wifiManager = WifiManager.WifiManager()
@@ -397,9 +397,7 @@ class CloudServerClient:
             download_speed = self.downloadSpeed.getDownloadSpeed()
             if download_speed:
                 cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed)
-            with self.sensorsClient.sensorMutex:
-                data_list += self.sensorsClient.currentSystemInfo
-                data_list += self.sensorsClient.currentBusInfo
+            data_list += self.sensorsClient.systemData
             config = SystemConfig.getConfig()
             if config:
                 cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_DEVICETREE, value=config['DeviceTree'])
@@ -425,24 +423,24 @@ class CloudServerClient:
             # systemData['AgentVersion'] = self.config.get('Agent', 'Version', fallback='1.0.1.0')
             # systemData['InstallDate'] = self.installDate
             # systemData['GatewayMACAddress'] = self.hardware.getMac()
-            with self.sensorsClient.sensorMutex:
-                systemData['SystemInfo'] = self.sensorsClient.currentSystemInfo
-                systemData['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
-                systemData['BusInfo'] = self.sensorsClient.currentBusInfo
+            # with self.sensorsClient.sensorMutex:
+            #     systemData['SystemInfo'] = self.sensorsClient.currentSystemInfo
+            #     systemData['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
+            #     systemData['BusInfo'] = self.sensorsClient.currentBusInfo
             # systemData['OsSettings'] = SystemConfig.getConfig()
             # systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
             # systemData['WifiStatus'] = self.wifiManager.GetStatus()
-            try:
-                history = History()
-                history.SaveAverages(systemData)
-            except:
-                exception('History error')
-            data['RaspberryInfo'] = systemData
-            self.EnqueuePacket(data)
-            logJson('PT_SYSTEM_INFO: ' + dumps(data), 'PT_SYSTEM_INFO')
-            del systemData
-            del data
-            data = None
+            # try:
+            #     history = History()
+            #     history.SaveAverages(systemData)
+            # except:
+            #     exception('History error')
+            # data['RaspberryInfo'] = systemData
+            # self.EnqueuePacket(data)
+            # logJson('PT_SYSTEM_INFO: ' + dumps(data), 'PT_SYSTEM_INFO')
+            # del systemData
+            # del data
+            # data = None
         except Exception as e:
             exception('ThreadSystemInfo unexpected error: ' + str(e))
 
