@@ -17,9 +17,8 @@ class SystemInfoTest(unittest.TestCase):
         self.assertIn('sys:ram;capacity', self.info)
         self.assertIn('sys:storage:/;usage', self.info)
         self.assertIn('sys:storage:/;capacity', self.info)
-        self.assertIn('sys:eth:eth0;ip', self.info)
-        self.assertIn('sys:wifi:wlan0;ip', self.info)
-        self.assertIn('sys:wifi:wlan0;ssid', self.info)
+        self.assertIn('sys:net;ip', self.info)
+        # self.assertIn('sys:net;ssid', self.info)
         
         
 if __name__ == '__main__':

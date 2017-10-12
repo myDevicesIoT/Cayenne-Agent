@@ -99,7 +99,7 @@ class SensorsClient():
                     nextTime = datetime.now() + timedelta(seconds=REFRESH_FREQUENCY)
                 sleep(REFRESH_FREQUENCY)
             except:
-                exception("Monitoring sensors and os resources failed: " + str())
+                exception('Monitoring sensors and os resources failed')
         debug('Monitoring sensors and os resources Finished')
 
     def MonitorSensors(self):
@@ -268,9 +268,10 @@ class SensorsClient():
     def BusInfo(self):
         """Return a dict with current bus info"""
         bus_info = []
-        bus_items = {bus.lower():int(value["enabled"]) for (bus, value) in BUSLIST.items() if bus != 'ONEWIRE'}
+        bus_channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'UART': cayennemqtt.SYS_UART}
+        bus_items = {bus:int(value["enabled"]) for (bus, value) in BUSLIST.items() if bus in bus_channel_map}
         for (bus, value) in bus_items.items():
-            cayennemqtt.DataChannel.add(bus_info, cayennemqtt.SYS_BUS, suffix=bus, value=value)
+            cayennemqtt.DataChannel.add(bus_info, bus_channel_map[bus], value=value)
         gpio_state = self.gpio.wildcard()
         for key, value in gpio_state.items():
             cayennemqtt.DataChannel.add(bus_info, cayennemqtt.SYS_GPIO, key, cayennemqtt.VALUE, value['value'])
@@ -281,68 +282,46 @@ class SensorsClient():
     def SensorsInfo(self):
         """Return a dict with current sensor states for all enabled sensors"""
         devices = self.GetDevices()
+        sensors_info = []
         debug(str(time()) + ' Got devices info ' + str(self.sensorsRefreshCount))
         if devices is None:
-            return {}
-        for value in devices:
-            sensor = instance.deviceInstance(value['name'])
-            if 'enabled' not in value or value['enabled'] == 1:
-                # sleep(SENSOR_INFO_SLEEP)
-                try:
-                    if value['type'] == 'Temperature':
-                        value['Celsius'] = self.CallDeviceFunction(sensor.getCelsius)
-                        # value['Fahrenheit'] = self.CallDeviceFunction(sensor.getFahrenheit)
-                        # value['Kelvin'] = self.CallDeviceFunction(sensor.getKelvin)
-                    if value['type'] == 'Pressure':
-                        value['Pascal'] = self.CallDeviceFunction(sensor.getPascal)
-                    if value['type'] == 'Luminosity':
-                        value['Lux'] = self.CallDeviceFunction(sensor.getLux)
-                    if value['type'] == 'Distance':
-                        value['Centimeter'] = self.CallDeviceFunction(sensor.getCentimeter)
-                        value['Inch'] = self.CallDeviceFunction(sensor.getInch)
-                    if value['type'] in ('ADC', 'DAC'):
-                        value['channelCount'] = self.CallDeviceFunction(sensor.analogCount)
-                        # value['maxInteger'] = self.CallDeviceFunction(sensor.analogMaximum)
-                        # value['resolution'] = self.CallDeviceFunction(sensor.analogResolution)
-                        # value['allInteger'] = self.CallDeviceFunction(sensor.analogReadAll)
-                        # value['allVolt'] = self.CallDeviceFunction(sensor.analogReadAllVolt)
-                        value['allFloat'] = self.CallDeviceFunction(sensor.analogReadAllFloat)
-                        # if value['type'] == 'DAC':
-                        #     value['vref'] = self.CallDeviceFunction(sensor.analogReference)
-                    if value['type'] == 'PWM':
-                        value['channelCount'] = self.CallDeviceFunction(sensor.pwmCount)
-                        # value['maxInteger'] = self.CallDeviceFunction(sensor.pwmMaximum)
-                        # value['resolution'] = self.CallDeviceFunction(sensor.pwmResolution)
-                        value['all'] = self.CallDeviceFunction(sensor.pwmWildcard)
-                    if value['type'] == 'Humidity':
-                        value['float'] = self.CallDeviceFunction(sensor.getHumidity)
-                        value['percent'] = self.CallDeviceFunction(sensor.getHumidityPercent)
-                    if value['type'] in ('DigitalSensor', 'DigitalActuator'):
-                        value['value'] = self.CallDeviceFunction(sensor.read)
-                    if value['type'] == 'GPIOPort':
-                        value['channelCount'] = self.CallDeviceFunction(sensor.digitalCount)
-                        value['all'] = self.CallDeviceFunction(sensor.wildcard)
-                    if value['type'] == 'AnalogSensor':
-                        # value['integer'] = self.CallDeviceFunction(sensor.read)
-                        value['float'] = self.CallDeviceFunction(sensor.readFloat)
-                        # value['volt'] = self.CallDeviceFunction(sensor.readVolt)
-                    if value['type'] == 'ServoMotor':
-                        value['angle'] = self.CallDeviceFunction(sensor.readAngle)
-                    if value['type'] == 'AnalogActuator':
-                        value['float'] = self.CallDeviceFunction(sensor.readFloat)
-                except:
-                    exception("Sensor values failed: "+ value['type'] + " " + value['name']) 
-            try:
-                if 'hash' in value:
-                    value['sensor'] = value['hash']
-                    del value['hash']
-            except KeyError:
-                pass
+            return sensors_info
+        for device in devices:
+            print(device)
+            sensor = instance.deviceInstance(device['name'])
+            if 'enabled' not in device or device['enabled'] == 1:
+                sensor_types = {'Temperature': {'function': 'getCelsius', 'data_args': {'type': 'temp', 'unit': 'c'}},
+                                    'Humidity': {'function': 'getHumidityPercent', 'data_args': {'type': 'rel_hum', 'unit': 'p'}},
+                                    'Pressure': {'function': 'getPascal', 'data_args': {'type': 'bp', 'unit': 'pa'}},
+                                    'Luminosity': {'function': 'getLux', 'data_args': {'type': 'lum', 'unit': 'lux'}},
+                                    'Distance': {'function': 'getCentimeter', 'data_args': {'type': 'prox', 'unit': 'cm'}},
+                                    'ServoMotor': {'function': 'readAngle', 'data_args': {'type': 'analog_actuator'}},
+                                    'DigitalSensor': {'function': 'read', 'data_args': {'type': 'digital_sensor', 'unit': 'd'}},
+                                    'DigitalActuator': {'function': 'read', 'data_args': {'type': 'digital_actuator', 'unit': 'd'}},
+                                    'AnalogSensor': {'function': 'readFloat', 'data_args': {'type': 'analog_sensor'}},
+                                    'AnalogActuator': {'function': 'readFloat', 'data_args': {'type': 'analog_actuator'}}}
+                extension_types = {'ADC': {'function': 'analogReadAllFloat'},
+                                    'DAC': {'function': 'analogReadAllFloat'},
+                                    'PWM': {'function': 'pwmWildcard'},
+                                    'DAC': {'function': 'wildcard'}}
+                if device['type'] in sensor_types:
+                    try:
+                        sensor_type = sensor_types[device['type']]
+                        func = getattr(sensor, sensor_type['function'])
+                        cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['hash'], value=self.CallDeviceFunction(func), **sensor_type['data_args'])
+                    except:
+                        exception('Failed to get sensor data: {} {}'.format(device['type'], device['name']))
+                else:
+                    try:
+                        extension_type = extension_types[device['type']]
+                        func = getattr(sensor, extension_type['function'])
+                        values = self.CallDeviceFunction(func)
+                        for pin, value in values.items():
+                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['hash'] + ':' + str(pin), cayennemqtt.VALUE, value)
+                    except:
+                        exception('Failed to get extension data: {} {}'.format(device['type'], device['name']))
         with self.sensorMutex:
-            if self.currentSensorsInfo:
-                del self.currentSensorsInfo
-                self.currentSensorsInfo = None
-            self.currentSensorsInfo = devices
+            self.currentSensorsInfo = sensors_info
             devices = None
         if self.sensorsRefreshCount == 0:
             info('System sensors info at start '+str(self.currentSensorsInfo))

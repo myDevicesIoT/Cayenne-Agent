@@ -13,15 +13,17 @@ SYS_HARDWARE_MAKE = 'sys:hw:make'
 SYS_HARDWARE_MODEL = 'sys:hw:model'
 SYS_OS_NAME = 'sys:os:name'
 SYS_OS_VERSION = 'sys:os:version'
-SYS_ETHERNET = 'sys:eth'
-SYS_WIFI = 'sys:wifi'
+SYS_NET = 'sys:net'
 SYS_STORAGE = 'sys:storage'
 SYS_RAM = 'sys:ram'
 SYS_CPU = 'sys:cpu'
-SYS_BUS = 'sys:bus'
+SYS_I2C = 'sys:i2c'
+SYS_SPI = 'sys:spi'
+SYS_UART = 'sys:uart'
+SYS_DEVICETREE = 'sys:devicetree'
 SYS_GPIO = 'sys:gpio'
 AGENT_VERSION = 'agent:version'
-RPI_DEVICETREE = 'hw:rpi:devicetree'
+DEV_SENSOR = 'dev'
 
 # Channel Suffixes
 IP = 'ip'
@@ -37,7 +39,7 @@ FUNCTION = 'function'
 
 class DataChannel:
     @staticmethod
-    def add(data_list, prefix, channel=None, suffix=None, value=None):
+    def add(data_list, prefix, channel=None, suffix=None, value=None, type=None, unit=None, name=None):
         """Create data channel dict and append it to a list"""
         data_channel = prefix
         if channel:
@@ -47,6 +49,12 @@ class DataChannel:
         data = {}
         data['channel'] = data_channel
         data['value'] = value
+        if type:
+            data['type'] = type
+        if unit:
+            data['unit'] = unit
+        if name:
+            data['name'] = name
         data_list.append(data)
         
 

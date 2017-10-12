@@ -129,31 +129,23 @@ class SystemInfo():
         Returned list example::
 
             [{
-                'channel': 'sys:eth:eth0;address'
+                'channel': 'sys:net;ip'
                 'value': '192.168.0.2',
             }, {
-                'channel': 'sys:wifi:wlan0;address'
-                'value': '192.168.0.3',
-            }, {
-                'channel': 'sys:wifi:wlan0;ssid'
-                'value': 'myWifi',
+                'channel': 'sys:net;ssid',
+                'value': 'myWifi'
             }]
         """
         network_info = []
         try:
             wifi_manager = WifiManager.WifiManager()
             wifi_status = wifi_manager.GetStatus()
-            for interface in wifi_status.keys():
-                cayennemqtt.DataChannel.add(network_info, cayennemqtt.SYS_WIFI, interface, cayennemqtt.SSID, wifi_status[interface]['ssid'])
-            interfaces = (interface for interface in netifaces.interfaces() if interface != 'lo')
-            for interface in interfaces:
-                addresses = netifaces.ifaddresses(interface)
-                try:
-                    addr = addresses[netifaces.AF_INET][0]['addr']
-                    prefix = cayennemqtt.SYS_WIFI if interface in wifi_status else cayennemqtt.SYS_ETHERNET
-                    cayennemqtt.DataChannel.add(network_info, prefix, interface, cayennemqtt.IP, addr)
-                except:
-                    exception('exception')
+            default_interface = netifaces.gateways()['default'][netifaces.AF_INET][1]
+            for default_interface in wifi_status.keys():
+                cayennemqtt.DataChannel.add(network_info, cayennemqtt.SYS_NET, suffix=cayennemqtt.SSID, value=wifi_status[default_interface]['ssid'])
+            addresses = netifaces.ifaddresses(default_interface)
+            addr = addresses[netifaces.AF_INET][0]['addr']
+            cayennemqtt.DataChannel.add(network_info, cayennemqtt.SYS_NET, suffix=cayennemqtt.IP, value=addr)
         except:
             exception('Error getting network info')
         return network_info

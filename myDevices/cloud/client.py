@@ -396,13 +396,13 @@ class CloudServerClient:
             data_list = []
             download_speed = self.downloadSpeed.getDownloadSpeed()
             if download_speed:
-                cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_ETHERNET, self.downloadSpeed.interface, value=download_speed)
+                cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed)
             with self.sensorsClient.sensorMutex:
                 data_list += self.sensorsClient.currentSystemInfo
                 data_list += self.sensorsClient.currentBusInfo
             config = SystemConfig.getConfig()
             if config:
-                cayennemqtt.DataChannel.add(data_list, cayennemqtt.RPI_DEVICETREE, value=config['DeviceTree'])
+                cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_DEVICETREE, value=config['DeviceTree'])
             self.EnqueuePacket(data_list)
             # data = {}
             # data['MachineName'] = self.MachineId
