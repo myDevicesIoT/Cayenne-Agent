@@ -1,5 +1,5 @@
 import time
-from json import loads
+from json import loads, decoder
 from ssl import PROTOCOL_TLSv1_2
 import paho.mqtt.client as mqtt
 from myDevices.utils.logger import debug, error, exception, info, logJson, warn
@@ -7,6 +7,7 @@ from myDevices.utils.logger import debug, error, exception, info, logJson, warn
 # Topics
 DATA_TOPIC = 'data.json'
 COMMAND_TOPIC = 'cmd'
+COMMAND_RESPONSE_TOPIC = 'cmd.res'
 
 # Data Channels
 SYS_HARDWARE_MAKE = 'sys:hw:make'
@@ -22,6 +23,7 @@ SYS_SPI = 'sys:spi'
 SYS_UART = 'sys:uart'
 SYS_DEVICETREE = 'sys:devicetree'
 SYS_GPIO = 'sys:gpio'
+SYS_POWER = 'sys:pwr'
 AGENT_VERSION = 'agent:version'
 DEV_SENSOR = 'dev'
 
@@ -75,7 +77,7 @@ class CayenneMQTTClient:
     If it exists this callback is used as the default message handler.
     """
     client = None
-    rootTopic = ""
+    root_topic = ""
     connected = False
     on_message = None
     
@@ -88,7 +90,7 @@ class CayenneMQTTClient:
         hostname is the MQTT broker hostname.
         port is the MQTT broker port.
         """
-        self.rootTopic = "v2/things/%s" % clientid
+        self.root_topic = "v2/things/%s" % clientid
         self.client = mqtt.Client(client_id=clientid, clean_session=True, userdata=self)
         self.client.on_connect = self.connect_callback
         self.client.on_disconnect = self.disconnect_callback
@@ -123,7 +125,7 @@ class CayenneMQTTClient:
             self.connected = True
             # Subscribing in on_connect() means that if we lose the connection and
             # reconnect then subscriptions will be renewed.
-            client.subscribe(self.get_topic_string(COMMAND_TOPIC))
+            client.subscribe(self.get_topic_string(COMMAND_TOPIC, True))
 
     def disconnect_callback(self, client, userdata, rc):
         """The callback for when the client disconnects from the server.
@@ -151,13 +153,18 @@ class CayenneMQTTClient:
         msg is the received message.
         """
         try:
-            topic = msg.topic
-            if msg.topic.startswith(self.rootTopic):
-                topic = msg.topic[len(self.rootTopic) + 1:]
-            message = loads(msg.payload.decode())
-            debug('message_callback: {} {}'.format(topic, message))
+            message = {}
+            try:
+                message['payload'] = loads(msg.payload.decode())
+            except decoder.JSONDecodeError:
+                message['payload'] = msg.payload.decode()
+            channel = msg.topic.split('/')[-1].split(';')
+            message['channel'] = channel[0]
+            if len(channel) > 1:
+                message['suffix'] = channel[1]
+            info('message_callback: {}'.format(message))
             if self.on_message:
-                self.on_message(topic, message)
+                self.on_message(message)
         except:
             exception("Couldn't process: "+msg.topic+" "+str(msg.payload))
 
@@ -167,9 +174,14 @@ class CayenneMQTTClient:
         topic: the topic substring
         append_wildcard: if True append the single level topics wildcard (+)"""
         if append_wildcard:
-            return '{}/{}/+'.format(self.rootTopic, topic)
+            return '{}/{}/+'.format(self.root_topic, topic)
         else:            
-            return '{}/{}'.format(self.rootTopic, topic)
+            return '{}/{}'.format(self.root_topic, topic)
+
+    def disconnect(self):
+        """Disconnect from Cayenne.
+        """
+        self.client.disconnect()
 
     def loop(self, timeout=1.0):
         """Process Cayenne messages.
@@ -206,14 +218,14 @@ class CayenneMQTTClient:
         debug('Publish to {}'.format(self.get_topic_string(topic)))
         self.client.publish(self.get_topic_string(topic), packet, qos, retain)
 
-    def publish_response(self, msg_id, error_message):
+    def publish_response(self, msg_id, error_message=None):
         """Send a command response to Cayenne.
         
         This should be sent when a command message has been received.
         msg_id is the ID of the message received.
         error_message is the error message to send. This should be set to None if there is no error.
         """
-        topic = self.get_topic_string(RESPONSE_TOPIC)
+        topic = self.get_topic_string(COMMAND_RESPONSE_TOPIC)
         if error_message:
             payload = "error,%s=%s" % (msg_id, error_message)
         else:

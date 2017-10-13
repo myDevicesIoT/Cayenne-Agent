@@ -44,8 +44,8 @@ class PacketTypes(Enum):
     # PT_STARTUP_APPLICATIONS = 8
     PT_START_RDS = 11
     PT_STOP_RDS = 12
-    PT_RESTART_COMPUTER = 25
-    PT_SHUTDOWN_COMPUTER = 26
+    # PT_RESTART_COMPUTER = 25
+    # PT_SHUTDOWN_COMPUTER = 26
     # PT_KILL_PROCESS = 27
     PT_REQUEST_SCHEDULES = 40
     PT_UPDATE_SCHEDULES = 41
@@ -552,7 +552,7 @@ class CloudServerClient:
             return False
         return True
 
-    def OnMessage(self, topic, message):
+    def OnMessage(self, message):
         """Add message from the server to the queue"""
         info('OnMessage: {}'.format(message))
         self.readQueue.put(message)
@@ -598,7 +598,14 @@ class CloudServerClient:
         """Execute an action described in a message object"""
         if not messageObject:
             return
-        info("ExecuteMessage: " + str(messageObject['PacketType']))
+        channel = messageObject['channel']
+        info('ExecuteMessage: {}'.format(channel))
+        if channel == cayennemqtt.SYS_POWER:
+            if messageObject['payload'] == 'reset':
+                executeCommand('sudo shutdown -r now')
+            elif messageObject['payload'] == 'halt':
+                executeCommand('sudo shutdown -h now')
+            
         packetType = int(messageObject['PacketType'])
         # if packetType == PacketTypes.PT_UTILIZATION.value:
         #     self.SendSystemUtilization()
@@ -629,26 +636,26 @@ class CloudServerClient:
         #     self.config.set('Subscription', 'ProductCode', messageObject['ProductCode'])
         #     info(PacketTypes.PT_PRODUCT_INFO)
         #     return   
-        if packetType == PacketTypes.PT_RESTART_COMPUTER.value:
-            info(PacketTypes.PT_RESTART_COMPUTER)
-            data = {}
-            data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
-            data['MachineName'] = self.MachineId
-            data['Message'] = 'Computer Restarted!'
-            self.EnqueuePacket(data)
-            command = "sudo shutdown -r now"
-            executeCommand(command)
-            return
-        if packetType == PacketTypes.PT_SHUTDOWN_COMPUTER.value:
-            info(PacketTypes.PT_SHUTDOWN_COMPUTER)
-            data = {}
-            data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
-            data['MachineName'] = self.MachineId
-            data['Message'] = 'Computer Powered Off!'
-            self.EnqueuePacket(data)
-            command = "sudo shutdown -h now"
-            executeCommand(command)
-            return
+        # if packetType == PacketTypes.PT_RESTART_COMPUTER.value:
+        #     info(PacketTypes.PT_RESTART_COMPUTER)
+        #     data = {}
+        #     data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
+        #     data['MachineName'] = self.MachineId
+        #     data['Message'] = 'Computer Restarted!'
+        #     self.EnqueuePacket(data)
+        #     command = "sudo shutdown -r now"
+        #     executeCommand(command)
+        #     return
+        # if packetType == PacketTypes.PT_SHUTDOWN_COMPUTER.value:
+        #     info(PacketTypes.PT_SHUTDOWN_COMPUTER)
+        #     data = {}
+        #     data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
+        #     data['MachineName'] = self.MachineId
+        #     data['Message'] = 'Computer Powered Off!'
+        #     self.EnqueuePacket(data)
+        #     command = "sudo shutdown -h now"
+        #     executeCommand(command)
+        #     return
         if packetType == PacketTypes.PT_AGENT_CONFIGURATION.value:
             info('PT_AGENT_CONFIGURATION: ' + str(messageObject.Data))
             self.config.setCloudConfig(messageObject.Data)

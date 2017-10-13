@@ -1,4 +1,5 @@
 import unittest
+import warnings
 import myDevices.cloud.cayennemqtt as cayennemqtt
 import paho.mqtt.client as mqtt
 from time import sleep
@@ -29,12 +30,13 @@ class CayenneMQTTTest(unittest.TestCase):
     def tearDown(self):
         # print('tearDown')
         self.mqttClient.loop_stop()
+        self.mqttClient.disconnect()
         self.testClient.loop_stop()
+        self.testClient.disconnect()
 
-    def OnMessage(self, topic, message):
-        self.receivedTopic = self.mqttClient.get_topic_string(topic)
+    def OnMessage(self, message):
         self.receivedMessage = message
-        # print('OnMessage: {} {}'.format(self.receivedTopic, self.receivedMessage))
+        # print('OnMessage: {}'.format(self.receivedMessage))
 
     def OnTestMessage(self, client, userdata, message):
         self.receivedTopic = message.topic
@@ -45,23 +47,25 @@ class CayenneMQTTTest(unittest.TestCase):
         print('OnTestLog: {}'.format(buf))
                 
     def testPublish(self):
-        # print('testPublish')
-        sentTopic = self.mqttClient.get_topic_string(cayennemqtt.DATA_TOPIC)
-        sentMessage = '{"publish_test":"data"}'
-        self.mqttClient.publish_packet(cayennemqtt.DATA_TOPIC, sentMessage)
-        sleep(0.5)
-        self.assertEqual(sentTopic, self.receivedTopic)
-        self.assertEqual(sentMessage, self.receivedMessage)
+       #Ignore warning caused by paho mqtt not closing some sockets in the destructor
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', ResourceWarning)
+            sentTopic = self.mqttClient.get_topic_string(cayennemqtt.DATA_TOPIC)
+            sentMessage = '{"publish_test":"data"}'
+            self.mqttClient.publish_packet(cayennemqtt.DATA_TOPIC, sentMessage)
+            sleep(0.5)
+            self.assertEqual(sentTopic, self.receivedTopic)
+            self.assertEqual(sentMessage, self.receivedMessage)
 
     def testCommand(self):
-        # print('testCommand')
-        sentTopic = self.mqttClient.get_topic_string(cayennemqtt.COMMAND_TOPIC)
-        sentMessage = '{"command_test":"data"}'
+        sentTopic = self.mqttClient.get_topic_string(cayennemqtt.COMMAND_TOPIC + '/' + cayennemqtt.SYS_POWER)
+        sentMessage = 'reset' #'{"command_test":"data"}'
         self.testClient.publish(sentTopic, sentMessage)
         sleep(0.5)
-        sentMessage = loads(sentMessage)
-        self.assertEqual(sentTopic, self.receivedTopic)
-        self.assertEqual(sentMessage, self.receivedMessage)
+        # sentMessage = loads(sentMessage)
+        self.assertEqual(cayennemqtt.SYS_POWER, self.receivedMessage['channel'])
+        self.assertEqual(sentMessage, self.receivedMessage['payload'])
+
 
 if __name__ == "__main__":
     unittest.main()
