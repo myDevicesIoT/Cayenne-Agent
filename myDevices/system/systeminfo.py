@@ -141,8 +141,10 @@ class SystemInfo():
             wifi_manager = WifiManager.WifiManager()
             wifi_status = wifi_manager.GetStatus()
             default_interface = netifaces.gateways()['default'][netifaces.AF_INET][1]
-            for default_interface in wifi_status.keys():
+            try:
                 cayennemqtt.DataChannel.add(network_info, cayennemqtt.SYS_NET, suffix=cayennemqtt.SSID, value=wifi_status[default_interface]['ssid'])
+            except:
+                pass
             addresses = netifaces.ifaddresses(default_interface)
             addr = addresses[netifaces.AF_INET][0]['addr']
             cayennemqtt.DataChannel.add(network_info, cayennemqtt.SYS_NET, suffix=cayennemqtt.IP, value=addr)
