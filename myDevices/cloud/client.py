@@ -612,7 +612,9 @@ class CloudServerClient:
                 executeCommand('sudo shutdown -h now')
         elif channel in (cayennemqtt.SYS_I2C, cayennemqtt.SYS_SPI, cayennemqtt.SYS_UART, cayennemqtt.SYS_DEVICETREE):
             self.ProcessConfigCommand(messageObject)
-            
+        elif channel.startswith(cayennemqtt.SYS_GPIO):
+            self.ProcessGpioCommand(messageObject)
+
         packetType = int(messageObject['PacketType'])
         # if packetType == PacketTypes.PT_UTILIZATION.value:
         #     self.SendSystemUtilization()
@@ -780,12 +782,19 @@ class CloudServerClient:
             return
         info("Skipping not required packet: " + str(packetType))
 
-    def ProcessConfigCommand(self, messageObject):
+    def ProcessConfigCommand(self, message):
         """Process system configuration command"""
-        value = 1 - int(messageObject['payload']) #Invert the value since the config script uses 0 for enable and 1 for disable
+        value = 1 - int(message['payload']) #Invert the value since the config script uses 0 for enable and 1 for disable
         command_id = {cayennemqtt.SYS_I2C: 11, cayennemqtt.SYS_SPI: 12, cayennemqtt.SYS_UART: 13, cayennemqtt.SYS_DEVICETREE: 9}
-        (result, output) = SystemConfig.ExecuteConfigCommand(command_id[messageObject['channel']], value)
-        debug('ProcessConfigCommand: {}, result: {}, output: {}'.format(messageObject, result, output))
+        result, output = SystemConfig.ExecuteConfigCommand(command_id[message['channel']], value)
+        debug('ProcessConfigCommand: {}, result: {}, output: {}'.format(message, result, output))
+    
+    def ProcessGpioCommand(self, message):
+        """Process GPIO command"""
+        info('ProcessGpioCommand: {}'.format(message))
+        channel = int(message['channel'].replace(cayennemqtt.SYS_GPIO + ':', ''))
+        result = self.sensorsClient.GpioCommand(message['suffix'], channel, message['payload'])
+        debug('ProcessGpioCommand result: {}'.format(result))
 
     def ProcessDeviceCommand(self, messageObject):
         """Execute a command to run on the device as specified in a message object"""
@@ -860,13 +869,13 @@ class CloudServerClient:
                     if 'SensorType' in parameters:
                         sensorType = parameters["SensorType"]
                     retValue = self.sensorsClient.SensorCommand(commandType, sensorName, sensorType, driverClass, method, channel, value)
-        if commandService == 'gpio':
-            method = parameters["Method"]
-            channel = parameters["Channel"]
-            value = parameters["Value"]
-            debug('ProcessDeviceCommand: ' + commandService + ' ' + method + ' ' + str(channel) + ' ' + str(value))
-            retValue = str(self.sensorsClient.GpioCommand(commandType, method, channel, value))
-            debug('ProcessDeviceCommand gpio returned value: ' + retValue)
+        # if commandService == 'gpio':
+        #     method = parameters["Method"]
+        #     channel = parameters["Channel"]
+        #     value = parameters["Value"]
+        #     debug('ProcessDeviceCommand: ' + commandService + ' ' + method + ' ' + str(channel) + ' ' + str(value))
+        #     retValue = str(self.sensorsClient.GpioCommand(commandType, method, channel, value))
+        #     debug('ProcessDeviceCommand gpio returned value: ' + retValue)
         # if commandService == 'config':
         #     try:
         #         config_id = parameters["id"]

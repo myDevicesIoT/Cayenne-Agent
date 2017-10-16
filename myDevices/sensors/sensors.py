@@ -372,41 +372,25 @@ class SensorsClient():
         self.AddRefresh()
         return True
 
-    def GpioCommand(self, commandType, method, channel, value):
+    def GpioCommand(self, command, channel, value):
         """Execute onboard GPIO command
 
         Args:
-            commandType: Type of command to execute
-            method: 'POST' for setting/writing values, 'GET' for retrieving values
+            command: Type of command to execute
             channel: GPIO pin
-            value: Value to use for reading/writing data
+            value: Value to use for writing data
 
         Returns:
             String containing command specific return value on success, or 'failure' on failure
         """
-        info('GpioCommand ' + commandType + ' method ' + method + ' Channel: ' + str(channel) + ' Value: ' + str(value))
-        if commandType == 'function':
-            if method == 'POST':
-                debug('setFunction:' + str(channel) + ' ' + str(value))
-                return str(self.gpio.setFunctionString(channel, value))
-            if method == 'GET':
-                debug('getFunction:' + str(channel) + ' ' + str(value))
-                return str(self.gpio.getFunctionString(channel))
-        if commandType == 'value':
-            if method == 'POST':
-                debug('digitalWrite:' + str(channel) + ' ' + str(value))
-                retVal = str(self.gpio.digitalWrite(channel, value))
-                return retVal
-            if method == 'GET':
-                debug('digitalRead:' + str(channel))
-                return str(self.gpio.digitalRead(channel))
-        if commandType == 'integer':
-            if method == 'POST':
-                debug('portWrite:' + str(value))
-                return str(self.gpio.portWrite(value))
-            if method == 'GET':
-                debug('portRead')
-                return str(self.gpio.portRead())
+        info('GpioCommand {}, channel {}, value {}'.format(command, channel, value))
+        if command == 'function':
+            if value.lower() in ('in', 'input'):
+                return str(self.gpio.setFunctionString(channel, 'in'))
+            elif value.lower() in ('out', 'output'):
+                return str(self.gpio.setFunctionString(channel, 'out'))
+        elif command in ('value', ''):
+            return self.gpio.digitalWrite(channel, value)
         debug.log('GpioCommand not set')
         return 'failure'
 

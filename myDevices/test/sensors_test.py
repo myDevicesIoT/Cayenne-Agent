@@ -34,10 +34,8 @@ class SensorsClientTest(unittest.TestCase):
         self.currentSystemData = None
         self.done = False
         SensorsClientTest.client.SetDataChanged(self.OnDataChanged)
-        # self.setChannelFunction(GPIO().pins[7], 'OUT')
-        for i in range(5):
-            sleep(5)
-            # self.setChannelValue(GPIO().pins[7], i % 2)
+        for i in range(25):
+            sleep(1)
             if self.done:
                 break
         info('Changed items: {}'.format([x for x in self.currentSystemData if x not in self.previousSystemData]))
@@ -46,9 +44,6 @@ class SensorsClientTest(unittest.TestCase):
     def testBusInfo(self):
         bus = {item['channel']:item['value'] for item in SensorsClientTest.client.BusInfo()}
         info('Bus info: {}'.format(bus))
-        self.assertIn('sys:i2c', bus)
-        self.assertIn('sys:spi', bus)
-        self.assertIn('sys:uart', bus)
         for pin in GPIO().pins:
             self.assertIn('sys:gpio:{};function'.format(pin), bus)
             self.assertIn('sys:gpio:{};value'.format(pin), bus)
@@ -61,14 +56,14 @@ class SensorsClientTest(unittest.TestCase):
             self.assertIn('value', sensor)
 
  
-    # def testSetFunction(self):
-    #     self.setChannelFunction(GPIO().pins[7], 'IN')
-    #     self.setChannelFunction(GPIO().pins[7], 'OUT')
+    def testSetFunction(self):
+        self.setChannelFunction(GPIO().pins[7], 'IN')
+        self.setChannelFunction(GPIO().pins[7], 'OUT')
 
-    # def testSetValue(self):
-    #     self.setChannelFunction(GPIO().pins[7], 'OUT')
-    #     self.setChannelValue(GPIO().pins[7], 1)
-    #     self.setChannelValue(GPIO().pins[7], 0)
+    def testSetValue(self):
+        self.setChannelFunction(GPIO().pins[7], 'OUT')
+        self.setChannelValue(GPIO().pins[7], 1)
+        self.setChannelValue(GPIO().pins[7], 0)
 
     # def testSensors(self):
     #     #Test adding a sensor
@@ -122,14 +117,14 @@ class SensorsClientTest(unittest.TestCase):
         self.assertEqual(value, sensorInfo['value'])
 
     def setChannelFunction(self, channel, function):
-        SensorsClientTest.client.gpio.setFunctionString(channel, function)
-        bus = SensorsClientTest.client.BusInfo()
-        self.assertEqual(function, bus['GPIO'][channel]['function'])
+        SensorsClientTest.client.GpioCommand('function', channel, function)
+        bus = {item['channel']:item['value'] for item in SensorsClientTest.client.BusInfo()}
+        self.assertEqual(function, bus['sys:gpio:{};function'.format(channel)])
 
     def setChannelValue(self, channel, value):
-        SensorsClientTest.client.gpio.digitalWrite(channel, value)
-        bus = SensorsClientTest.client.BusInfo()
-        self.assertEqual(value, bus['GPIO'][channel]['value'])
+        SensorsClientTest.client.GpioCommand('value', channel, value)
+        bus = {item['channel']:item['value'] for item in SensorsClientTest.client.BusInfo()}
+        self.assertEqual(value, bus['sys:gpio:{};value'.format(channel)])
 
 if __name__ == '__main__':
     setInfo()
