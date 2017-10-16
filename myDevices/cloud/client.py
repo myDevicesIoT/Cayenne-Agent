@@ -39,7 +39,7 @@ GENERAL_SLEEP_THREAD = 0.20
 class PacketTypes(Enum):
     """Packet types used when sending/receiving messages"""
     # PT_UTILIZATION = 3
-    PT_SYSTEM_INFO = 4
+    # PT_SYSTEM_INFO = 4
     # PT_PROCESS_LIST = 5
     # PT_STARTUP_APPLICATIONS = 8
     PT_START_RDS = 11
@@ -47,8 +47,8 @@ class PacketTypes(Enum):
     # PT_RESTART_COMPUTER = 25
     # PT_SHUTDOWN_COMPUTER = 26
     # PT_KILL_PROCESS = 27
-    PT_REQUEST_SCHEDULES = 40
-    PT_UPDATE_SCHEDULES = 41
+    # PT_REQUEST_SCHEDULES = 40
+    # PT_UPDATE_SCHEDULES = 41
     PT_AGENT_MESSAGE = 45
     # PT_PRODUCT_INFO = 50
     PT_UNINSTALL_AGENT = 51
@@ -57,13 +57,13 @@ class PacketTypes(Enum):
     PT_UPDATE_SENSOR = 63
     PT_DEVICE_COMMAND = 64
     PT_DEVICE_COMMAND_RESPONSE = 65
-    PT_ADD_SCHEDULE = 66
-    PT_REMOVE_SCHEDULE = 67
-    PT_GET_SCHEDULES = 68
+    # PT_ADD_SCHEDULE = 66
+    # PT_REMOVE_SCHEDULE = 67
+    # PT_GET_SCHEDULES = 68
     PT_NOTIFICATION = 69
     PT_DATA_CHANGED = 70
-    PT_HISTORY_DATA = 71
-    PT_HISTORY_DATA_RESPONSE = 72
+    # PT_HISTORY_DATA = 71
+    # PT_HISTORY_DATA_RESPONSE = 72
     PT_AGENT_CONFIGURATION = 74
 
 
@@ -286,11 +286,11 @@ class CloudServerClient:
             TimerThread(self.SendSystemInfo, 300)
             TimerThread(self.SendSystemState, 30, 5)
             self.previousSystemInfo = None
-            self.sentHistoryData = {}
-            self.historySendFails = 0
-            self.historyThread = Thread(target=self.SendHistoryData)
-            self.historyThread.setDaemon(True)
-            self.historyThread.start()
+            # self.sentHistoryData = {}
+            # self.historySendFails = 0
+            # self.historyThread = Thread(target=self.SendHistoryData)
+            # self.historyThread.setDaemon(True)
+            # self.historyThread.start()
         except Exception as e:
             exception('Initialize error: ' + str(e))
 
@@ -315,16 +315,17 @@ class CloudServerClient:
     #     """Send messages when client is first started"""
     #     self.SendSystemInfo()
 
-    def OnDataChanged(self, systemData):
+    def OnDataChanged(self, data):
         """Enqueue a packet containing changed system data to send to the server"""
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['PacketType'] = PacketTypes.PT_DATA_CHANGED.value
-        data['Timestamp'] = int(time())
-        data['RaspberryInfo'] = systemData
         self.EnqueuePacket(data)
-        del data
-        del systemData
+        # data = {}
+        # data['MachineName'] = self.MachineId
+        # data['PacketType'] = PacketTypes.PT_DATA_CHANGED.value
+        # data['Timestamp'] = int(time())
+        # data['RaspberryInfo'] = systemData
+        # self.EnqueuePacket(data)
+        # del data
+        # del systemData
 
     def SendSystemInfo(self):
         """Enqueue a packet containing system info to send to the server"""
@@ -336,6 +337,14 @@ class CloudServerClient:
             cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
             cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
             cayennemqtt.DataChannel.add(data_list, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent','Version'))
+            config = SystemConfig.getConfig()
+            if config:
+                channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}
+                for key, channel in channel_map.items():
+                    try:
+                        cayennemqtt.DataChannel.add(data_list, channel, value=config[key])
+                    except:
+                        pass
             self.EnqueuePacket(data_list)
             # data = {}
             # data['MachineName'] = self.MachineId
@@ -398,14 +407,6 @@ class CloudServerClient:
             if download_speed:
                 cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed)
             data_list += self.sensorsClient.systemData
-            config = SystemConfig.getConfig()
-            if config:
-                channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}
-                for key, channel in channel_map.items():
-                    try:
-                        cayennemqtt.DataChannel.add(data_list, channel, value=config[key])
-                    except:
-                        pass
             self.EnqueuePacket(data_list)
             # data = {}
             # data['MachineName'] = self.MachineId
@@ -620,11 +621,11 @@ class CloudServerClient:
         #     self.SendSystemUtilization()
         #     info(PacketTypes.PT_UTILIZATION)
         #     return
-        if packetType == PacketTypes.PT_SYSTEM_INFO.value:
-            info("ExecuteMessage - sysinfo - Calling SendSystemState")
-            self.SendSystemState()
-            info(PacketTypes.PT_SYSTEM_INFO)
-            return
+        # if packetType == PacketTypes.PT_SYSTEM_INFO.value:
+        #     info("ExecuteMessage - sysinfo - Calling SendSystemState")
+        #     self.SendSystemState()
+        #     info(PacketTypes.PT_SYSTEM_INFO)
+        #     return
         if packetType == PacketTypes.PT_UNINSTALL_AGENT.value:
             command = "sudo /etc/myDevices/uninstall/uninstall.sh"
             executeCommand(command)
@@ -735,51 +736,51 @@ class CloudServerClient:
             info(PacketTypes.PT_DEVICE_COMMAND)
             self.ProcessDeviceCommand(messageObject)
             return
-        if packetType == PacketTypes.PT_ADD_SCHEDULE.value:
-            info(PacketTypes.PT_ADD_SCHEDULE.value)
-            retVal = self.schedulerEngine.AddScheduledItem(messageObject, True)
-            if 'Update' in messageObject:
-                messageObject['Update'] = messageObject['Update']
-            messageObject['PacketType'] = PacketTypes.PT_ADD_SCHEDULE.value
-            messageObject['MachineName'] = self.MachineId
-            messageObject['Status'] = str(retVal)
-            self.EnqueuePacket(messageObject)
-            return
-        if packetType == PacketTypes.PT_REMOVE_SCHEDULE.value:
-            info(PacketTypes.PT_REMOVE_SCHEDULE)
-            retVal = self.schedulerEngine.RemoveScheduledItem(messageObject)
-            messageObject['PacketType'] = PacketTypes.PT_REMOVE_SCHEDULE.value
-            messageObject['MachineName'] = self.MachineId
-            messageObject['Status'] = str(retVal)
-            self.EnqueuePacket(messageObject)
-            return
-        if packetType == PacketTypes.PT_GET_SCHEDULES.value:
-            info(PacketTypes.PT_GET_SCHEDULES)
-            schedulesJson = self.schedulerEngine.GetSchedules()
-            data['Schedules'] = schedulesJson
-            data['PacketType'] = PacketTypes.PT_GET_SCHEDULES.value
-            data['MachineName'] = self.MachineId
-            self.EnqueuePacket(data)
-            return
-        if packetType == PacketTypes.PT_UPDATE_SCHEDULES.value:
-            info(PacketTypes.PT_UPDATE_SCHEDULES)
-            retVal = self.schedulerEngine.UpdateSchedules(messageObject)
-            return
-        if packetType == PacketTypes.PT_HISTORY_DATA_RESPONSE.value:
-            info(PacketTypes.PT_HISTORY_DATA_RESPONSE)
-            try:
-                id = messageObject['Id']
-                history = History()
-                if messageObject['Status']:
-                    history.Sent(True, self.sentHistoryData[id]['HistoryData'])
-                    self.historySendFails = 0
-                else:
-                    history.Sent(False, self.sentHistoryData[id]['HistoryData'])
-                    self.historySendFails += 1
-                del self.sentHistoryData[id]
-            except:
-                exception('Processing history response packet failed')
-            return
+        # if packetType == PacketTypes.PT_ADD_SCHEDULE.value:
+        #     info(PacketTypes.PT_ADD_SCHEDULE.value)
+        #     retVal = self.schedulerEngine.AddScheduledItem(messageObject, True)
+        #     if 'Update' in messageObject:
+        #         messageObject['Update'] = messageObject['Update']
+        #     messageObject['PacketType'] = PacketTypes.PT_ADD_SCHEDULE.value
+        #     messageObject['MachineName'] = self.MachineId
+        #     messageObject['Status'] = str(retVal)
+        #     self.EnqueuePacket(messageObject)
+        #     return
+        # if packetType == PacketTypes.PT_REMOVE_SCHEDULE.value:
+        #     info(PacketTypes.PT_REMOVE_SCHEDULE)
+        #     retVal = self.schedulerEngine.RemoveScheduledItem(messageObject)
+        #     messageObject['PacketType'] = PacketTypes.PT_REMOVE_SCHEDULE.value
+        #     messageObject['MachineName'] = self.MachineId
+        #     messageObject['Status'] = str(retVal)
+        #     self.EnqueuePacket(messageObject)
+        #     return
+        # if packetType == PacketTypes.PT_GET_SCHEDULES.value:
+        #     info(PacketTypes.PT_GET_SCHEDULES)
+        #     schedulesJson = self.schedulerEngine.GetSchedules()
+        #     data['Schedules'] = schedulesJson
+        #     data['PacketType'] = PacketTypes.PT_GET_SCHEDULES.value
+        #     data['MachineName'] = self.MachineId
+        #     self.EnqueuePacket(data)
+        #     return
+        # if packetType == PacketTypes.PT_UPDATE_SCHEDULES.value:
+        #     info(PacketTypes.PT_UPDATE_SCHEDULES)
+        #     retVal = self.schedulerEngine.UpdateSchedules(messageObject)
+        #     return
+        # if packetType == PacketTypes.PT_HISTORY_DATA_RESPONSE.value:
+        #     info(PacketTypes.PT_HISTORY_DATA_RESPONSE)
+        #     try:
+        #         id = messageObject['Id']
+        #         history = History()
+        #         if messageObject['Status']:
+        #             history.Sent(True, self.sentHistoryData[id]['HistoryData'])
+        #             self.historySendFails = 0
+        #         else:
+        #             history.Sent(False, self.sentHistoryData[id]['HistoryData'])
+        #             self.historySendFails += 1
+        #         del self.sentHistoryData[id]
+        #     except:
+        #         exception('Processing history response packet failed')
+        #     return
         info("Skipping not required packet: " + str(packetType))
 
     def ProcessConfigCommand(self, message):
