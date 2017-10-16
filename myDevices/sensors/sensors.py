@@ -204,10 +204,6 @@ class SensorsClient():
     def BusInfo(self):
         """Return a dict with current bus info"""
         bus_info = []
-        bus_channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'UART': cayennemqtt.SYS_UART}
-        bus_items = {bus:int(value["enabled"]) for (bus, value) in BUSLIST.items() if bus in bus_channel_map}
-        for (bus, value) in bus_items.items():
-            cayennemqtt.DataChannel.add(bus_info, bus_channel_map[bus], value=value)
         gpio_state = self.gpio.wildcard()
         for key, value in gpio_state.items():
             cayennemqtt.DataChannel.add(bus_info, cayennemqtt.SYS_GPIO, key, cayennemqtt.VALUE, value['value'])

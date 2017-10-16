@@ -425,11 +425,18 @@ do_i2c() {
     return 0
   fi
 
-
-
-
   exit
 }
+
+get_i2c() {
+  if grep -q -E "^(device_tree_param|dtparam)=([^,]*,)*i2c(_arm)?(=(on|true|yes|1))?(,.*)?$" $CONFIG; then
+    echo 0
+  else
+    echo 1
+  fi
+}
+
+
 #arg[1] enable SPI 1/0 arg[2] load by default 1/0
 #again 0 enable 1 disable
 do_spi() {
@@ -500,6 +507,14 @@ do_spi() {
     fi
   else
     return 0
+  fi
+}
+
+get_spi() {
+  if grep -q -E "^(device_tree_param|dtparam)=([^,]*,)*spi(=(on|true|yes|1))?(,.*)?$" $CONFIG; then
+    echo 0
+  else
+    echo 1
   fi
 }
 
@@ -596,6 +611,8 @@ case "$FUN" in
   18) get_serial ;;
   19) do_w1 ;;
   20) get_w1 ;;
+  21) get_i2c ;;
+  22) get_spi ;;
   *) echo 'N/A' && exit 1;;
  esac || echo "There was an error running option $FUN" 
 if [ $ASK_TO_REBOOT = 1 ]; then

@@ -23,7 +23,7 @@ class SystemConfig:
         return (returnCode, output)
 
     @staticmethod
-    def ExecuteConfigCommand(config_id, parameters):
+    def ExecuteConfigCommand(config_id, parameters=''):
         """Execute specified command to modify configuration
         
         Args:
@@ -52,9 +52,9 @@ class SystemConfig:
     @staticmethod
     def getConfig():
         """Return dict containing configuration settings"""
-        configItem = {}
+        config = {}
         if any(model in Hardware().getModel() for model in ('Tinker Board', 'BeagleBone')):
-            return configItem
+            return config
         # try:
         #     (returnCode, output) = SystemConfig.ExecuteConfigCommand(17, '')
         #     if output:
@@ -67,21 +67,13 @@ class SystemConfig:
         #     del output
         # except:
         #     exception('Get camera config')
-
-        try:
-            (returnCode, output) = SystemConfig.ExecuteConfigCommand(10, '')
-            if output:
-                configItem['DeviceTree'] = int(output.strip())
-            del output
-            (returnCode, output) = SystemConfig.ExecuteConfigCommand(18, '')
-            if output:
-                configItem['Serial'] = int(output.strip())
-            del output
-            (returnCode, output) = SystemConfig.ExecuteConfigCommand(20, '')
-            if output:
-                configItem['OneWire'] = int(output.strip())
-            del output
-        except:
-            exception('Get config')
-        info('SystemConfig: {}'.format(configItem))
-        return configItem
+        commands = {10: 'DeviceTree', 18: 'Serial', 20: 'OneWire', 21: 'I2C', 22: 'SPI'}
+        for command, name in commands.items():
+            try:
+                (returnCode, output) = SystemConfig.ExecuteConfigCommand(command)
+                if output:
+                    config[name] = 1 - int(output.strip()) #Invert the value since the config script uses 0 for enable and 1 for disable
+            except:
+                exception('Get config')
+        info('SystemConfig: {}'.format(config))
+        return config
