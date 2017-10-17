@@ -42,8 +42,8 @@ class PacketTypes(Enum):
     # PT_SYSTEM_INFO = 4
     # PT_PROCESS_LIST = 5
     # PT_STARTUP_APPLICATIONS = 8
-    PT_START_RDS = 11
-    PT_STOP_RDS = 12
+    # PT_START_RDS = 11
+    # PT_STOP_RDS = 12
     # PT_RESTART_COMPUTER = 25
     # PT_SHUTDOWN_COMPUTER = 26
     # PT_KILL_PROCESS = 27
@@ -51,7 +51,7 @@ class PacketTypes(Enum):
     # PT_UPDATE_SCHEDULES = 41
     # PT_AGENT_MESSAGE = 45
     # PT_PRODUCT_INFO = 50
-    PT_UNINSTALL_AGENT = 51
+    # PT_UNINSTALL_AGENT = 51
     # PT_ADD_SENSOR = 61
     # PT_REMOVE_SENSOR = 62
     # PT_UPDATE_SENSORPT_UPDATE_SENSOR = 63
@@ -60,11 +60,11 @@ class PacketTypes(Enum):
     # PT_ADD_SCHEDULE = 66
     # PT_REMOVE_SCHEDULE = 67
     # PT_GET_SCHEDULES = 68
-    PT_NOTIFICATION = 69
+    # PT_NOTIFICATION = 69
     # PT_DATA_CHANGED = 70
     # PT_HISTORY_DATA = 71
     # PT_HISTORY_DATA_RESPONSE = 72
-    PT_AGENT_CONFIGURATION = 74
+    # PT_AGENT_CONFIGURATION = 74
 
 
 def GetTime():
@@ -617,10 +617,14 @@ class CloudServerClient:
             self.ProcessDeviceCommand(message)
         elif channel in (cayennemqtt.SYS_I2C, cayennemqtt.SYS_SPI, cayennemqtt.SYS_UART, cayennemqtt.SYS_DEVICETREE):
             self.ProcessConfigCommand(message)
+        elif channel == cayennemqtt.AGENT_UNINSTALL:
+            executeCommand('sudo /etc/myDevices/uninstall/uninstall.sh')
+        # elif channel == cayennemqtt.AGENT_CONFIG:
+        #     self.config.setCloudConfig(message['payload'])
         else:
             info('Unknown message')
 
-        packetType = int(message['PacketType'])
+        # packetType = int(message['PacketType'])
         # if packetType == PacketTypes.PT_UTILIZATION.value:
         #     self.SendSystemUtilization()
         #     info(PacketTypes.PT_UTILIZATION)
@@ -630,10 +634,10 @@ class CloudServerClient:
         #     self.SendSystemState()
         #     info(PacketTypes.PT_SYSTEM_INFO)
         #     return
-        if packetType == PacketTypes.PT_UNINSTALL_AGENT.value:
-            command = "sudo /etc/myDevices/uninstall/uninstall.sh"
-            executeCommand(command)
-            return
+        # if packetType == PacketTypes.PT_UNINSTALL_AGENT.value:
+        #     command = "sudo /etc/myDevices/uninstall/uninstall.sh"
+        #     executeCommand(command)
+        #     return
         # if packetType == PacketTypes.PT_STARTUP_APPLICATIONS.value:
         #     self.BuildPT_STARTUP_APPLICATIONS()
         #     info(PacketTypes.PT_STARTUP_APPLICATIONS)
@@ -670,10 +674,10 @@ class CloudServerClient:
         #     command = "sudo shutdown -h now"
         #     executeCommand(command)
         #     return
-        if packetType == PacketTypes.PT_AGENT_CONFIGURATION.value:
-            info('PT_AGENT_CONFIGURATION: ' + str(message.Data))
-            self.config.setCloudConfig(message.Data)
-            return
+        # if packetType == PacketTypes.PT_AGENT_CONFIGURATION.value:
+        #     info('PT_AGENT_CONFIGURATION: ' + str(message.Data))
+        #     self.config.setCloudConfig(message.Data)
+        #     return
         # if packetType == PacketTypes.PT_ADD_SENSOR.value:
         #     try:
         #         info(PacketTypes.PT_ADD_SENSOR)
@@ -785,7 +789,7 @@ class CloudServerClient:
         #     except:
         #         exception('Processing history response packet failed')
         #     return
-        info("Skipping not required packet: " + str(packetType))
+        # info("Skipping not required packet: " + str(packetType))
 
     def ProcessPowerCommand(self, message):
         """Process command to reboot/shutdown the system"""

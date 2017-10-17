@@ -26,6 +26,7 @@ SYS_GPIO = 'sys:gpio'
 SYS_POWER = 'sys:pwr'
 AGENT_VERSION = 'agent:version'
 AGENT_DEVICES = 'agent:devices'
+AGENT_UNINSTALL = 'agent:uninstall'
 DEV_SENSOR = 'dev'
 
 # Channel Suffixes
