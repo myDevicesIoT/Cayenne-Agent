@@ -615,6 +615,8 @@ class CloudServerClient:
             self.ProcessConfigCommand(messageObject)
         elif channel.startswith(cayennemqtt.SYS_GPIO):
             self.ProcessGpioCommand(messageObject)
+        elif channel.startswith(cayennemqtt.DEV_SENSOR):
+            self.ProcessSensorCommand(messageObject)
 
         packetType = int(messageObject['PacketType'])
         # if packetType == PacketTypes.PT_UTILIZATION.value:
@@ -797,6 +799,17 @@ class CloudServerClient:
         result = self.sensorsClient.GpioCommand(message['suffix'], channel, message['payload'])
         debug('ProcessGpioCommand result: {}'.format(result))
 
+    def ProcessSensorCommand(self, message):
+        """Process sensor command"""
+        info('ProcessSensorCommand: {}'.format(message))
+        sensor_info = message['channel'].replace(cayennemqtt.DEV_SENSOR + ':', '').split(':')
+        sensor = sensor_info[0]
+        channel = None
+        if len(sensor_info) > 1:
+            channel = sensor_info[1]
+        result = self.sensorsClient.SensorCommand(message['suffix'], sensor, channel, message['payload'])
+        debug('ProcessSensorCommand result: {}'.format(result))
+
     def ProcessDeviceCommand(self, messageObject):
         """Execute a command to run on the device as specified in a message object"""
         commandType = messageObject['Type']
@@ -860,16 +873,16 @@ class CloudServerClient:
                     if "Args" in parameters:
                         args = parameters["Args"]
                     retValue = self.sensorsClient.EditSensor(sensorName, description, driverClass, args)
-                else:
-                    if 'Channel' in parameters:
-                        channel = parameters["Channel"]
-                    if 'Method' in parameters:
-                        method = parameters["Method"]
-                    if 'Value' in parameters:
-                        value = parameters["Value"]
-                    if 'SensorType' in parameters:
-                        sensorType = parameters["SensorType"]
-                    retValue = self.sensorsClient.SensorCommand(commandType, sensorName, sensorType, driverClass, method, channel, value)
+                # else:
+                #     if 'Channel' in parameters:
+                #         channel = parameters["Channel"]
+                #     if 'Method' in parameters:
+                #         method = parameters["Method"]
+                #     if 'Value' in parameters:
+                #         value = parameters["Value"]
+                #     if 'SensorType' in parameters:
+                #         sensorType = parameters["SensorType"]
+                #     retValue = self.sensorsClient.SensorCommand(commandType, sensorName, sensorType, driverClass, method, channel, value)
         # if commandService == 'gpio':
         #     method = parameters["Method"]
         #     channel = parameters["Channel"]

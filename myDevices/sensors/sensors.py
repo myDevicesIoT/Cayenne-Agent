@@ -394,70 +394,47 @@ class SensorsClient():
         debug.log('GpioCommand not set')
         return 'failure'
 
-    def SensorCommand(self, commandType, sensorName, sensorType, driverClass, method, channel, value):
+    def SensorCommand(self, command, sensorId, channel, value):
         """Execute sensor/actuator command
 
         Args:
-            commandType: Type of command to execute
-            sensorName: Name of the sensor
-            sensorType: Type of the sensor
-            driverClass: Class of device
-            method: Not currently used
-            channel: Pin/channel on device
-            value: Value to use for sending data
+            command: Type of command to execute
+            sensorId: Sensor id
+            channel: Pin/channel on device, None if there is no channel
+            value: Value to use for setting the sensor state
 
         Returns:
             Command specific return value on success, False on failure
         """
-        retVal = False
-        info('SensorCommand: {} SensorName {} SensorType {} DriverClass {} Method {} Channel {} Value {}'.format(commandType, sensorName, sensorType, driverClass, method, channel, value) )
+        result = False
+        info('SensorCommand: {}, sensor {}, channel {}, value {}'.format(command, sensorId, channel, value))
         try:
-            actuators = ('GPIOPort', 'ServoMotor', 'AnalogActuator', 'LoadSensor', 'PiFaceDigital', 'DistanceSensor', 'Thermistor', 'Photoresistor', 'LightDimmer', 'LightSwitch', 'DigitalSensor', 'DigitalActuator', 'MotorSwitch', 'RelaySwitch', 'ValveSwitch', 'MotionSensor')
-            gpioExtensions = ('GPIOPort', 'PiFaceDigital')
-            if driverClass is None:
-                hashKey = self.SHA_Calc_str(sensorName+sensorType)
-            else:
-                hashKey = self.SHA_Calc_str(sensorName+driverClass)
+            commands = {'integer': {'function': 'write', 'value_type': int},
+                        'value': {'function': 'write', 'value_type': int},
+                        'function': {'function': 'setFunctionString', 'value_type': str},
+                        'angle': {'function': 'writeAngle', 'value_type': float},
+                        'float': {'function': 'writeFloat', 'value_type': float},
+                        'volt': {'function': 'writeVolt', 'value_type': float}}
             with self.sensorMutex:
-                if hashKey in self.disabledSensors:
-                    return retVal
-                sensor = instance.deviceInstance(sensorName)
+                if sensorId in self.disabledSensors:
+                    info('Sensor disabled')
+                    return result
+                sensor = instance.deviceInstance(sensorId)
                 if not sensor:
                     info('Sensor not found')
-                    return retVal
-                if (sensorType in actuators) or (driverClass in actuators):
-                    if sensorType in gpioExtensions or driverClass in gpioExtensions:
-                        if commandType == 'integer' or commandType == 'value':
-                            retVal = str(self.CallDeviceFunction(sensor.write, int(channel), int(value)))
-                            return retVal
+                    return result
+                if command in commands:
+                    info('Sensor found: {}'.format(instance.DEVICES[sensorId]))
+                    func = getattr(sensor, commands[command]['function'])
+                    value = commands[command]['value_type'](value)
+                    if channel:
+                        result = self.CallDeviceFunction(func, int(channel), value)
                     else:
-                        if commandType == 'integer':
-                            retVal = str(self.CallDeviceFunction(sensor.write, int(value)))
-                            return retVal
-                    if commandType == 'function':
-                        retVal = str(self.CallDeviceFunction(sensor.setFunctionString, channel, value))
-                        return retVal
-                    if commandType == 'angle':
-                        retVal = self.CallDeviceFunction(sensor.writeAngle, value)
-                        return retVal
-                    if commandType == 'float':
-                        retVal = self.CallDeviceFunction(sensor.writeFloat, float(value))
-                        return retVal
-                if commandType == 'integer':
-                    retVal = float(self.CallDeviceFunction(sensor.write, int(channel), int(value)))
-                    return retVal
-                if commandType == 'float':
-                    retVal = float(self.CallDeviceFunction(sensor.writeFloat, int(channel), float(value)))
-                    return retVal
-                if commandType == 'volt':
-                    retVal = float(self.CallDeviceFunction(sensor.writeVolt, int(channel), float(value)))
-                    return retVal
-                if commandType == 'angle':
-                    retVal = float(self.CallDeviceFunction(sensor.writeAngle, int(channel), float(value)))
-                    return retVal
-                warn('Command not implemented: ' + commandType)
-                return retVal
-        except Exception as ex:
-            exception('SensorCommand failed with: ' +str(ex))
-        return retVal
+                        result = self.CallDeviceFunction(func, value)
+                    return result
+                warn('Command not implemented: {}'.format(command))
+                return result
+        except Exception:
+            exception('SensorCommand failed')
+        return result
 
