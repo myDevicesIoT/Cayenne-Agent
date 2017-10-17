@@ -25,6 +25,7 @@ SYS_DEVICETREE = 'sys:devicetree'
 SYS_GPIO = 'sys:gpio'
 SYS_POWER = 'sys:pwr'
 AGENT_VERSION = 'agent:version'
+AGENT_DEVICES = 'agent:devices'
 DEV_SENSOR = 'dev'
 
 # Channel Suffixes
@@ -162,7 +163,7 @@ class CayenneMQTTClient:
             message['channel'] = channel[0]
             if len(channel) > 1:
                 message['suffix'] = channel[1]
-            info('message_callback: {}'.format(message))
+            debug('message_callback: {}'.format(message))
             if self.on_message:
                 self.on_message(message)
         except:

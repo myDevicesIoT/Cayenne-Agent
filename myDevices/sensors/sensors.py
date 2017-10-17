@@ -14,7 +14,6 @@ from myDevices.utils.daemon import Daemon
 from myDevices.cloud.dbmanager import DbManager
 from myDevices.utils.threadpool import ThreadPool
 from hashlib import sha1
-import urllib.request as req
 from myDevices.devices.bus import checkAllBus, BUSLIST
 from myDevices.devices.digital.gpio import NativeGPIO as GPIO
 from myDevices.devices import manager
@@ -269,7 +268,7 @@ class SensorsClient():
         try:
             sensorAdd = {}
             if name:
-                sensorAdd['name'] = req.pathname2url(name)
+                sensorAdd['name'] = name
             if device:
                 sensorAdd['device'] = device
             if args:
@@ -301,7 +300,7 @@ class SensorsClient():
         bVal = False
         try:
             sensorEdit = {}
-            name = req.pathname2url(name)
+            name = name
             sensorEdit['name'] = name
             sensorEdit['device'] = device
             sensorEdit['description'] = description
@@ -327,7 +326,7 @@ class SensorsClient():
         """
         bVal = False
         try:
-            sensorRemove = req.pathname2url(name)
+            sensorRemove = name
             with self.sensorMutex:
                 retValue = manager.removeDevice(sensorRemove)
             info('Remove device returned: {}'.format(retValue))
