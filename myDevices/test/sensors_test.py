@@ -68,10 +68,11 @@ class SensorsClientTest(unittest.TestCase):
         #Test adding a sensor
         channel = GPIO().pins[8]
         testSensor = {'description': 'Digital Input', 'device': 'DigitalSensor', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': channel}, 'name': 'testdevice'}
+        SensorsClientTest.client.RemoveSensor(testSensor['name']) #Attempt to remove device if it already exists from a previous test
         compareKeys = ('args', 'description', 'device')
         retValue = SensorsClientTest.client.AddSensor(testSensor['name'], testSensor['description'], testSensor['device'], testSensor['args'])
         self.assertTrue(retValue)
-        retrievedSensor = next(obj for obj in SensorsClientTest.client.GetDevices() if obj['name'] == testSensor['name'])
+        retrievedSensor = next(obj for obj in manager.getDeviceList() if obj['name'] == testSensor['name'])
         for key in compareKeys:
             self.assertEqual(testSensor[key], retrievedSensor[key])
         #Test updating a sensor
@@ -79,13 +80,13 @@ class SensorsClientTest(unittest.TestCase):
         editedSensor['args']['channel'] = GPIO().pins[5]
         retValue = SensorsClientTest.client.EditSensor(editedSensor['name'], editedSensor['description'], editedSensor['device'], editedSensor['args'])
         self.assertTrue(retValue)
-        retrievedSensor = next(obj for obj in SensorsClientTest.client.GetDevices() if obj['name'] == editedSensor['name'])
+        retrievedSensor = next(obj for obj in manager.getDeviceList() if obj['name'] == editedSensor['name'])
         for key in compareKeys:
             self.assertEqual(editedSensor[key], retrievedSensor[key])
         #Test removing a sensor
         retValue = SensorsClientTest.client.RemoveSensor(testSensor['name'])
         self.assertTrue(retValue)
-        deviceNames = [device['name'] for device in SensorsClientTest.client.GetDevices()]
+        deviceNames = [device['name'] for device in manager.getDeviceList()]
         self.assertNotIn(testSensor['name'], deviceNames)
 
     def testSensorInfo(self):
@@ -105,7 +106,7 @@ class SensorsClientTest(unittest.TestCase):
         self.setSensorValue(sensors['light_switch'], 1)
         self.setSensorValue(sensors['light_switch'], 0)
         #Test getting analog value
-        channel = 'dev:{}'.format(SensorsClientTest.client.SHA_Calc_str(sensors['distance']['name']+sensors['distance']['device']))
+        channel = 'dev:{}'.format(sensors['distance']['name'])
         retrievedSensorInfo = next(obj for obj in SensorsClientTest.client.SensorsInfo() if obj['channel'] == channel)
         self.assertEqual(retrievedSensorInfo['value'], 0.0)
         for sensor in sensors.values():
@@ -113,7 +114,7 @@ class SensorsClientTest(unittest.TestCase):
 
     def setSensorValue(self, sensor, value):
         SensorsClientTest.client.SensorCommand('integer', sensor['name'], None, value)
-        channel = 'dev:{}'.format(SensorsClientTest.client.SHA_Calc_str(sensor['name']+sensor['device']))
+        channel = 'dev:{}'.format(sensor['name'])
         sensorInfo = next(obj for obj in SensorsClientTest.client.SensorsInfo() if obj['channel'] == channel)
         self.assertEqual(value, sensorInfo['value'])
 

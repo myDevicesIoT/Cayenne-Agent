@@ -9,7 +9,6 @@ from threading import Thread, RLock
 from myDevices.system import services
 from datetime import datetime, timedelta
 from os import path, getpid
-from urllib import parse
 from myDevices.utils.daemon import Daemon
 from myDevices.cloud.dbmanager import DbManager
 from myDevices.utils.threadpool import ThreadPool
@@ -122,61 +121,60 @@ class SensorsClient():
             exception('SystemInformation failed')
         return newSystemInfo
 
-    def SHA_Calc(self, object):
-        """Return SHA value for an object"""
-        if object == None:
-            return ''
-        try:
-            strVal = dumps(object)
-        except:
-            exception('SHA_Calc failed for:' + str(object))
-            return ''
-        return self.SHA_Calc_str(strVal)
+    # def SHA_Calc(self, object):
+    #     """Return SHA value for an object"""
+    #     if object == None:
+    #         return ''
+    #     try:
+    #         strVal = dumps(object)
+    #     except:
+    #         exception('SHA_Calc failed for:' + str(object))
+    #         return ''
+    #     return self.SHA_Calc_str(strVal)
 
-    def SHA_Calc_str(self, stringVal):
-        """Return SHA value for a string"""
-        m = sha1()
-        m.update(stringVal.encode('utf8'))
-        sDigest = str(m.hexdigest())
-        return sDigest
+    # def SHA_Calc_str(self, stringVal):
+    #     """Return SHA value for a string"""
+    #     m = sha1()
+    #     m.update(stringVal.encode('utf8'))
+    #     sDigest = str(m.hexdigest())
+    #     return sDigest
 
-    def AppendToDeviceList(self, device_list, source, device_type):
-        """Append a sensor/actuator device to device list
+    # def AppendToDeviceList(self, device_list, source, device_type):
+    #     """Append a sensor/actuator device to device list
 
-        Args:
-            device_list: Device list to append device to
-            source: Device to append to list
-            device_type: Type of device
-        """
-        device = source.copy()
-        del device['origin']
-        device['name'] = parse.unquote(device['name'])
-        device['type'] = device_type
-        if len(source['type']) > 1:
-            device['hash'] = self.SHA_Calc_str(device['name']+device['type'])
-        else:
-            device['hash'] = self.SHA_Calc_str(device['name']+device['device'])
-        if device['hash'] in self.disabledSensors:
-            device['enabled'] = 0
-        else:
-            device['enabled'] = 1
-        device_list.append(device)
+    #     Args:
+    #         device_list: Device list to append device to
+    #         source: Device to append to list
+    #         device_type: Type of device
+    #     """
+    #     device = source.copy()
+    #     del device['origin']
+    #     device['type'] = device_type
+    #     if len(source['type']) > 1:
+    #         device['hash'] = self.SHA_Calc_str(device['name']+device['type'])
+    #     else:
+    #         device['hash'] = self.SHA_Calc_str(device['name']+device['device'])
+    #     if device['hash'] in self.disabledSensors:
+    #         device['enabled'] = 0
+    #     else:
+    #         device['enabled'] = 1
+    #     device_list.append(device)
 
-    def GetDevices(self):
-        """Return a list of current sensor/actuator devices"""
-        manager.deviceDetector()
-        device_list = manager.getDeviceList()
-        devices = []
-        for dev in device_list:
-            try:
-                if len(dev['type']) == 0:
-                    self.AppendToDeviceList(devices, dev, '')
-                else:
-                    for device_type in dev['type']:
-                        self.AppendToDeviceList(devices, dev, device_type)
-            except:
-                exception("Failed to get device: {}".format(dev))
-        return devices
+    # def GetDevices(self):
+    #     """Return a list of current sensor/actuator devices"""
+    #     manager.deviceDetector()
+    #     device_list = manager.getDeviceList()
+    #     devices = []
+    #     for dev in device_list:
+    #         try:
+    #             if len(dev['type']) == 0:
+    #                 self.AppendToDeviceList(devices, dev, '')
+    #             else:
+    #                 for device_type in dev['type']:
+    #                     self.AppendToDeviceList(devices, dev, device_type)
+    #         except:
+    #             exception("Failed to get device: {}".format(dev))
+    #     return devices
 
     def CallDeviceFunction(self, func, *args):
         """Call a function for a sensor/actuator device and format the result value type
@@ -211,7 +209,7 @@ class SensorsClient():
 
     def SensorsInfo(self):
         """Return a list with current sensor states for all enabled sensors"""
-        devices = self.GetDevices()
+        devices = manager.getDeviceList()
         sensors_info = []
         if devices is None:
             return sensors_info
@@ -219,35 +217,40 @@ class SensorsClient():
             sensor = instance.deviceInstance(device['name'])
             if 'enabled' not in device or device['enabled'] == 1:
                 sensor_types = {'Temperature': {'function': 'getCelsius', 'data_args': {'type': 'temp', 'unit': 'c'}},
-                                    'Humidity': {'function': 'getHumidityPercent', 'data_args': {'type': 'rel_hum', 'unit': 'p'}},
-                                    'Pressure': {'function': 'getPascal', 'data_args': {'type': 'bp', 'unit': 'pa'}},
-                                    'Luminosity': {'function': 'getLux', 'data_args': {'type': 'lum', 'unit': 'lux'}},
-                                    'Distance': {'function': 'getCentimeter', 'data_args': {'type': 'prox', 'unit': 'cm'}},
-                                    'ServoMotor': {'function': 'readAngle', 'data_args': {'type': 'analog_actuator'}},
-                                    'DigitalSensor': {'function': 'read', 'data_args': {'type': 'digital_sensor', 'unit': 'd'}},
-                                    'DigitalActuator': {'function': 'read', 'data_args': {'type': 'digital_actuator', 'unit': 'd'}},
-                                    'AnalogSensor': {'function': 'readFloat', 'data_args': {'type': 'analog_sensor'}},
-                                    'AnalogActuator': {'function': 'readFloat', 'data_args': {'type': 'analog_actuator'}}}
+                                'Humidity': {'function': 'getHumidityPercent', 'data_args': {'type': 'rel_hum', 'unit': 'p'}},
+                                'Pressure': {'function': 'getPascal', 'data_args': {'type': 'bp', 'unit': 'pa'}},
+                                'Luminosity': {'function': 'getLux', 'data_args': {'type': 'lum', 'unit': 'lux'}},
+                                'Distance': {'function': 'getCentimeter', 'data_args': {'type': 'prox', 'unit': 'cm'}},
+                                'ServoMotor': {'function': 'readAngle', 'data_args': {'type': 'analog_actuator'}},
+                                'DigitalSensor': {'function': 'read', 'data_args': {'type': 'digital_sensor', 'unit': 'd'}},
+                                'DigitalActuator': {'function': 'read', 'data_args': {'type': 'digital_actuator', 'unit': 'd'}},
+                                'AnalogSensor': {'function': 'readFloat', 'data_args': {'type': 'analog_sensor'}},
+                                'AnalogActuator': {'function': 'readFloat', 'data_args': {'type': 'analog_actuator'}}}
                 extension_types = {'ADC': {'function': 'analogReadAllFloat'},
                                     'DAC': {'function': 'analogReadAllFloat'},
                                     'PWM': {'function': 'pwmWildcard'},
                                     'DAC': {'function': 'wildcard'}}
-                if device['type'] in sensor_types:
-                    try:
-                        sensor_type = sensor_types[device['type']]
-                        func = getattr(sensor, sensor_type['function'])
-                        cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['hash'], value=self.CallDeviceFunction(func), **sensor_type['data_args'])
-                    except:
-                        exception('Failed to get sensor data: {} {}'.format(device['type'], device['name']))
-                else:
-                    try:
-                        extension_type = extension_types[device['type']]
-                        func = getattr(sensor, extension_type['function'])
-                        values = self.CallDeviceFunction(func)
-                        for pin, value in values.items():
-                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['hash'] + ':' + str(pin), cayennemqtt.VALUE, value)
-                    except:
-                        exception('Failed to get extension data: {} {}'.format(device['type'], device['name']))
+                for device_type in device['type']:
+                    if device_type in sensor_types:
+                        try:
+                            sensor_type = sensor_types[device_type]
+                            func = getattr(sensor, sensor_type['function'])
+                            if len(device['type']) > 1:
+                                channel = '{}:{}'.format(device['name'], device_type.lower())
+                            else:
+                                channel = device['name']
+                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=self.CallDeviceFunction(func), **sensor_type['data_args'])
+                        except:
+                            exception('Failed to get sensor data: {} {}'.format(device_type, device['name']))
+                    else:
+                        try:
+                            extension_type = extension_types[device_type]
+                            func = getattr(sensor, extension_type['function'])
+                            values = self.CallDeviceFunction(func)
+                            for pin, value in values.items():
+                                cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['name'] + ':' + str(pin), cayennemqtt.VALUE, value)
+                        except:
+                            exception('Failed to get extension data: {} {}'.format(device_type, device['name']))
         logJson('Sensors info: {}'.format(sensors_info))
         return sensors_info
 
