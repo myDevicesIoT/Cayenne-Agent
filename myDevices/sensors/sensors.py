@@ -5,7 +5,7 @@ sensors and actuators as well as monitor their states and execute commands.
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from time import sleep, time
 from json import loads, dumps
-from threading import Thread, RLock
+from threading import RLock
 from myDevices.system import services
 from datetime import datetime, timedelta
 from os import path, getpid
@@ -35,9 +35,7 @@ class SensorsClient():
         self.systemData = []
         self.currentSystemState = []
         self.disabledSensors = {}
-        self.retrievingSystemInfo = False
         self.disabledSensorTable = "disabled_sensors"
-        self.systemInfoRefreshList = []
         checkAllBus()
         self.gpio = GPIO()
         manager.addDeviceInstance("GPIO", "GPIO", "GPIO", self.gpio, [], "system")

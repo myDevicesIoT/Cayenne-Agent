@@ -4,28 +4,23 @@ to server, retrives system info as well as sensor and actuator info and sends th
 It also responds messages from the server, to set actuator values, change system config settings, etc.
 """
 
-from socket import SOCK_STREAM, socket, AF_INET, gethostname, SHUT_RDWR
-from ssl import CERT_REQUIRED, wrap_socket
 from json import dumps, loads
-from threading import Thread, RLock
+from threading import Thread
 from time import strftime, localtime, tzset, time, sleep
 from queue import Queue, Empty
 from myDevices.utils.config import Config
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
-from myDevices.system import services, ipgetter
 from myDevices.sensors import sensors
 from myDevices.system.hardware import Hardware
-# from myDevices.wifi import WifiManager
-from myDevices.cloud.scheduler import SchedulerEngine
+# from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
 from myDevices.system.systemconfig import SystemConfig
 from myDevices.utils.daemon import Daemon
 from myDevices.utils.threadpool import ThreadPool
-from myDevices.utils.history import History
+# from myDevices.utils.history import History
 from myDevices.utils.subprocess import executeCommand
-from select import select
-from hashlib import sha256
+# from hashlib import sha256
 from myDevices.cloud.apiclient import CayenneApiClient
 import myDevices.cloud.cayennemqtt as cayennemqtt
 
@@ -161,10 +156,6 @@ class CloudServerClient:
         self.HOST = host
         self.PORT = port
         self.CayenneApiHost = cayenneApiHost
-        self.onMessageReceived = None
-        self.onMessageSent = None
-        self.initialized = False
-        self.machineName = gethostname()
         self.config = Config(APP_SETTINGS)
         inviteCode = self.config.get('Agent', 'InviteCode', fallback=None)
         if not inviteCode:
@@ -192,11 +183,10 @@ class CloudServerClient:
         self.password = None
         self.clientId = None
         self.CheckSubscription()
-        self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
+        # self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
         self.Initialize()
         self.updater = Updater(self.config)
         self.updater.start()
-        self.initialized = True
 
     def __del__(self):
         """Delete the client"""
@@ -205,10 +195,8 @@ class CloudServerClient:
     def Initialize(self):
         """Initialize server connection and background threads"""
         try:
-            self.mutex = RLock()
             self.readQueue = Queue()
             self.writeQueue = Queue()
-            self.PublicIP = ipgetter.myip()
             self.hardware = Hardware()
             self.oSInfo = OSInfo()
             self.connected = False
@@ -219,15 +207,12 @@ class CloudServerClient:
             self.downloadSpeed = DownloadSpeed(self.config)
             self.downloadSpeed.getDownloadSpeed()
             self.sensorsClient.SetDataChanged(self.OnDataChanged)
-            self.processManager = services.ProcessManager()
-            self.serviceManager = services.ServiceManager()
             self.writerThread = WriterThread('writer', self)
             self.writerThread.start()
             self.processorThread = ProcessorThread('processor', self)
             self.processorThread.start()
             TimerThread(self.SendSystemInfo, 300)
             TimerThread(self.SendSystemState, 30, 5)
-            self.previousSystemInfo = None
             # self.sentHistoryData = {}
             # self.historySendFails = 0
             # self.historyThread = Thread(target=self.SendHistoryData)
