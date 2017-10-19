@@ -99,8 +99,7 @@ class CayenneMQTTClient:
         self.client.on_message = self.message_callback
         self.client.username_pw_set(username, password)
         if port == 8883:
-            self.client.tls_set(ca_certs="/etc/mosquitto/certs/test-ca.crt", certfile="/etc/mosquitto/certs/cli2.crt",
-                keyfile="/etc/mosquitto/certs/cli2.key", tls_version=PROTOCOL_TLSv1_2)
+            self.client.tls_set(ca_certs='/etc/ssl/certs/ca-certificates.crt', tls_version=PROTOCOL_TLSv1_2)
         self.client.connect(hostname, port, 60)
         info("Connecting to %s..." % hostname)
 

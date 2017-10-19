@@ -211,14 +211,13 @@ class CloudServerClient:
             self.PublicIP = ipgetter.myip()
             self.hardware = Hardware()
             self.oSInfo = OSInfo()
-            self.downloadSpeed = DownloadSpeed(self.config)
-            self.downloadSpeed.getDownloadSpeed()
             self.connected = False
             self.exiting = False
             self.Start()
             self.count = 10000
             self.buff = bytearray(self.count)
-            #start thread only after init of other fields
+            self.downloadSpeed = DownloadSpeed(self.config)
+            self.downloadSpeed.getDownloadSpeed()
             self.sensorsClient.SetDataChanged(self.OnDataChanged)
             self.processManager = services.ProcessManager()
             self.serviceManager = services.ServiceManager()

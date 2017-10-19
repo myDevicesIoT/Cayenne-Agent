@@ -53,7 +53,7 @@ class DownloadSpeed():
         try:
             self.interface = netifaces.gateways()['default'][netifaces.AF_INET][1]
             a = datetime.now()
-            info('Excuting regular download test for network speed')
+            info('Executing regular download test for network speed')
             url = self.config.cloudConfig.DownloadSpeedTestUrl if 'DownloadSpeedTestUrl' in self.config.cloudConfig else defaultUrl
             debug(url + ' ' + download_path)
             request.urlretrieve(url, download_path)
