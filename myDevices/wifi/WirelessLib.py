@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-import subprocess
+# import subprocess
 from time import sleep
 from myDevices.utils.subprocess import executeCommand
 

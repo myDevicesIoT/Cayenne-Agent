@@ -60,30 +60,9 @@ class OSInfo():
                         continue
                     key = splitLine[0].strip()
                     value = splitLine[1].strip().replace('"', '')
-                    if key == 'PRETTY_NAME':
-                        self.PRETTY_NAME = value
-                        continue
-                    if key == 'NAME':
-                        self.NAME = value
-                        continue
-                    if key == 'VERSION_ID':
-                        self.VERSION_ID = value
-                        continue
-                    if key == 'VERSION':
-                        self.VERSION = value
-                        continue
-                    if key == 'ID_LIKE':
-                        self.ID_LIKE = value
-                        continue
-                    if key == 'ID':
-                        self.ID = value
-                        continue
-                    if key == 'ANSI_COLOR':
-                        self.ANSI_COLOR = value
-                        continue
-                    if key == 'HOME_URL':
-                        self.HOME_URL = value
-                        continue
+                    keys = ('VERSION_ID', 'ID')
+                    if key in keys:
+                        setattr(self, key, value)
         except:
             exception("OSInfo Unexpected error")
 
@@ -138,7 +117,7 @@ class WriterThread(Thread):
                 if not message:
                     info('WriterThread mqttClient no message, {}'.format(message))
                     continue
-                debug('WriterThread, topic: {} {}'.format(cayennemqtt.DATA_TOPIC, type(message)))
+                # debug('WriterThread, topic: {} {}'.format(cayennemqtt.DATA_TOPIC, message))
                 self.cloudClient.mqttClient.publish_packet(cayennemqtt.DATA_TOPIC, message)
                 message = None
             except:
@@ -277,12 +256,12 @@ class CloudServerClient:
 
     def OnDataChanged(self, data):
         """Enqueue a packet containing changed system data to send to the server"""
+        info('Send changed data: {}'.format([{item['channel']:item['value']} for item in data]))
         self.EnqueuePacket(data)
 
     def SendSystemInfo(self):
         """Enqueue a packet containing system info to send to the server"""
         try:
-            debug('SendSystemInfo')
             data = []
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_HARDWARE_MAKE, value=self.hardware.getManufacturer())
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_HARDWARE_MODEL, value=self.hardware.getModel())
@@ -297,6 +276,7 @@ class CloudServerClient:
                         cayennemqtt.DataChannel.add(data, channel, value=config[key])
                     except:
                         pass
+            info('Send system info: {}'.format([{item['channel']:item['value']} for item in data]))
             self.EnqueuePacket(data)
         except Exception:
             exception('SendSystemInfo unexpected error')
@@ -304,12 +284,12 @@ class CloudServerClient:
     def SendSystemState(self):
         """Enqueue a packet containing system information to send to the server"""
         try:
-            debug('SendSystemState')
             data = []
             download_speed = self.downloadSpeed.getDownloadSpeed()
             if download_speed:
                 cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed)
             data += self.sensorsClient.systemData
+            info('Send system state: {} items'.format(len(data)))
             self.EnqueuePacket(data)
         except Exception as e:
             exception('ThreadSystemInfo unexpected error: ' + str(e))
@@ -473,9 +453,7 @@ class CloudServerClient:
 
     def EnqueuePacket(self, message):
         """Enqueue a message packet to send to the server"""
-        if isinstance(message, dict):
-            message['PacketTime'] = GetTime()
-        json_data = dumps(message) + '\n'
+        json_data = dumps(message)
         message = None
         self.writeQueue.put(json_data)
 

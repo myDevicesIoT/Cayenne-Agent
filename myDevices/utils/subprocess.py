@@ -26,7 +26,7 @@ def executeCommand(command, increaseMemoryLimit=False):
         (stdout_data, stderr_data) = process.communicate()
         returncode = process.wait()
         returncode = process.returncode
-        debug('executeCommand: stdout_data {}, stderr_data {}'.format(stdout_data, stderr_data))
+        # debug('executeCommand: stdout_data {}, stderr_data {}'.format(stdout_data, stderr_data))
         if stdout_data:
             output = stdout_data.decode('utf-8')
             stdout_data = None
