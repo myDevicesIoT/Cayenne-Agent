@@ -12,7 +12,6 @@ from os import path, getpid
 from myDevices.utils.daemon import Daemon
 from myDevices.cloud.dbmanager import DbManager
 from myDevices.utils.threadpool import ThreadPool
-from hashlib import sha1
 from myDevices.devices.bus import checkAllBus, BUSLIST
 from myDevices.devices.digital.gpio import NativeGPIO as GPIO
 from myDevices.devices import manager
@@ -120,61 +119,6 @@ class SensorsClient():
         except Exception:
             exception('SystemInformation failed')
         return newSystemInfo
-
-    # def SHA_Calc(self, object):
-    #     """Return SHA value for an object"""
-    #     if object == None:
-    #         return ''
-    #     try:
-    #         strVal = dumps(object)
-    #     except:
-    #         exception('SHA_Calc failed for:' + str(object))
-    #         return ''
-    #     return self.SHA_Calc_str(strVal)
-
-    # def SHA_Calc_str(self, stringVal):
-    #     """Return SHA value for a string"""
-    #     m = sha1()
-    #     m.update(stringVal.encode('utf8'))
-    #     sDigest = str(m.hexdigest())
-    #     return sDigest
-
-    # def AppendToDeviceList(self, device_list, source, device_type):
-    #     """Append a sensor/actuator device to device list
-
-    #     Args:
-    #         device_list: Device list to append device to
-    #         source: Device to append to list
-    #         device_type: Type of device
-    #     """
-    #     device = source.copy()
-    #     del device['origin']
-    #     device['type'] = device_type
-    #     if len(source['type']) > 1:
-    #         device['hash'] = self.SHA_Calc_str(device['name']+device['type'])
-    #     else:
-    #         device['hash'] = self.SHA_Calc_str(device['name']+device['device'])
-    #     if device['hash'] in self.disabledSensors:
-    #         device['enabled'] = 0
-    #     else:
-    #         device['enabled'] = 1
-    #     device_list.append(device)
-
-    # def GetDevices(self):
-    #     """Return a list of current sensor/actuator devices"""
-    #     manager.deviceDetector()
-    #     device_list = manager.getDeviceList()
-    #     devices = []
-    #     for dev in device_list:
-    #         try:
-    #             if len(dev['type']) == 0:
-    #                 self.AppendToDeviceList(devices, dev, '')
-    #             else:
-    #                 for device_type in dev['type']:
-    #                     self.AppendToDeviceList(devices, dev, device_type)
-    #         except:
-    #             exception("Failed to get device: {}".format(dev))
-    #     return devices
 
     def CallDeviceFunction(self, func, *args):
         """Call a function for a sensor/actuator device and format the result value type

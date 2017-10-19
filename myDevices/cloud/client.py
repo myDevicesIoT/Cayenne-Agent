@@ -10,7 +10,6 @@ from json import dumps, loads
 from threading import Thread, RLock
 from time import strftime, localtime, tzset, time, sleep
 from queue import Queue, Empty
-from enum import Enum, unique
 from myDevices.utils.config import Config
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from myDevices.system import services, ipgetter
@@ -33,38 +32,6 @@ import myDevices.cloud.cayennemqtt as cayennemqtt
 NETWORK_SETTINGS = '/etc/myDevices/Network.ini'
 APP_SETTINGS = '/etc/myDevices/AppSettings.ini'
 GENERAL_SLEEP_THREAD = 0.20
-
-
-@unique
-class PacketTypes(Enum):
-    """Packet types used when sending/receiving messages"""
-    # PT_UTILIZATION = 3
-    # PT_SYSTEM_INFO = 4
-    # PT_PROCESS_LIST = 5
-    # PT_STARTUP_APPLICATIONS = 8
-    # PT_START_RDS = 11
-    # PT_STOP_RDS = 12
-    # PT_RESTART_COMPUTER = 25
-    # PT_SHUTDOWN_COMPUTER = 26
-    # PT_KILL_PROCESS = 27
-    # PT_REQUEST_SCHEDULES = 40
-    # PT_UPDATE_SCHEDULES = 41
-    # PT_AGENT_MESSAGE = 45
-    # PT_PRODUCT_INFO = 50
-    # PT_UNINSTALL_AGENT = 51
-    # PT_ADD_SENSOR = 61
-    # PT_REMOVE_SENSOR = 62
-    # PT_UPDATE_SENSORPT_UPDATE_SENSOR = 63
-    # PT_DEVICE_COMMAND = 64
-    # PT_DEVICE_COMMAND_RESPONSE = 65
-    # PT_ADD_SCHEDULE = 66
-    # PT_REMOVE_SCHEDULE = 67
-    # PT_GET_SCHEDULES = 68
-    # PT_NOTIFICATION = 69
-    # PT_DATA_CHANGED = 70
-    # PT_HISTORY_DATA = 71
-    # PT_HISTORY_DATA_RESPONSE = 72
-    # PT_AGENT_CONFIGURATION = 74
 
 
 def GetTime():
@@ -246,10 +213,8 @@ class CloudServerClient:
         self.password = None
         self.clientId = None
         self.CheckSubscription()
-        #self.defaultRDServer = self.networkConfig.get('CONFIG','RemoteDesktopServerAddress')
         self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
         self.Initialize()
-        # self.FirstRun()
         self.updater = Updater(self.config)
         self.updater.start()
         self.initialized = True
@@ -271,14 +236,13 @@ class CloudServerClient:
             self.downloadSpeed.getDownloadSpeed()
             self.connected = False
             self.exiting = False
-            self.Start
+            self.Start()
             self.count = 10000
             self.buff = bytearray(self.count)
             #start thread only after init of other fields
             self.sensorsClient.SetDataChanged(self.OnDataChanged)
             self.processManager = services.ProcessManager()
             self.serviceManager = services.ServiceManager()
-            # self.wifiManager = WifiManager.WifiManager()
             self.writerThread = WriterThread('writer', self)
             self.writerThread.start()
             self.processorThread = ProcessorThread('processor', self)
@@ -311,186 +275,44 @@ class CloudServerClient:
         self.Stop()
         info('Client shut down')
 
-    # def FirstRun(self):
-    #     """Send messages when client is first started"""
-    #     self.SendSystemInfo()
-
     def OnDataChanged(self, data):
         """Enqueue a packet containing changed system data to send to the server"""
         self.EnqueuePacket(data)
-        # data = {}
-        # data['MachineName'] = self.MachineId
-        # data['PacketType'] = PacketTypes.PT_DATA_CHANGED.value
-        # data['Timestamp'] = int(time())
-        # data['RaspberryInfo'] = systemData
-        # self.EnqueuePacket(data)
-        # del data
-        # del systemData
 
     def SendSystemInfo(self):
         """Enqueue a packet containing system info to send to the server"""
         try:
-            # debug('SendSystemInfo')
-            data_list = []
-            cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_HARDWARE_MAKE, value=self.hardware.getManufacturer())
-            cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_HARDWARE_MODEL, value=self.hardware.getModel())
-            cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
-            cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
-            cayennemqtt.DataChannel.add(data_list, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent','Version'))
+            debug('SendSystemInfo')
+            data = []
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_HARDWARE_MAKE, value=self.hardware.getManufacturer())
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_HARDWARE_MODEL, value=self.hardware.getModel())
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
+            cayennemqtt.DataChannel.add(data, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent','Version'))
             config = SystemConfig.getConfig()
             if config:
                 channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}
                 for key, channel in channel_map.items():
                     try:
-                        cayennemqtt.DataChannel.add(data_list, channel, value=config[key])
+                        cayennemqtt.DataChannel.add(data, channel, value=config[key])
                     except:
                         pass
-            self.EnqueuePacket(data_list)
-            # data = {}
-            # data['MachineName'] = self.MachineId
-            # data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
-            # data['IpAddress'] = self.PublicIP
-            # data['GatewayMACAddress'] = self.hardware.getMac()
-            # systemData = {}
-            # # systemData['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
-            # # systemData['AntiVirus'] = 'None'
-            # # systemData['Firewall'] = 'iptables'
-            # # systemData['FirewallEnabled'] = 'true'
-            # systemData['ComputerMake'] =  self.hardware.getManufacturer()
-            # systemData['ComputerModel'] = self.hardware.getModel()
-            # systemData['OsName'] = self.oSInfo.ID
-            # # systemData['OsBuild'] = self.oSInfo.ID_LIKE
-            # # systemData['OsArchitecture'] = self.hardware.Revision
-            # systemData['OsVersion'] = self.oSInfo.VERSION_ID
-            # systemData['ComputerName'] = self.machineName
-            # systemData['AgentVersion'] = self.config.get('Agent','Version')
-            # systemData['GatewayMACAddress'] = self.hardware.getMac()
-            # systemData['OsSettings'] = SystemConfig.getConfig()
-            # systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
-            # systemData['WifiStatus'] = self.wifiManager.GetStatus()
-            # data['RaspberryInfo'] = systemData
-            # if data != self.previousSystemInfo:
-            #     self.previousSystemInfo = data.copy()
-            #     data['Timestamp'] = int(time())
-            #     self.EnqueuePacket(data)
-            #     logJson('SendSystemInfo: ' + dumps(data), 'SendSystemInfo')
-            # del systemData
-            # del data
-            # data=None
+            self.EnqueuePacket(data)
         except Exception:
             exception('SendSystemInfo unexpected error')
-
-    # def SendSystemUtilization(self):
-    #     """Enqueue a packet containing system utilization data to send to the server"""
-    #     data = {}
-    #     data['MachineName'] = self.MachineId
-    #     data['Timestamp'] = int(time())
-    #     data['PacketType'] = PacketTypes.PT_UTILIZATION.value
-    #     self.processManager.RefreshProcessManager()
-    #     data['VisibleMemory'] = self.processManager.VisibleMemory
-    #     data['AvailableMemory'] = self.processManager.AvailableMemory
-    #     data['AverageProcessorUsage'] = self.processManager.AverageProcessorUsage
-    #     data['PeakProcessorUsage'] = self.processManager.PeakProcessorUsage
-    #     data['AverageMemoryUsage'] = self.processManager.AverageMemoryUsage
-    #     data['PeakMemoryUsage'] = self.processManager.AverageMemoryUsage
-    #     data['PercentProcessorTime'] = self.processManager.PercentProcessorTime
-    #     self.EnqueuePacket(data)
 
     def SendSystemState(self):
         """Enqueue a packet containing system information to send to the server"""
         try:
-            # debug('SendSystemState')
-            # self.SendSystemInfo()
-            # self.SendSystemUtilization()
-            data_list = []
+            debug('SendSystemState')
+            data = []
             download_speed = self.downloadSpeed.getDownloadSpeed()
             if download_speed:
-                cayennemqtt.DataChannel.add(data_list, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed)
-            data_list += self.sensorsClient.systemData
-            self.EnqueuePacket(data_list)
-            # data = {}
-            # data['MachineName'] = self.MachineId
-            # data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
-            # data['Timestamp'] = int(time())
-            # data['IpAddress'] = self.PublicIP
-            # data['GatewayMACAddress'] = self.hardware.getMac()
-            # systemData = {}
-            # systemData['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
-            # systemData['AntiVirus'] = 'None'
-            # systemData['Firewall'] = 'iptables'
-            # systemData['FirewallEnabled'] = 'true'
-            # systemData['ComputerMake'] = self.hardware.getManufacturer()
-            # systemData['ComputerModel'] = self.hardware.getModel()
-            # systemData['OsName'] = self.oSInfo.ID
-            # systemData['OsBuild'] = self.oSInfo.ID_LIKE if hasattr(self.oSInfo, 'ID_LIKE') else self.oSInfo.ID
-            # systemData['OsArchitecture'] = self.hardware.Revision
-            # systemData['OsVersion'] = self.oSInfo.VERSION_ID
-            # systemData['ComputerName'] = self.machineName
-            # systemData['AgentVersion'] = self.config.get('Agent', 'Version', fallback='1.0.1.0')
-            # systemData['InstallDate'] = self.installDate
-            # systemData['GatewayMACAddress'] = self.hardware.getMac()
-            # with self.sensorsClient.sensorMutex:
-            #     systemData['SystemInfo'] = self.sensorsClient.currentSystemInfo
-            #     systemData['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
-            #     systemData['BusInfo'] = self.sensorsClient.currentBusInfo
-            # systemData['OsSettings'] = SystemConfig.getConfig()
-            # systemData['NetworkId'] = WifiManager.Network.GetNetworkId()
-            # systemData['WifiStatus'] = self.wifiManager.GetStatus()
-            # try:
-            #     history = History()
-            #     history.SaveAverages(systemData)
-            # except:
-            #     exception('History error')
-            # data['RaspberryInfo'] = systemData
-            # self.EnqueuePacket(data)
-            # logJson('PT_SYSTEM_INFO: ' + dumps(data), 'PT_SYSTEM_INFO')
-            # del systemData
-            # del data
-            # data = None
+                cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed)
+            data += self.sensorsClient.systemData
+            self.EnqueuePacket(data)
         except Exception as e:
             exception('ThreadSystemInfo unexpected error: ' + str(e))
-
-    # def BuildPT_STARTUP_APPLICATIONS(self):
-    #     """Schedule a function to run for retrieving a list of services"""
-    #     ThreadPool.Submit(self.ThreadServiceManager)
-
-    # def ThreadServiceManager(self):
-    #     """Enqueue a packet containing a list of services to send to the server"""
-    #     self.serviceManager.Run()
-    #     sleep(GENERAL_SLEEP_THREAD)
-    #     data = {}
-    #     data['MachineName'] = self.MachineId
-    #     data['PacketType'] = PacketTypes.PT_STARTUP_APPLICATIONS.value
-    #     data['ProcessList'] = self.serviceManager.GetServiceList()
-    #     self.EnqueuePacket(data)
-
-    # def BuildPT_PROCESS_LIST(self):
-    #     """Schedule a function to run for retrieving a list of processes"""
-    #     ThreadPool.Submit(self.ThreadProcessManager)
-
-    # def ThreadProcessManager(self):
-    #     """Enqueue a packet containing a list of processes to send to the server"""
-    #     self.processManager.Run()
-    #     sleep(GENERAL_SLEEP_THREAD)
-    #     data = {}
-    #     data['MachineName'] = self.MachineId
-    #     data['PacketType'] = PacketTypes.PT_PROCESS_LIST.value
-    #     data['ProcessList'] = self.processManager.GetProcessList()
-    #     self.EnqueuePacket(data)
-
-    # def ProcessPT_KILL_PROCESS(self, message):
-    #     """Kill a process specified in message"""
-    #     pid = message['Pid']
-    #     retVal = self.processManager.KillProcess(int(pid))
-    #     data = {}
-    #     data['MachineName'] = self.MachineId
-    #     data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
-    #     data['Type'] = 'Info'
-    #     if retVal:
-    #         data['Message'] = 'Process Killed!'
-    #     else:
-    #         data['Message'] = 'Process not Killed!'
-    #     self.EnqueuePacket(data)
 
     def CheckSubscription(self):
         """Check that an invite code is valid"""
@@ -514,7 +336,6 @@ class CloudServerClient:
                 Daemon.Exit()
         info('CheckSubscription: MachineId {}'.format(self.MachineId))
  
-    @property
     def Start(self):
         """Connect to the server"""
         started = False
@@ -548,7 +369,7 @@ class CloudServerClient:
             debug('Restarting cycle...')
             sleep(1)
             self.Stop()
-            self.Start
+            self.Start()
 
     def CheckJson(self, message):
         """Check if a JSON message is valid"""
@@ -573,23 +394,6 @@ class CloudServerClient:
                 debug('Scheduler action is not assigned for this machine: ' + str(action))
                 return
         self.ExecuteMessage(action)
-
-    def SendNotification(self, notify, subject, body):
-        """Enqueue a notification message packet to send to the server"""
-        info('SendNotification: ' + str(notify) + ' ' + str(subject) + ' ' + str(body))
-        return False
-        # try:
-        #     data = {}
-        #     data['PacketType'] = PacketTypes.PT_NOTIFICATION.value
-        #     data['MachineName'] = self.MachineId
-        #     data['Subject'] = subject
-        #     data['Body'] = body
-        #     data['Notify'] = notify
-        #     self.EnqueuePacket(data)
-        # except:
-        #     debug('')
-        #     return False
-        # return True
 
     def ProcessMessage(self):
         """Process a message from the server"""
@@ -623,173 +427,6 @@ class CloudServerClient:
         #     self.config.setCloudConfig(message['payload'])
         else:
             info('Unknown message')
-
-        # packetType = int(message['PacketType'])
-        # if packetType == PacketTypes.PT_UTILIZATION.value:
-        #     self.SendSystemUtilization()
-        #     info(PacketTypes.PT_UTILIZATION)
-        #     return
-        # if packetType == PacketTypes.PT_SYSTEM_INFO.value:
-        #     info("ExecuteMessage - sysinfo - Calling SendSystemState")
-        #     self.SendSystemState()
-        #     info(PacketTypes.PT_SYSTEM_INFO)
-        #     return
-        # if packetType == PacketTypes.PT_UNINSTALL_AGENT.value:
-        #     command = "sudo /etc/myDevices/uninstall/uninstall.sh"
-        #     executeCommand(command)
-        #     return
-        # if packetType == PacketTypes.PT_STARTUP_APPLICATIONS.value:
-        #     self.BuildPT_STARTUP_APPLICATIONS()
-        #     info(PacketTypes.PT_STARTUP_APPLICATIONS)
-        #     return
-        # if packetType == PacketTypes.PT_PROCESS_LIST.value:
-        #     self.BuildPT_PROCESS_LIST()
-        #     info(PacketTypes.PT_PROCESS_LIST)
-        #     return
-        # if packetType == PacketTypes.PT_KILL_PROCESS.value:
-        #     self.ProcessPT_KILL_PROCESS(messageObject)
-        #     info(PacketTypes.PT_KILL_PROCESS)
-        #     return
-        # if packetType == PacketTypes.PT_PRODUCT_INFO.value:
-        #     self.config.set('Subscription', 'ProductCode', messageObject['ProductCode'])
-        #     info(PacketTypes.PT_PRODUCT_INFO)
-        #     return   
-        # if packetType == PacketTypes.PT_RESTART_COMPUTER.value:
-        #     info(PacketTypes.PT_RESTART_COMPUTER)
-        #     data = {}
-        #     data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
-        #     data['MachineName'] = self.MachineId
-        #     data['Message'] = 'Computer Restarted!'
-        #     self.EnqueuePacket(data)
-        #     command = "sudo shutdown -r now"
-        #     executeCommand(command)
-        #     return
-        # if packetType == PacketTypes.PT_SHUTDOWN_COMPUTER.value:
-        #     info(PacketTypes.PT_SHUTDOWN_COMPUTER)
-        #     data = {}
-        #     data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
-        #     data['MachineName'] = self.MachineId
-        #     data['Message'] = 'Computer Powered Off!'
-        #     self.EnqueuePacket(data)
-        #     command = "sudo shutdown -h now"
-        #     executeCommand(command)
-        #     return
-        # if packetType == PacketTypes.PT_AGENT_CONFIGURATION.value:
-        #     info('PT_AGENT_CONFIGURATION: ' + str(message.Data))
-        #     self.config.setCloudConfig(message.Data)
-        #     return
-        # if packetType == PacketTypes.PT_ADD_SENSOR.value:
-        #     try:
-        #         info(PacketTypes.PT_ADD_SENSOR)
-        #         parameters = None
-        #         deviceName = None
-        #         deviceClass = None
-        #         description = None
-        #         #for backward compatibility check the DisplayName and overwrite it over the other variables
-        #         displayName = None
-        #         if 'DisplayName' in messageObject:
-        #             displayName = messageObject['DisplayName']
-
-        #         if 'Parameters' in messageObject:
-        #             parameters = messageObject['Parameters']
-
-        #         if 'DeviceName' in messageObject:
-        #             deviceName = messageObject['DeviceName']
-        #         else:
-        #             deviceName = displayName
-
-        #         if 'Description' in messageObject:
-        #             description = messageObject['Description']
-        #         else:
-        #             description = deviceName
-
-        #         if 'Class' in messageObject:
-        #             deviceClass = messageObject['Class']
-
-        #         retValue = True
-        #         retValue = self.sensorsClient.AddSensor(deviceName, description, deviceClass, parameters)
-        #     except Exception as ex:
-        #         exception("PT_ADD_SENSOR Unexpected error"+  str(ex))
-        #         retValue = False
-        #     data = {}
-        #     if 'Id' in messageObject:
-        #         data['Id'] = messageObject['Id']
-        #     #0 - None, 1 - Pending, 2-Success, 3 - Not responding, 4 - Failure
-        #     if retValue:
-        #         data['State'] = 2
-        #     else:
-        #         data['State'] = 4
-        #     data['PacketType'] = PacketTypes.PT_UPDATE_SENSOR.value
-        #     data['MachineName'] = self.MachineId
-        #     self.EnqueuePacket(data)
-        #     return
-        # if packetType == PacketTypes.PT_REMOVE_SENSOR.value:
-        #     try:
-        #         info(PacketTypes.PT_REMOVE_SENSOR)
-        #         retValue = False
-        #         if 'Name' in messageObject:
-        #             Name = messageObject['Name']
-        #             retValue = self.sensorsClient.RemoveSensor(Name)
-        #         data = {}
-        #         data['Name'] = Name
-        #         data['PacketType'] = PacketTypes.PT_REMOVE_SENSOR.value
-        #         data['MachineName'] = self.MachineId
-        #         data['Response'] = retValue
-        #         self.EnqueuePacket(data)
-        #     except Exception as ex:
-        #         exception("PT_REMOVE_SENSOR Unexpected error"+  str(ex))
-        #         retValue = False
-        #     return
-        # if packetType == PacketTypes.PT_DEVICE_COMMAND.value:
-        #     info(PacketTypes.PT_DEVICE_COMMAND)
-        #     self.ProcessDeviceCommand(messageObject)
-        #     return
-        # if packetType == PacketTypes.PT_ADD_SCHEDULE.value:
-        #     info(PacketTypes.PT_ADD_SCHEDULE.value)
-        #     retVal = self.schedulerEngine.AddScheduledItem(messageObject, True)
-        #     if 'Update' in messageObject:
-        #         messageObject['Update'] = messageObject['Update']
-        #     messageObject['PacketType'] = PacketTypes.PT_ADD_SCHEDULE.value
-        #     messageObject['MachineName'] = self.MachineId
-        #     messageObject['Status'] = str(retVal)
-        #     self.EnqueuePacket(messageObject)
-        #     return
-        # if packetType == PacketTypes.PT_REMOVE_SCHEDULE.value:
-        #     info(PacketTypes.PT_REMOVE_SCHEDULE)
-        #     retVal = self.schedulerEngine.RemoveScheduledItem(messageObject)
-        #     messageObject['PacketType'] = PacketTypes.PT_REMOVE_SCHEDULE.value
-        #     messageObject['MachineName'] = self.MachineId
-        #     messageObject['Status'] = str(retVal)
-        #     self.EnqueuePacket(messageObject)
-        #     return
-        # if packetType == PacketTypes.PT_GET_SCHEDULES.value:
-        #     info(PacketTypes.PT_GET_SCHEDULES)
-        #     schedulesJson = self.schedulerEngine.GetSchedules()
-        #     data['Schedules'] = schedulesJson
-        #     data['PacketType'] = PacketTypes.PT_GET_SCHEDULES.value
-        #     data['MachineName'] = self.MachineId
-        #     self.EnqueuePacket(data)
-        #     return
-        # if packetType == PacketTypes.PT_UPDATE_SCHEDULES.value:
-        #     info(PacketTypes.PT_UPDATE_SCHEDULES)
-        #     retVal = self.schedulerEngine.UpdateSchedules(messageObject)
-        #     return
-        # if packetType == PacketTypes.PT_HISTORY_DATA_RESPONSE.value:
-        #     info(PacketTypes.PT_HISTORY_DATA_RESPONSE)
-        #     try:
-        #         id = messageObject['Id']
-        #         history = History()
-        #         if messageObject['Status']:
-        #             history.Sent(True, self.sentHistoryData[id]['HistoryData'])
-        #             self.historySendFails = 0
-        #         else:
-        #             history.Sent(False, self.sentHistoryData[id]['HistoryData'])
-        #             self.historySendFails += 1
-        #         del self.sentHistoryData[id]
-        #     except:
-        #         exception('Processing history response packet failed')
-        #     return
-        # info("Skipping not required packet: " + str(packetType))
 
     def ProcessPowerCommand(self, message):
         """Process command to reboot/shutdown the system"""
@@ -834,102 +471,6 @@ class CloudServerClient:
             info('Unknown device command: {}'.format(message['suffix']))
         debug('ProcessDeviceCommand result: {}'.format(result))
 
-        # commandType = messageObject['Type']
-        # commandService = messageObject['Service']
-        # parameters = messageObject['Parameters']
-        # info('PT_DEVICE_COMMAND: ' + dumps(messageObject))
-        # debug('ProcessDeviceCommand: ' + commandType + ' ' + commandService + ' ' + str(parameters))
-        # id = messageObject['Id']
-        # sensorId = None
-        # if 'SensorId' in messageObject:
-        #     sensorId = messageObject['SensorId']
-        # data = {}
-        # retValue = ''
-        # # if commandService == 'wifi':
-        # #     if commandType == 'status':
-        # #         retValue = self.wifiManager.GetStatus()
-        # #     if commandType == 'scan':
-        # #         retValue = self.wifiManager.GetWirelessNetworks()
-        # #     if commandType == 'setup':
-        # #         try:
-        # #             ssid = parameters["ssid"]
-        # #             password = parameters["password"]
-        # #             interface = parameters["interface"]
-        # #             retValue = self.wifiManager.Setup(ssid, password, interface)
-        # #         except:
-        # #             retValue = False
-        # # if commandService == 'services':
-        # #     serviceName = parameters['ServiceName']
-        # #     if commandType == 'status':
-        # #         retValue = self.serviceManager.Status(serviceName)
-        # #     if commandType == 'start':
-        # #         retValue = self.serviceManager.Start(serviceName)
-        # #     if commandType == 'stop':
-        # #         retValue = self.serviceManager.Stop(serviceName)
-        # if commandService == 'sensor':
-        #     debug('SENSOR_COMMAND processing: ' + str(parameters))
-        #     method = None
-        #     channel = None
-        #     value = None
-        #     driverClass = None
-        #     sensorType = None
-        #     sensorName = None
-        #     if 'SensorName' in parameters:
-        #         sensorName = parameters["SensorName"]
-        #     if 'DriverClass' in parameters:
-        #         driverClass = parameters["DriverClass"]
-        #     if commandType == 'enable':
-        #         sensor = None
-        #         enable = None
-        #         if 'Sensor' in parameters:
-        #             sensor = parameters["Sensor"]
-        #         if 'Enable' in parameters:
-        #             enable = parameters["Enable"]
-        #         retValue = self.sensorsClient.EnableSensor(sensor, enable)
-        #     else:
-        #         if commandType == 'edit':
-        #             description = sensorName
-        #             device = None
-        #             if "Description" in parameters:
-        #                 description = parameters["Description"]
-        #             if "Args" in parameters:
-        #                 args = parameters["Args"]
-        #             retValue = self.sensorsClient.EditSensor(sensorName, description, driverClass, args)
-        #         # else:
-        #         #     if 'Channel' in parameters:
-        #         #         channel = parameters["Channel"]
-        #         #     if 'Method' in parameters:
-        #         #         method = parameters["Method"]
-        #         #     if 'Value' in parameters:
-        #         #         value = parameters["Value"]
-        #         #     if 'SensorType' in parameters:
-        #         #         sensorType = parameters["SensorType"]
-        #         #     retValue = self.sensorsClient.SensorCommand(commandType, sensorName, sensorType, driverClass, method, channel, value)
-        # # if commandService == 'gpio':
-        # #     method = parameters["Method"]
-        # #     channel = parameters["Channel"]
-        # #     value = parameters["Value"]
-        # #     debug('ProcessDeviceCommand: ' + commandService + ' ' + method + ' ' + str(channel) + ' ' + str(value))
-        # #     retValue = str(self.sensorsClient.GpioCommand(commandType, method, channel, value))
-        # #     debug('ProcessDeviceCommand gpio returned value: ' + retValue)
-        # # if commandService == 'config':
-        # #     try:
-        # #         config_id = parameters["id"]
-        # #         arguments = parameters["arguments"]
-        # #         (retValue, output) = SystemConfig.ExecuteConfigCommand(config_id, arguments)
-        # #         data["Output"] = output
-        # #         retValue = str(retValue)
-        # #     except:
-        # #         exception("Exception on config")
-        # data['Response'] = retValue
-        # data['Id'] = id
-        # data['PacketType'] = PacketTypes.PT_DEVICE_COMMAND_RESPONSE.value
-        # data['MachineName'] = self.MachineId
-        # info('PT_DEVICE_COMMAND_RESPONSE: ' + dumps(data))
-        # if sensorId:
-        #     data['SensorId'] = sensorId
-        # self.EnqueuePacket(data)
-
     def EnqueuePacket(self, message):
         """Enqueue a message packet to send to the server"""
         if isinstance(message, dict):
@@ -946,14 +487,6 @@ class CloudServerClient:
         except Empty:
             packet = None
         return packet
-
-    # def RequestSchedules(self):
-    #     """Enqueue a packet to request schedules from the server"""
-    #     data = {}
-    #     data['MachineName'] = self.MachineId
-    #     data['Stored'] = "dynamodb"
-    #     data['PacketType'] = PacketTypes.PT_REQUEST_SCHEDULES.value
-    #     self.EnqueuePacket(data)
 
     def SendHistoryData(self):
         """Enqueue a packet containing historical data to send to the server"""

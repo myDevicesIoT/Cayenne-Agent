@@ -67,29 +67,6 @@ class SystemInfo():
             exception('Error getting memory info')
         return memory_info
 
-    # def getUptime(self):
-    #     """Get system uptime as a dict
-
-    #     Returned dict example::
-
-    #         {
-    #             'uptime': 90844.69,
-    #             'idle': 391082.64
-    #         }
-    #     """
-    #     info = {}
-    #     uptime = 0.0
-    #     idle = 0.0
-    #     try:
-    #         with open('/proc/uptime', 'r') as f_stat:
-    #             lines = [line.split(' ') for content in f_stat.readlines() for line in content.split('\n') if line != '']
-    #             uptime = float(lines[0][0])
-    #             idle = float(lines[0][1])
-    #     except:
-    #         exception('Error getting uptime')
-    #     info['uptime'] = uptime
-    #     return info
-
     def getDiskInfo(self):
         """Get disk usage information as a list formatted for Cayenne MQTT
 
