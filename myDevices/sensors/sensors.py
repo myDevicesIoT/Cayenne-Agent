@@ -335,7 +335,7 @@ class SensorsClient():
                 return str(self.gpio.setFunctionString(channel, 'out'))
         elif command in ('value', ''):
             return self.gpio.digitalWrite(channel, value)
-        debug.log('GpioCommand not set')
+        debug('GpioCommand not set')
         return 'failure'
 
     def SensorCommand(self, command, sensorId, channel, value):
