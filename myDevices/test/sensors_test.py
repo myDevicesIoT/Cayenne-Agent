@@ -108,7 +108,8 @@ class SensorsClientTest(unittest.TestCase):
         #Test getting analog value
         channel = 'dev:{}'.format(sensors['distance']['name'])
         retrievedSensorInfo = next(obj for obj in SensorsClientTest.client.SensorsInfo() if obj['channel'] == channel)
-        self.assertEqual(retrievedSensorInfo['value'], 0.0)
+        self.assertGreaterEqual(retrievedSensorInfo['value'], 0.0)
+        self.assertLessEqual(retrievedSensorInfo['value'], 1.0)
         for sensor in sensors.values():
             self.assertTrue(SensorsClientTest.client.RemoveSensor(sensor['name']))
 
