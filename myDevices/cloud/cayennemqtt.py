@@ -83,7 +83,7 @@ class CayenneMQTTClient:
     connected = False
     on_message = None
     
-    def begin(self, username, password, clientid, hostname='mqtt.mydevices.com', port=1883):
+    def begin(self, username, password, clientid, hostname='mqtt.mydevices.com', port=8883):
         """Initializes the client and connects to Cayenne.
         
         username is the Cayenne username.
@@ -98,10 +98,10 @@ class CayenneMQTTClient:
         self.client.on_disconnect = self.disconnect_callback
         self.client.on_message = self.message_callback
         self.client.username_pw_set(username, password)
-        if port == 8883:
+        if port != 1883:
             self.client.tls_set(ca_certs='/etc/ssl/certs/ca-certificates.crt', tls_version=PROTOCOL_TLSv1_2)
         self.client.connect(hostname, port, 60)
-        info("Connecting to %s..." % hostname)
+        info('Connecting to {}:{}'.format(hostname, port))
 
     def connect_callback(self, client, userdata, flags, rc):
         """The callback for when the client connects to the server.
