@@ -47,20 +47,20 @@ class CayenneApiClient:
         url = '/things/key/activate'
         return self.sendRequest('POST', url, body)
 
-    def getId(self, content):
+    def getCredentials(self, content):
         if content is None:
             return None
         body = content.decode("utf-8")
         if body is None or body is "":
             return None
-        return json.loads(body)['id']
+        return json.loads(body)
 
     def loginDevice(self, inviteCode):
         response = self.authenticate(inviteCode)
         if response and response.status_code == 200:
-            return self.getId(response.content)
+            return self.getCredentials(response.content)
         if not response or response.status_code == 412:
             response = self.activate(inviteCode)
             if response and response.status_code == 200:
-                return self.getId(response.content)
+                return self.getCredentials(response.content)
         return None

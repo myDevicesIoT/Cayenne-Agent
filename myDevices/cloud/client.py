@@ -178,7 +178,6 @@ class CloudServerClient:
             self.config.set('Agent', 'InstallDate', self.installDate)
         self.networkConfig = Config(NETWORK_SETTINGS)
         self.sensorsClient = sensors.SensorsClient()
-        self.MachineId = None
         self.username = None
         self.password = None
         self.clientId = None
@@ -290,15 +289,12 @@ class CloudServerClient:
             info('Registration succeeded for invite code {}, credentials = {}'.format(inviteCode, credentials))
             self.config.set('Agent', 'Initialized', 'true')
             try:
-                self.MachineId = credentials #credentials['id']
-                self.username = 'username' #credentials['mqtt']['username']
-                self.password = 'password' #credentials['mqtt']['password']
-                self.clientId = 'client_id' #credentials['mqtt']['clientId']
-                self.config.set('Agent', 'Id', self.MachineId)
+                self.username = credentials['mqtt']['username']
+                self.password = credentials['mqtt']['password']
+                self.clientId = credentials['mqtt']['clientId']
             except:
                 exception('Invalid credentials, closing the process')
                 Daemon.Exit()
-        info('CheckSubscription: MachineId {}'.format(self.MachineId))
  
     def Start(self):
         """Connect to the server"""
@@ -351,12 +347,6 @@ class CloudServerClient:
     def RunAction(self, action):
         """Run a specified action"""
         debug('RunAction')
-        if 'MachineName' in action:
-            #Use the config file machine if self.MachineId has not been set yet due to connection issues 
-            machine_id = self.MachineId if self.MachineId else self.config.get('Agent', 'Id')
-            if machine_id != action['MachineName']:
-                debug('Scheduler action is not assigned for this machine: ' + str(action))
-                return
         self.ExecuteMessage(action)
 
     def ProcessMessage(self):
@@ -450,45 +440,45 @@ class CloudServerClient:
             packet = None
         return packet
 
-    def SendHistoryData(self):
-        """Enqueue a packet containing historical data to send to the server"""
-        try:
-            info('SendHistoryData start')
-            history = History()
-            history.Reset()
-            while True:
-                try:
-                    #If there is no acknowledgment after a minute we assume failure
-                    sendFailed = [key for key, item in self.sentHistoryData.items() if (item['Timestamp'] + 60) < time()]
-                    info('SendHistoryData previously SendFailed items: ' + str(sendFailed))
-                    for id in sendFailed:
-                        self.historySendFails += len(sendFailed)
-                        history.Sent(False, self.sentHistoryData[id]['HistoryData'])
-                        del self.sentHistoryData[id]
-                    historyData = history.GetHistoricalData()
-                    if historyData:
-                        data = {}
-                        info('SendHistoryData historyData: ' + str(historyData))
-                        data['MachineName'] = self.MachineId
-                        data['Timestamp'] = int(time())
-                        data['PacketType'] = PacketTypes.PT_HISTORY_DATA.value
-                        id = sha256(dumps(historyData).encode('utf8')).hexdigest()
-                        data['Id'] = id
-                        data['HistoryData'] = historyData
-                        info('Sending history data, id = {}'.format(id))
-                        debug('SendHistoryData historyData: ' + str(data))
-                        self.EnqueuePacket(data)
-                        #this will keep accumulating
-                        self.sentHistoryData[id] = data
-                except Exception as ex:
-                    exception('SendHistoryData error' + str(ex))
-                delay = 60
-                if self.historySendFails > 2:
-                    delay = 120
-                if self.historySendFails > 4:
-                    #Wait an hour if we keep getting send failures.
-                    delay = 3600
-                    self.historySendFails = 0
-                sleep(delay)
-        except Exception as ex:
-            exception('SendHistoryData general exception: ' + str(ex))
+    # def SendHistoryData(self):
+    #     """Enqueue a packet containing historical data to send to the server"""
+    #     try:
+    #         info('SendHistoryData start')
+    #         history = History()
+    #         history.Reset()
+    #         while True:
+    #             try:
+    #                 #If there is no acknowledgment after a minute we assume failure
+    #                 sendFailed = [key for key, item in self.sentHistoryData.items() if (item['Timestamp'] + 60) < time()]
+    #                 info('SendHistoryData previously SendFailed items: ' + str(sendFailed))
+    #                 for id in sendFailed:
+    #                     self.historySendFails += len(sendFailed)
+    #                     history.Sent(False, self.sentHistoryData[id]['HistoryData'])
+    #                     del self.sentHistoryData[id]
+    #                 historyData = history.GetHistoricalData()
+    #                 if historyData:
+    #                     data = {}
+    #                     info('SendHistoryData historyData: ' + str(historyData))
+    #                     data['MachineName'] = self.MachineId
+    #                     data['Timestamp'] = int(time())
+    #                     data['PacketType'] = PacketTypes.PT_HISTORY_DATA.value
+    #                     id = sha256(dumps(historyData).encode('utf8')).hexdigest()
+    #                     data['Id'] = id
+    #                     data['HistoryData'] = historyData
+    #                     info('Sending history data, id = {}'.format(id))
+    #                     debug('SendHistoryData historyData: ' + str(data))
+    #                     self.EnqueuePacket(data)
+    #                     #this will keep accumulating
+    #                     self.sentHistoryData[id] = data
+    #             except Exception as ex:
+    #                 exception('SendHistoryData error' + str(ex))
+    #             delay = 60
+    #             if self.historySendFails > 2:
+    #                 delay = 120
+    #             if self.historySendFails > 4:
+    #                 #Wait an hour if we keep getting send failures.
+    #                 delay = 3600
+    #                 self.historySendFails = 0
+    #             sleep(delay)
+    #     except Exception as ex:
+    #         exception('SendHistoryData general exception: ' + str(ex))
