@@ -8,6 +8,7 @@ from json import dumps, loads
 from threading import Thread
 from time import strftime, localtime, tzset, time, sleep
 from queue import Queue, Empty
+from myDevices import __version__
 from myDevices.utils.config import Config
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from myDevices.sensors import sensors
@@ -250,7 +251,7 @@ class CloudServerClient:
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_HARDWARE_MODEL, value=self.hardware.getModel())
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
-            cayennemqtt.DataChannel.add(data, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent','Version'))
+            cayennemqtt.DataChannel.add(data, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent', 'Version', __version__))
             config = SystemConfig.getConfig()
             if config:
                 channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}

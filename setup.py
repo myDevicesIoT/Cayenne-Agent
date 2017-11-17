@@ -2,6 +2,7 @@ from setuptools import setup, Extension
 import os
 import pwd
 import grp
+from myDevices import __version__
 from myDevices.system.hardware import Hardware
 
 
@@ -25,7 +26,7 @@ except KeyError:
     user_id = int(os.environ['SUDO_UID'])
     group_id = int(os.environ['SUDO_GID'])
     username = pwd.getpwuid(user_id).pw_name
-directories = ('/etc/myDevices', '/var/log/myDevices', '/var/run/myDevices')
+directories = ('/etc/myDevices', '/etc/myDevices/scripts', '/var/log/myDevices', '/var/run/myDevices')
 for directory in directories:
     try:
         os.makedirs(directory)
@@ -34,7 +35,7 @@ for directory in directories:
     os.chown(directory, user_id, group_id)
 
 setup(name             = 'myDevices',
-      version          = '0.2.1',
+      version          = __version__,
       author           = 'myDevices',
       author_email     = 'N/A',
       description      = 'myDevices Cayenne agent',
