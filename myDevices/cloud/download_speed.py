@@ -22,7 +22,7 @@ class DownloadSpeed():
     """Class for checking download speed"""
 
     def __init__(self, config):
-        """Initialize variable and start download speed test"""
+        """Initialize variables and start download speed test"""
         self.downloadSpeed = None
         self.testTime = None
         self.isRunning = False
@@ -54,7 +54,7 @@ class DownloadSpeed():
             self.interface = netifaces.gateways()['default'][netifaces.AF_INET][1]
             a = datetime.now()
             info('Executing regular download test for network speed')
-            url = self.config.cloudConfig.DownloadSpeedTestUrl if 'DownloadSpeedTestUrl' in self.config.cloudConfig else defaultUrl
+            url = self.config.get('Agent', 'DownloadSpeedTestUrl', defaultUrl)
             debug(url + ' ' + download_path)
             request.urlretrieve(url, download_path)
             request.urlcleanup()
@@ -78,7 +78,7 @@ class DownloadSpeed():
         """Return true if it is time to run a new download speed test"""
         if self.testTime is None:
             return True
-        downloadRate = int(self.config.cloudConfig.DownloadSpeedTestRate) if 'DownloadSpeedTestRate' in self.config.cloudConfig else defaultDownloadRate
+        downloadRate = self.config.getInt('Agent', 'DownloadSpeedTestRate', defaultDownloadRate)
         if self.testTime + timedelta(seconds=downloadRate+self.delay ) < datetime.now():
             return True
         return False

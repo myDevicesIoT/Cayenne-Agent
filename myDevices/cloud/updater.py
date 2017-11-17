@@ -41,21 +41,13 @@ class Updater(Thread):
         self.env = self.appSettings.get('Agent','Environment', fallback='live')
         global SETUP_URL
         global UPDATE_URL
-        global TIME_TO_CHECK
-
-        if self.env == "live":
+        if self.env == 'live':
             SETUP_URL = SETUP_URL + SETUP_NAME
         else:
-            SETUP_URL = SETUP_URL + self.env + "_" + SETUP_NAME
+            SETUP_URL = SETUP_URL + self.env + '_' + SETUP_NAME
             UPDATE_URL = UPDATE_URL + self.env
-
-        if 'UpdateUrl' in config.cloudConfig:
-            UPDATE_URL = config.cloudConfig.UpdateUrl
-        if 'UpdateCheckRate' in config.cloudConfig:
-            interval = int(config.cloudConfig.UpdateCheckRate)
-            TIME_TO_CHECK = interval + random.randint(0, interval*10)
-        if 'SetupUrl' in config.cloudConfig:
-            SETUP_URL = config.cloudConfig.SetupUrl
+        UPDATE_URL = self.appSettings.get('Agent', 'UpdateUrl', UPDATE_URL)
+        SETUP_URL = self.appSettings.get('Agent', 'SetupUrl', SETUP_URL)
         self.scheduler = scheduler(time, sleep)
         self.Continue = True
         self.currentVersion = ''
@@ -98,14 +90,13 @@ class Updater(Thread):
         elapsedTime=now-self.startTime
         if elapsedTime.total_seconds() < TIME_TO_CHECK:
             return
-
         self.startTime = datetime.now()
         if path.exists(UPDATE_PATH) == True:
             error('myDevices updater another update in progress')
             return
         sleep(1)
         # Run the update as root
-        executeCommand("sudo python3 -m myDevices.cloud.doupdatecheck")
+        executeCommand('sudo python3 -m myDevices.cloud.doupdatecheck')
 
     def DoUpdateCheck(self):
         mkdir(UPDATE_PATH)
@@ -114,13 +105,11 @@ class Updater(Thread):
             self.currentVersion = self.appSettings.get('Agent', 'Version', fallback='1.0.1.0')
         except:
             error('Updater Current Version not found')
-
         sleep(1)
         if not self.currentVersion:
             error('Current version not available. Cannot update agent.')
             self.UpdateCleanup()
             return
-
         retValue = self.RetrieveUpdate()
         sleep(1)
         if retValue is False:
@@ -129,7 +118,6 @@ class Updater(Thread):
             return
         sleep(1)
         retValue = self.CheckVersion(self.currentVersion, self.newVersion)
-
         if retValue is True:
             info('Update needed, current version: {}, update version: {}'.format(self.currentVersion, self.newVersion))
             retValue = self.ExecuteUpdate()
@@ -143,15 +131,17 @@ class Updater(Thread):
         self.UpdateCleanup()
 
     def SetupUpdater(self):
+        global TIME_TO_CHECK
+        TIME_TO_CHECK = self.appSettings.get('Agent', 'UpdateCheckRate', TIME_TO_CHECK)
         self.scheduler.enter(TIME_TO_CHECK, 1, self.CheckUpdate, ())
 
     def RetrieveUpdate(self):
         try:
             info('Checking update version')
-            debug( UPDATE_URL + ' ' + UPDATE_CFG )
+            debug('Retrieve update config: {} {}'.format(UPDATE_URL, UPDATE_CFG))
             retValue = self.DownloadFile(UPDATE_URL, UPDATE_CFG)
             if retValue is False:
-                error('failed to download update file')
+                error('Failed to download update file')
                 return retValue
             updateConfig = Config(UPDATE_CFG)
             try:
@@ -159,7 +149,6 @@ class Updater(Thread):
                 self.downloadUrl = updateConfig.get('UPDATES','Url')
             except:
                 error('Updater missing: update version or Url')
-
             info('Updater retrieve update success')
             return True
         except:
@@ -179,7 +168,7 @@ class Updater(Thread):
             return False
 
     def ExecuteUpdate(self):
-        debug('')
+        debug('Execute update: {} {}'.format(SETUP_URL, SETUP_PATH))
         retValue = self.DownloadFile(SETUP_URL, SETUP_PATH)
         if retValue is False:
             return retValue

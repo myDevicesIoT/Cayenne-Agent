@@ -7,7 +7,6 @@ class Config:
         self.path = path
         self.config = RawConfigParser()
         self.config.optionxform = str
-        self.cloudConfig = {}
         try:
             with open(path) as fp:
                 self.config.readfp(fp)
@@ -21,13 +20,18 @@ class Config:
             except NoSectionError:
                 self.config.add_section(section)
                 self.config.set(section, key, value)
-        return self.save()
+        self.save()
 
     def get(self, section, key, fallback=_UNSET):
         return self.config.get(section, key, fallback=fallback)
 
     def getInt(self, section, key, fallback=_UNSET):
         return self.config.getint(section, key, fallback=fallback)
+    
+    def remove(self, section, key):
+        with self.mutex:
+            result = self.config.remove_option(section, key)       
+        self.save()
 
     def save(self):
         with self.mutex:
@@ -36,8 +40,5 @@ class Config:
 
     def sections(self):
         return self.config.sections()
-
-    def setCloudConfig(self, cloudConfig):
-        self.cloudConfig = cloudConfig
 
 

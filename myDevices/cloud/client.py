@@ -375,10 +375,8 @@ class CloudServerClient:
             self.ProcessDeviceCommand(message)
         elif channel in (cayennemqtt.SYS_I2C, cayennemqtt.SYS_SPI, cayennemqtt.SYS_UART, cayennemqtt.SYS_DEVICETREE):
             self.ProcessConfigCommand(message)
-        elif channel == cayennemqtt.AGENT_UNINSTALL:
-            executeCommand('sudo /etc/myDevices/uninstall/uninstall.sh')
-        # elif channel == cayennemqtt.AGENT_CONFIG:
-        #     self.config.setCloudConfig(message['payload'])
+        elif channel == cayennemqtt.AGENT_MANAGE:
+            self.ProcessAgentCommand(message)
         else:
             info('Unknown message')
 
@@ -387,6 +385,20 @@ class CloudServerClient:
         commands = {'reset': 'sudo shutdown -r now', 'halt': 'sudo shutdown -h now'}
         output, result = executeCommand(commands[message['payload']])
         debug('ProcessPowerCommand: {}, result: {}, output: {}'.format(message, result, output))
+
+    def ProcessAgentCommand(self, message):
+        """Process command to manage the agent state"""
+        if message['suffix'] == 'uninstall':
+            output, result = executeCommand('sudo /etc/myDevices/uninstall/uninstall.sh')
+            debug('ProcessAgentCommand: {}, result: {}, output: {}'.format(message, result, output))
+        elif message['suffix'] == 'config':
+            for key, value in message['payload'].items():
+                if value is None:
+                    info('Remove config item: {}'.format(key))
+                    self.config.remove('Agent', key)
+                else:
+                    info('Set config item: {} {}'.format(key, value))
+                    self.config.set('Agent', key, value)
 
     def ProcessConfigCommand(self, message):
         """Process system configuration command"""
