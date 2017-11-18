@@ -7,7 +7,7 @@ from myDevices.utils.logger import debug, error, exception, info, logJson, warn
 # Topics
 DATA_TOPIC = 'data/json'
 COMMAND_TOPIC = 'cmd'
-COMMAND_RESPONSE_TOPIC = 'response'
+COMMAND_RESPONSE_TOPIC = 'cmd.res'
 
 # Data Channels
 SYS_HARDWARE_MAKE = 'sys:hw:make'
@@ -157,8 +157,14 @@ class CayenneMQTTClient:
             message = {}
             try:
                 message['payload'] = loads(msg.payload.decode())
+                message['msg_id'] = message['payload']['msg_id']
             except decoder.JSONDecodeError:
-                message['payload'] = msg.payload.decode()
+                payload = msg.payload.decode().split(',')
+                if len(payload) > 1:
+                    message['msg_id'] = payload[0]
+                    message['payload'] = payload[1]
+                else:
+                    message['payload'] = payload[0]
             channel = msg.topic.split('/')[-1].split(';')
             message['channel'] = channel[0]
             if len(channel) > 1:

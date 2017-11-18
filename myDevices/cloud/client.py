@@ -109,12 +109,14 @@ class WriterThread(Thread):
                 if self.cloudClient.mqttClient.connected == False:
                     info('WriterThread mqttClient not connected')
                     continue
-                message = self.cloudClient.DequeuePacket()
+                topic, message = self.cloudClient.DequeuePacket()
                 if not message:
                     info('WriterThread mqttClient no message, {}'.format(message))
                     continue
-                # debug('WriterThread, topic: {} {}'.format(cayennemqtt.DATA_TOPIC, message))
-                self.cloudClient.mqttClient.publish_packet(cayennemqtt.DATA_TOPIC, message)
+                # debug('WriterThread, topic: {} {}'.format(topic, message))
+                if not isinstance(message, str):
+                    message = dumps(message)
+                self.cloudClient.mqttClient.publish_packet(topic, message)
                 message = None
             except:
                 exception("WriterThread Unexpected error")
@@ -383,74 +385,124 @@ class CloudServerClient:
 
     def ProcessPowerCommand(self, message):
         """Process command to reboot/shutdown the system"""
-        commands = {'reset': 'sudo shutdown -r now', 'halt': 'sudo shutdown -h now'}
-        output, result = executeCommand(commands[message['payload']])
-        debug('ProcessPowerCommand: {}, result: {}, output: {}'.format(message, result, output))
+        error = None
+        try:
+            commands = {'reset': 'sudo shutdown -r now', 'halt': 'sudo shutdown -h now'}
+            output, result = executeCommand(commands[message['payload']])
+            debug('ProcessPowerCommand: {}, result: {}, output: {}'.format(message, result, output))
+            if result != 0:
+                error = 'Error executing shutdown command'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
 
     def ProcessAgentCommand(self, message):
         """Process command to manage the agent state"""
-        if message['suffix'] == 'uninstall':
-            output, result = executeCommand('sudo /etc/myDevices/uninstall/uninstall.sh')
-            debug('ProcessAgentCommand: {}, result: {}, output: {}'.format(message, result, output))
-        elif message['suffix'] == 'config':
-            for key, value in message['payload'].items():
-                if value is None:
-                    info('Remove config item: {}'.format(key))
-                    self.config.remove('Agent', key)
-                else:
-                    info('Set config item: {} {}'.format(key, value))
-                    self.config.set('Agent', key, value)
+        error = None
+        try:
+            if message['suffix'] == 'uninstall':
+                output, result = executeCommand('sudo /etc/myDevices/uninstall/uninstall.sh')
+                debug('ProcessAgentCommand: {}, result: {}, output: {}'.format(message, result, output))
+                if result != 0:
+                    error = 'Error uninstalling agent'
+            elif message['suffix'] == 'config':
+                for key, value in message['payload'].items():
+                    if value is None:
+                        info('Remove config item: {}'.format(key))
+                        self.config.remove('Agent', key)
+                    else:
+                        info('Set config item: {} {}'.format(key, value))
+                        self.config.set('Agent', key, value)
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
 
     def ProcessConfigCommand(self, message):
         """Process system configuration command"""
-        value = 1 - int(message['payload']) #Invert the value since the config script uses 0 for enable and 1 for disable
-        command_id = {cayennemqtt.SYS_I2C: 11, cayennemqtt.SYS_SPI: 12, cayennemqtt.SYS_UART: 13, cayennemqtt.SYS_DEVICETREE: 9}
-        result, output = SystemConfig.ExecuteConfigCommand(command_id[message['channel']], value)
-        debug('ProcessConfigCommand: {}, result: {}, output: {}'.format(message, result, output))
+        error = None
+        try:
+            value = 1 - int(message['payload']) #Invert the value since the config script uses 0 for enable and 1 for disable
+            command_id = {cayennemqtt.SYS_I2C: 11, cayennemqtt.SYS_SPI: 12, cayennemqtt.SYS_UART: 13, cayennemqtt.SYS_DEVICETREE: 9}
+            result, output = SystemConfig.ExecuteConfigCommand(command_id[message['channel']], value)
+            debug('ProcessConfigCommand: {}, result: {}, output: {}'.format(message, result, output))
+            if result != 0:
+                error = 'Error executing config command'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
     
     def ProcessGpioCommand(self, message):
         """Process GPIO command"""
-        channel = int(message['channel'].replace(cayennemqtt.SYS_GPIO + ':', ''))
-        result = self.sensorsClient.GpioCommand(message['suffix'], channel, message['payload'])
-        debug('ProcessGpioCommand result: {}'.format(result))
+        error = None
+        try:
+            channel = int(message['channel'].replace(cayennemqtt.SYS_GPIO + ':', ''))
+            result = self.sensorsClient.GpioCommand(message['suffix'], channel, message['payload'])
+            debug('ProcessGpioCommand result: {}'.format(result))
+            if result == 'failure':
+                error = 'GPIO command failed'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
 
     def ProcessSensorCommand(self, message):
         """Process sensor command"""
-        sensor_info = message['channel'].replace(cayennemqtt.DEV_SENSOR + ':', '').split(':')
-        sensor = sensor_info[0]
-        channel = None
-        if len(sensor_info) > 1:
-            channel = sensor_info[1]
-        result = self.sensorsClient.SensorCommand(message['suffix'], sensor, channel, message['payload'])
-        debug('ProcessSensorCommand result: {}'.format(result))
+        error = None
+        try:
+            sensor_info = message['channel'].replace(cayennemqtt.DEV_SENSOR + ':', '').split(':')
+            sensor = sensor_info[0]
+            channel = None
+            if len(sensor_info) > 1:
+                channel = sensor_info[1]
+            result = self.sensorsClient.SensorCommand(message['suffix'], sensor, channel, message['payload'])
+            debug('ProcessSensorCommand result: {}'.format(result))
+            if result is False:
+                error = 'Sensor command failed'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
 
     def ProcessDeviceCommand(self, message):
         """Process a device command to add/edit/remove a sensor"""
-        payload = message['payload']
-        info('ProcessDeviceCommand payload: {}'.format(payload))
-        if message['suffix'] == 'add':
-            result = self.sensorsClient.AddSensor(payload['id'], payload['description'], payload['class'], payload['args'])
-        elif message['suffix'] == 'edit':
-            result = self.sensorsClient.EditSensor(payload['id'], payload['description'], payload['class'], payload['args'])
-        elif message['suffix'] == 'delete':
-            result = self.sensorsClient.RemoveSensor(payload['id'])
-        else:
-            info('Unknown device command: {}'.format(message['suffix']))
-        debug('ProcessDeviceCommand result: {}'.format(result))
+        error = None
+        try:
+            payload = message['payload']
+            info('ProcessDeviceCommand payload: {}'.format(payload))
+            if message['suffix'] == 'add':
+                result = self.sensorsClient.AddSensor(payload['id'], payload['description'], payload['class'], payload['args'])
+            elif message['suffix'] == 'edit':
+                result = self.sensorsClient.EditSensor(payload['id'], payload['description'], payload['class'], payload['args'])
+            elif message['suffix'] == 'delete':
+                result = self.sensorsClient.RemoveSensor(payload['id'])
+            else:
+                info('Unknown device command: {}'.format(message['suffix']))
+            debug('ProcessDeviceCommand result: {}'.format(result))
+            if result is False:
+                error = 'Device command failed'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
 
-    def EnqueuePacket(self, message):
+    def EnqueueCommandResponse(self, message, error):
+        """Send response after processing a command message"""
+        debug('EnqueueCommandResponse error: {}'.format(error))
+        if error:
+            response = '{},error={}'.format(message['msg_id'], error)
+        else:
+            response = '{},ok'.format(message['msg_id'])
+        self.EnqueuePacket(response, cayennemqtt.COMMAND_RESPONSE_TOPIC)
+
+    def EnqueuePacket(self, message, topic=cayennemqtt.DATA_TOPIC):
         """Enqueue a message packet to send to the server"""
-        json_data = dumps(message)
-        message = None
-        self.writeQueue.put(json_data)
+        packet = (topic, message)
+        self.writeQueue.put(packet)
 
     def DequeuePacket(self):
         """Dequeue a message packet to send to the server"""
-        packet = None
+        packet = (None, None)
         try:
             packet = self.writeQueue.get()
         except Empty:
-            packet = None
+            pass
         return packet
 
     # def SendHistoryData(self):

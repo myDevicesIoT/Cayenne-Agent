@@ -39,11 +39,11 @@ class SystemConfig:
         (output, returnCode) = executeCommand(command)        
         debug('ExecuteConfigCommand '+ str(config_id) + ' args: ' + str(parameters) + ' retCode: ' + str(returnCode) + ' output: ' + output )
         if "reboot required" in output:
-            ThreadPool.Submit(SystemConfig.RestartService)
+            ThreadPool.Submit(SystemConfig.RestartDevice)
         return (returnCode, output)
 
     @staticmethod
-    def RestartService():
+    def RestartDevice():
         """Reboot the device"""
         sleep(5)
         command = "sudo shutdown -r now"
