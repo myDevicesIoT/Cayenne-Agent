@@ -66,10 +66,10 @@ class DownloadSpeed():
                 remove(download_path)
                 return True
         except socket_error as serr:
-                error ('TestDownload:' + str(serr))
-                ret = False
-                Daemon.OnFailure('cloud', serr.errno)
-                return
+            error ('TestDownload:' + str(serr))
+            ret = False
+            Daemon.OnFailure('cloud', serr.errno)
+            return
         except:
             exception('TestDownload Failed')
         return False

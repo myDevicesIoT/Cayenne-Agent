@@ -29,15 +29,19 @@ client = None
 pidfile = '/var/run/myDevices/cayenne.pid'
 def signal_handler(signal, frame):
     """Handle program interrupt so the agent can exit cleanly"""
-    if client:
+    if client and client.connected:
         if signal == SIGINT:
             info('Program interrupt received, client exiting')
             client.Destroy()
             remove(pidfile)
         else:
             client.Restart()
+    elif signal == SIGINT:
+        remove(pidfile)
+        raise SystemExit
 signal(SIGUSR1, signal_handler)
 signal(SIGINT, signal_handler)
+
 
 def exceptionHook(exc_type, exc_value, exc_traceback):
     """Make sure any uncaught exceptions are logged"""
@@ -89,8 +93,7 @@ def writePidToFile(pidfile):
         with open(pidfile, 'r') as file:
             pid = int(file.read())
             if ProcessInfo.IsRunning(pid) and pid != getpid():
-                Daemon.Exit()
-                return
+                raise SystemExit
     pid = str(getpid())
     with open(pidfile, 'w') as file:
         file.write(pid)
@@ -127,6 +130,7 @@ def main(argv):
     CayenneApiHost = config.get('CONFIG', 'CayenneApi', 'https://api.mydevices.com')
     global client
     client = CloudServerClient(HOST, PORT, CayenneApiHost)
+    client.Start()
 
 if __name__ == "__main__":
     try:

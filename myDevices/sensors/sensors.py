@@ -5,7 +5,7 @@ sensors and actuators as well as monitor their states and execute commands.
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from time import sleep, time
 from json import loads, dumps
-from threading import RLock
+from threading import RLock, Event
 from myDevices.system import services
 from datetime import datetime, timedelta
 from os import path, getpid
@@ -29,7 +29,7 @@ class SensorsClient():
     def __init__(self):
         """Initialize the bus and sensor info and start monitoring sensor states"""
         self.sensorMutex = RLock()
-        self.continueMonitoring = False
+        self.exiting = Event()
         self.onDataChanged = None
         self.onSystemInfo = None
         self.systemData = []
@@ -58,21 +58,18 @@ class SensorsClient():
 
     def StartMonitoring(self):
         """Start thread monitoring sensor data"""
-        self.continueMonitoring = True
         ThreadPool.Submit(self.Monitor)
 
     def StopMonitoring(self):
         """Stop thread monitoring sensor data"""
-        self.continueMonitoring = False
+        self.exiting.set()
 
     def Monitor(self):
         """Monitor bus/sensor states and system info and report changed data via callbacks"""
-        nextTime = datetime.now()
-        nextTimeSystemInfo = datetime.now()
         debug('Monitoring sensors and os resources started')
-        while self.continueMonitoring:
+        while not self.exiting.is_set():
             try:
-                if datetime.now() > nextTime:
+                if not self.exiting.wait(REFRESH_FREQUENCY):
                     self.currentSystemState = []
                     self.MonitorSystemInformation()
                     self.MonitorSensors()
@@ -84,27 +81,25 @@ class SensorsClient():
                         if self.onDataChanged and changedSystemData:
                             self.onDataChanged(changedSystemData)
                     self.systemData = self.currentSystemState
-                    nextTime = datetime.now() + timedelta(seconds=REFRESH_FREQUENCY)
-                sleep(REFRESH_FREQUENCY)
             except:
                 exception('Monitoring sensors and os resources failed')
-        debug('Monitoring sensors and os resources Finished')
+        debug('Monitoring sensors and os resources finished')
 
     def MonitorSensors(self):
         """Check sensor states for changes"""
-        if not self.continueMonitoring:
+        if self.exiting.is_set():
             return
         self.currentSystemState += self.SensorsInfo()
 
     def MonitorBus(self):
         """Check bus states for changes"""
-        if self.continueMonitoring == False:
+        if self.exiting.is_set():
             return
         self.currentSystemState += self.BusInfo()
 
     def MonitorSystemInformation(self):
         """Check system info for changes"""
-        if self.continueMonitoring == False:
+        if self.exiting.is_set():
             return
         self.currentSystemState += self.SystemInformation()
 

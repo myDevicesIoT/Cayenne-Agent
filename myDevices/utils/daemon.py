@@ -50,14 +50,14 @@ class Daemon:
             debug(str(output) + ' ' + str(returncode))
             del output
         except:
-            exception("Daemon::Restart enexpected error")
+            exception("Daemon::Restart unexpected error")
             Daemon.Exit()
 
     @staticmethod
     def Exit():
         """Stop the agent daemon"""
-        info('Critical failure. Closing myDevices process...')
-        exit('Daemon::Exit closing agent. Critical failure.')
+        error('Critical failure. Closing myDevices process.')
+        raise SystemExit
 
 
 

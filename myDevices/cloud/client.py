@@ -5,7 +5,7 @@ It also responds messages from the server, to set actuator values, change system
 """
 
 from json import dumps, loads
-from threading import Thread
+from threading import Thread, Event
 from time import strftime, localtime, tzset, time, sleep
 from queue import Queue, Empty
 from myDevices import __version__
@@ -27,7 +27,6 @@ import myDevices.cloud.cayennemqtt as cayennemqtt
 
 NETWORK_SETTINGS = '/etc/myDevices/Network.ini'
 APP_SETTINGS = '/etc/myDevices/AppSettings.ini'
-GENERAL_SLEEP_THREAD = 0.20
 
 
 def GetTime():
@@ -78,7 +77,6 @@ class ProcessorThread(Thread):
         debug('ProcessorThread run,  continue: ' + str(self.Continue))
         while self.Continue:
             try:
-                sleep(GENERAL_SLEEP_THREAD)
                 self.cloudClient.ProcessMessage()
             except:
                 exception("ProcessorThread Unexpected error")
@@ -104,7 +102,6 @@ class WriterThread(Thread):
         """Send messages to the server until the thread is stopped"""
         debug('WriterThread run')
         while self.Continue:
-            sleep(GENERAL_SLEEP_THREAD)
             try:
                 if self.cloudClient.mqttClient.connected == False:
                     info('WriterThread mqttClient not connected')
@@ -146,7 +143,7 @@ class TimerThread(Thread):
         while True:
             try:
                 self.function()
-                sleep(self.interval + GENERAL_SLEEP_THREAD)
+                sleep(self.interval)
             except:
                 exception("TimerThread Unexpected error")
 
@@ -160,50 +157,38 @@ class CloudServerClient:
         self.PORT = port
         self.CayenneApiHost = cayenneApiHost
         self.config = Config(APP_SETTINGS)
-        inviteCode = self.config.get('Agent', 'InviteCode', fallback=None)
-        if not inviteCode:
-            error('No invite code found in {}'.format(APP_SETTINGS))
-            print('Please input an invite code. This can be retrieved from the Cayenne dashboard by adding a new Raspberry Pi device.\n'
-                  'The invite code will be part of the script name shown there: rpi_[invitecode].sh.')
-            inviteCode = input('Invite code: ')
-            if inviteCode:
-                self.config.set('Agent', 'InviteCode', inviteCode)
-            else:
-                print('No invite code set, exiting.')
-                quit()
-        self.installDate=None
-        try:
-            self.installDate = self.config.get('Agent', 'InstallDate', fallback=None)
-        except:
-            pass
-        if not self.installDate:
-            self.installDate = int(time())
-            self.config.set('Agent', 'InstallDate', self.installDate)
         self.networkConfig = Config(NETWORK_SETTINGS)
-        self.sensorsClient = sensors.SensorsClient()
         self.username = None
         self.password = None
         self.clientId = None
-        self.CheckSubscription()
-        # self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
-        self.Initialize()
-        self.updater = Updater(self.config)
-        self.updater.start()
+        self.connected = False
+        self.exiting = Event()
 
     def __del__(self):
         """Delete the client"""
         self.Destroy()
 
-    def Initialize(self):
-        """Initialize server connection and background threads"""
+    def Start(self):
+        """Connect to server and start background threads"""
         try:
+            self.installDate=None
+            try:
+                self.installDate = self.config.get('Agent', 'InstallDate', fallback=None)
+            except:
+                pass
+            if not self.installDate:
+                self.installDate = int(time())
+                self.config.set('Agent', 'InstallDate', self.installDate)
+            self.CheckSubscription()
+            if not self.Connect():
+                error('Error starting agent')
+                return
+            # self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
+            self.sensorsClient = sensors.SensorsClient()
             self.readQueue = Queue()
             self.writeQueue = Queue()
             self.hardware = Hardware()
             self.oSInfo = OSInfo()
-            self.connected = False
-            self.exiting = False
-            self.Start()
             self.count = 10000
             self.buff = bytearray(self.count)
             self.downloadSpeed = DownloadSpeed(self.config)
@@ -215,6 +200,8 @@ class CloudServerClient:
             self.processorThread.start()
             TimerThread(self.SendSystemInfo, 300)
             TimerThread(self.SendSystemState, 30, 5)
+            self.updater = Updater(self.config)
+            self.updater.start()
             # self.sentHistoryData = {}
             # self.historySendFails = 0
             # self.historyThread = Thread(target=self.SendHistoryData)
@@ -226,8 +213,9 @@ class CloudServerClient:
     def Destroy(self):
         """Destroy client and stop client threads"""
         info('Shutting down client')
-        self.exiting = True
-        self.sensorsClient.StopMonitoring()
+        self.exiting.set()
+        if hasattr(self, 'sensorsClient'):
+            self.sensorsClient.StopMonitoring()
         if hasattr(self, 'schedulerEngine'):
             self.schedulerEngine.stop()
         if hasattr(self, 'updater'):
@@ -237,7 +225,7 @@ class CloudServerClient:
         if hasattr(self, 'processorThread'):
             self.processorThread.stop()
         ThreadPool.Shutdown()
-        self.Stop()
+        self.Disconnect()
         info('Client shut down')
 
     def OnDataChanged(self, data):
@@ -282,12 +270,23 @@ class CloudServerClient:
 
     def CheckSubscription(self):
         """Check that an invite code is valid"""
+        inviteCode = self.config.get('Agent', 'InviteCode', fallback=None)
+        if not inviteCode:
+            error('No invite code found in {}'.format(APP_SETTINGS))
+            print('Please input an invite code. This can be retrieved from the Cayenne dashboard by adding a new Raspberry Pi device.\n'
+                'The invite code will be part of the script name shown there: rpi_[invitecode].sh.')
+            inviteCode = input('Invite code: ')
+            if inviteCode:
+                self.config.set('Agent', 'InviteCode', inviteCode)
+            else:
+                print('No invite code set, exiting.')
+                raise SystemExit
         inviteCode = self.config.get('Agent', 'InviteCode')
         cayenneApiClient = CayenneApiClient(self.CayenneApiHost)
         credentials = cayenneApiClient.loginDevice(inviteCode)
         if credentials == None:
             error('Registration failed for invite code {}, closing the process'.format(inviteCode))
-            Daemon.Exit()
+            raise SystemExit
         else:
             info('Registration succeeded for invite code {}, credentials = {}'.format(inviteCode, credentials))
             self.config.set('Agent', 'Initialized', 'true')
@@ -297,42 +296,45 @@ class CloudServerClient:
                 self.clientId = credentials['mqtt']['clientId']
             except:
                 exception('Invalid credentials, closing the process')
-                Daemon.Exit()
+                raise SystemExit
  
-    def Start(self):
+    def Connect(self):
         """Connect to the server"""
-        started = False
+        self.connected = False
         count = 0
-        while started == False and count < 30:
+        while self.connected == False and count < 30 and not self.exiting.is_set():
             try:
                 self.mqttClient = cayennemqtt.CayenneMQTTClient()
                 self.mqttClient.on_message = self.OnMessage
                 self.mqttClient.begin(self.username, self.password, self.clientId, self.HOST, self.PORT)
                 self.mqttClient.loop_start()
-                started = True
+                self.connected = True
             except OSError as oserror:
                 Daemon.OnFailure('cloud', oserror.errno)
-                error ('Start failed: ' + str(self.HOST) + ':' + str(self.PORT) + ' Error:' + str(oserror))
-                started = False
-                sleep(30-count)
-        return started
+                error('Connect failed: ' + str(self.HOST) + ':' + str(self.PORT) + ' Error:' + str(oserror))
+                if self.exiting.wait(30):
+                    # If we are exiting return immediately
+                    return self.connected
+                count += 1
+        return self.connected
 
-    def Stop(self):
+    def Disconnect(self):
         """Disconnect from the server"""
         Daemon.Reset('cloud')
         try:
-            self.mqttClient.loop_stop()
-            info('myDevices cloud disconnected')
+            if hasattr(self, 'mqttClient'):
+                self.mqttClient.loop_stop()
+                info('myDevices cloud disconnected')
         except:
             exception('Error stopping client')
 
     def Restart(self):
         """Restart the server connection"""
-        if not self.exiting:
+        if not self.exiting.is_set():
             debug('Restarting cycle...')
             sleep(1)
-            self.Stop()
-            self.Start()
+            self.Disconnect()
+            self.Connect()
 
     def CheckJson(self, message):
         """Check if a JSON message is valid"""
@@ -355,7 +357,7 @@ class CloudServerClient:
     def ProcessMessage(self):
         """Process a message from the server"""
         try:
-            messageObject = self.readQueue.get(False)
+            messageObject = self.readQueue.get()
             if not messageObject:
                 return False
         except Empty:
