@@ -472,11 +472,11 @@ class CloudServerClient:
             payload = message['payload']
             info('ProcessDeviceCommand payload: {}'.format(payload))
             if message['suffix'] == 'add':
-                result = self.sensorsClient.AddSensor(payload['id'], payload['description'], payload['class'], payload['args'])
+                result = self.sensorsClient.AddSensor(payload['sensorId'], payload['description'], payload['class'], payload['args'])
             elif message['suffix'] == 'edit':
-                result = self.sensorsClient.EditSensor(payload['id'], payload['description'], payload['class'], payload['args'])
+                result = self.sensorsClient.EditSensor(payload['sensorId'], payload['description'], payload['class'], payload['args'])
             elif message['suffix'] == 'delete':
-                result = self.sensorsClient.RemoveSensor(payload['id'])
+                result = self.sensorsClient.RemoveSensor(payload['sensorId'])
             else:
                 info('Unknown device command: {}'.format(message['suffix']))
             debug('ProcessDeviceCommand result: {}'.format(result))
@@ -490,9 +490,9 @@ class CloudServerClient:
         """Send response after processing a command message"""
         debug('EnqueueCommandResponse error: {}'.format(error))
         if error:
-            response = '{},error={}'.format(message['msg_id'], error)
+            response = '{},error={}'.format(message['cmdId'], error)
         else:
-            response = '{},ok'.format(message['msg_id'])
+            response = '{},ok'.format(message['cmdId'])
         self.EnqueuePacket(response, cayennemqtt.COMMAND_RESPONSE_TOPIC)
 
     def EnqueuePacket(self, message, topic=cayennemqtt.DATA_TOPIC):
