@@ -9,7 +9,7 @@ class Config:
         self.config.optionxform = str
         try:
             with open(path) as fp:
-                self.config.readfp(fp)
+                self.config.read_file(fp)
         except:
             pass
             

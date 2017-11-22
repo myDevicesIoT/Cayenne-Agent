@@ -16,7 +16,7 @@ UPDATE_PATH = INSTALL_PATH + 'updates/'
 UPDATE_CFG = UPDATE_PATH + 'update'
 SETUP_PATH = UPDATE_PATH + SETUP_NAME
 
-TIME_TO_CHECK = 60 + random.randint(60, 300) #seconds - at least 2 minutes or
+TIME_TO_CHECK = 60 + random.randint(60, 300) #seconds - at least 2 minutes
 TIME_TO_SLEEP = 60
 UPDATE_URL = 'https://updates.mydevices.com/raspberry/update'
 SETUP_URL = 'https://updates.mydevices.com/raspberry/'
@@ -38,7 +38,7 @@ class Updater(Thread):
         self.setDaemon(True)
         self.appSettings = config
         self.onUpdateConfig = onUpdateConfig
-        self.env = self.appSettings.get('Agent','Environment', fallback='live')
+        self.env = self.appSettings.get('Agent', 'Environment', fallback='live')
         global SETUP_URL
         global UPDATE_URL
         if self.env == 'live':
@@ -46,8 +46,8 @@ class Updater(Thread):
         else:
             SETUP_URL = SETUP_URL + self.env + '_' + SETUP_NAME
             UPDATE_URL = UPDATE_URL + self.env
-        UPDATE_URL = self.appSettings.get('Agent', 'UpdateUrl', UPDATE_URL)
-        SETUP_URL = self.appSettings.get('Agent', 'SetupUrl', SETUP_URL)
+        # UPDATE_URL = self.appSettings.get('Agent', 'UpdateUrl', UPDATE_URL)
+        # SETUP_URL = self.appSettings.get('Agent', 'SetupUrl', SETUP_URL)
         self.scheduler = scheduler(time, sleep)
         self.Continue = True
         self.currentVersion = ''
@@ -102,12 +102,12 @@ class Updater(Thread):
         mkdir(UPDATE_PATH)
         sleep(1)
         try:
-            self.currentVersion = self.appSettings.get('Agent', 'Version', fallback='1.0.1.0')
+            self.currentVersion = self.appSettings.get('Agent', 'Version', fallback=None)
         except:
-            error('Updater Current Version not found')
+            error('Error getting agent version')
         sleep(1)
         if not self.currentVersion:
-            error('Current version not available. Cannot update agent.')
+            info('Current version not available. Cannot update agent.')
             self.UpdateCleanup()
             return
         retValue = self.RetrieveUpdate()
@@ -131,8 +131,8 @@ class Updater(Thread):
         self.UpdateCleanup()
 
     def SetupUpdater(self):
-        global TIME_TO_CHECK
-        TIME_TO_CHECK = self.appSettings.get('Agent', 'UpdateCheckRate', TIME_TO_CHECK)
+        # global TIME_TO_CHECK
+        # TIME_TO_CHECK = self.appSettings.get('Agent', 'UpdateCheckRate', TIME_TO_CHECK)
         self.scheduler.enter(TIME_TO_CHECK, 1, self.CheckUpdate, ())
 
     def RetrieveUpdate(self):

@@ -409,14 +409,14 @@ class CloudServerClient:
                 debug('ProcessAgentCommand: {}, result: {}, output: {}'.format(message, result, output))
                 if result != 0:
                     error = 'Error uninstalling agent'
-            elif message['suffix'] == 'config':
-                for key, value in message['payload'].items():
-                    if value is None:
-                        info('Remove config item: {}'.format(key))
-                        self.config.remove('Agent', key)
-                    else:
-                        info('Set config item: {} {}'.format(key, value))
-                        self.config.set('Agent', key, value)
+            # elif message['suffix'] == 'config':
+            #     for key, value in message['payload'].items():
+            #         if value is None:
+            #             info('Remove config item: {}'.format(key))
+            #             self.config.remove('Agent', key)
+            #         else:
+            #             info('Set config item: {} {}'.format(key, value))
+            #             self.config.set('Agent', key, value)
         except Exception as ex:
             error = '{}: {}'.format(type(ex).__name__, ex)
         self.EnqueueCommandResponse(message, error)
