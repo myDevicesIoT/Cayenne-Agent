@@ -27,7 +27,7 @@ import myDevices.cloud.cayennemqtt as cayennemqtt
 
 NETWORK_SETTINGS = '/etc/myDevices/Network.ini'
 APP_SETTINGS = '/etc/myDevices/AppSettings.ini'
-
+GENERAL_SLEEP_THREAD = 0.20
 
 def GetTime():
     """Return string with the current time"""
@@ -77,6 +77,8 @@ class ProcessorThread(Thread):
         debug('ProcessorThread run,  continue: ' + str(self.Continue))
         while self.Continue:
             try:
+                if self.cloudClient.exiting.wait(GENERAL_SLEEP_THREAD):
+                    return
                 self.cloudClient.ProcessMessage()
             except:
                 exception("ProcessorThread Unexpected error")
@@ -103,18 +105,18 @@ class WriterThread(Thread):
         debug('WriterThread run')
         while self.Continue:
             try:
+                if self.cloudClient.exiting.wait(GENERAL_SLEEP_THREAD):
+                    return
                 if self.cloudClient.mqttClient.connected == False:
                     info('WriterThread mqttClient not connected')
                     continue
                 topic, message = self.cloudClient.DequeuePacket()
-                if not message:
-                    info('WriterThread mqttClient no message, {}'.format(message))
-                    continue
-                # debug('WriterThread, topic: {} {}'.format(topic, message))
-                if not isinstance(message, str):
-                    message = dumps(message)
-                self.cloudClient.mqttClient.publish_packet(topic, message)
-                message = None
+                if message:
+                    # debug('WriterThread, topic: {} {}'.format(topic, message))
+                    if not isinstance(message, str):
+                        message = dumps(message)
+                    self.cloudClient.mqttClient.publish_packet(topic, message)
+                    message = None
             except:
                 exception("WriterThread Unexpected error")
         return
@@ -357,7 +359,7 @@ class CloudServerClient:
     def ProcessMessage(self):
         """Process a message from the server"""
         try:
-            messageObject = self.readQueue.get()
+            messageObject = self.readQueue.get(False)
             if not messageObject:
                 return False
         except Empty:
@@ -502,7 +504,7 @@ class CloudServerClient:
         """Dequeue a message packet to send to the server"""
         packet = (None, None)
         try:
-            packet = self.writeQueue.get()
+            packet = self.writeQueue.get(False)
         except Empty:
             pass
         return packet
