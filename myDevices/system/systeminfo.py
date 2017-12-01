@@ -79,10 +79,10 @@ class SystemInfo():
                 'channel': 'sys:storage:/;usage',
                 'value': 6353821696
             }, {
-                'channel': 'sys:storage:/dev;capacity',
+                'channel': 'sys:storage:/mnt/cdrom;capacity',
                 'value': 479383552
             }, {
-                'channel': 'sys:storage:/dev;usage',
+                'channel': 'sys:storage:/mnt/cdrom;usage',
                 'value': 0
             }]
         """
@@ -90,10 +90,12 @@ class SystemInfo():
         try:
             for partition in psutil.disk_partitions(True):
                 try:
-                    usage = psutil.disk_usage(partition.mountpoint)
-                    if usage.total:
-                        cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.USAGE, usage.used)
-                        cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.CAPACITY, usage.total)
+                    mount_dir = partition.mountpoint.split('/')[1]
+                    if partition.mountpoint == '/' or mount_dir in ('mnt', 'mount', 'Volumes'):
+                        usage = psutil.disk_usage(partition.mountpoint)
+                        if usage.total:
+                            cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.USAGE, usage.used)
+                            cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.CAPACITY, usage.total)
                 except:
                     pass
         except:
