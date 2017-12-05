@@ -20,7 +20,7 @@ class HarwareTest(unittest.TestCase):
     def testGetMac(self):
         mac = self.hardware.getMac()
         info(mac)
-        self.assertRegex(mac, '^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$')
+        self.assertRegex(mac, '^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$')
 
     def testBoardRevision(self):
         info(BOARD_REVISION)

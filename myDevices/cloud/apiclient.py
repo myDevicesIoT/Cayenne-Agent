@@ -2,6 +2,7 @@ from myDevices.requests_futures.sessions import FuturesSession
 from concurrent.futures import ThreadPoolExecutor
 import json
 from myDevices.utils.logger import error, exception
+from myDevices.system.hardware import Hardware
 
 class CayenneApiClient:
     def __init__(self, host):
@@ -36,14 +37,26 @@ class CayenneApiClient:
                 return None
             return response
         exception("No data received")
+    
+    def getMessageBody(self, inviteCode):
+        body = {'id': inviteCode}
+        hardware = Hardware()
+        hardware_id = hardware.getMac()
+        if hardware_id:
+            body['type'] = 'mac'
+            body['hardware_id'] = hardware_id
+        elif hardware.Serial:
+            body['type'] = 'raspberrypi'
+            body['hardware_id'] = hardware.Serial
+        return json.dumps(body)
 
     def authenticate(self, inviteCode):
-        body = json.dumps({'id': inviteCode})
+        body = self.getMessageBody(inviteCode)
         url = '/things/key/authenticate'
         return self.sendRequest('POST', url, body)
 
     def activate(self, inviteCode):
-        body = json.dumps({'id': inviteCode})
+        body = self.getMessageBody(inviteCode)
         url = '/things/key/activate'
         return self.sendRequest('POST', url, body)
 

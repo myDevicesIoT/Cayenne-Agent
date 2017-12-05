@@ -4,7 +4,7 @@ a class for getting hardware info, including manufacturer, model and MAC address
 """
 import re
 import sys
-from uuid import getnode
+import netifaces
 from myDevices.utils.logger import exception, info, warn, error, debug
 
 BOARD_REVISION = 0
@@ -40,7 +40,8 @@ class Hardware:
 
     def __init__(self):
         """Initialize board revision and model info"""
-        self.Revision  = "0"
+        self.Revision  = '0'
+        self.Serial = None
         try:
             with open('/proc/cpuinfo','r') as f:
                 for line in f:
@@ -49,8 +50,10 @@ class Hardware:
                         continue
                     key = splitLine[0].strip()
                     value = splitLine[1].strip()
-                    if key=='Revision':
+                    if key == 'Revision':
                         self.Revision = value
+                    if key == 'Serial' and value != len(value) * '0':
+                        self.Serial = value
         except:
             exception ("Error reading cpuinfo")
         self.model = 'Unknown'
@@ -109,13 +112,18 @@ class Hardware:
         """Return model name as string"""
         return self.model
 
-    def getMac(self, format=2):
-        """Return MAC address as string"""
-        if format < 2:
-            format = 2
-        if format > 4:
-            format = 4
-        mac_num = hex(getnode()).replace('0x', '').upper()
-        mac = '-'.join(mac_num[i : i + format] for i in range(0, 11, format))
-        return mac
-
+    def getMac(self):
+        """Return MAC address as a string or None if no MAC address is found"""
+        interfaces = ['eth0', 'wlan0']
+        try:
+            interfaces.append(netifaces.gateways()['default'][netifaces.AF_INET][1])
+        except:
+            pass
+        for interface in interfaces:
+            try:
+                return netifaces.ifaddresses(interface)[netifaces.AF_LINK][0]['addr']
+            except ValueError:
+                pass
+            except:
+                exception('Error getting MAC address')
+        return None
