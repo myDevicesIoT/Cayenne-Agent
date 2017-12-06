@@ -7,6 +7,7 @@ from myDevices.utils.logger import debug, error, exception, info, logJson, warn
 # Topics
 DATA_TOPIC = 'data/json'
 COMMAND_TOPIC = 'cmd'
+COMMAND_JSON_TOPIC = 'cmd.json'
 COMMAND_RESPONSE_TOPIC = 'response'
 
 # Data Channels
@@ -127,6 +128,7 @@ class CayenneMQTTClient:
             # Subscribing in on_connect() means that if we lose the connection and
             # reconnect then subscriptions will be renewed.
             client.subscribe(self.get_topic_string(COMMAND_TOPIC, True))
+            client.subscribe(self.get_topic_string(COMMAND_JSON_TOPIC, False))
 
     def disconnect_callback(self, client, userdata, rc):
         """The callback for when the client disconnects from the server.
@@ -155,17 +157,18 @@ class CayenneMQTTClient:
         """
         try:
             message = {}
-            try:
+            if msg.topic[-len(COMMAND_JSON_TOPIC):] == COMMAND_JSON_TOPIC:              
                 message['payload'] = loads(msg.payload.decode())
                 message['cmdId'] = message['payload']['cmdId']
-            except decoder.JSONDecodeError:
+                channel = message['payload']['channel'].split('/')[-1].split(';')
+            else:
                 payload = msg.payload.decode().split(',')
                 if len(payload) > 1:
                     message['cmdId'] = payload[0]
                     message['payload'] = payload[1]
                 else:
                     message['payload'] = payload[0]
-            channel = msg.topic.split('/')[-1].split(';')
+                channel = msg.topic.split('/')[-1].split(';')
             message['channel'] = channel[0]
             if len(channel) > 1:
                 message['suffix'] = channel[1]
@@ -173,7 +176,7 @@ class CayenneMQTTClient:
             if self.on_message:
                 self.on_message(message)
         except:
-            exception("Couldn't process: "+msg.topic+" "+str(msg.payload))
+            exception('Error processing message: {} {}'.format(msg.topic, str(msg.payload)))
 
     def get_topic_string(self, topic, append_wildcard=False):
         """Return a topic string.
