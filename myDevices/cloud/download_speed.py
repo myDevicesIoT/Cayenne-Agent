@@ -1,7 +1,6 @@
 """
 This module provides a class for testing download speed
 """
-import netifaces
 from datetime import datetime, timedelta
 from os import path, remove
 from urllib import request, error
@@ -26,7 +25,6 @@ class DownloadSpeed():
         self.downloadSpeed = None
         self.testTime = None
         self.isRunning = False
-        self.interface = None
         self.Start()
         self.config = config
         #add a random delay to the start of download 
@@ -51,7 +49,6 @@ class DownloadSpeed():
     def TestDownload(self):
         """Test download speed by retrieving a file"""
         try:
-            self.interface = netifaces.gateways()['default'][netifaces.AF_INET][1]
             a = datetime.now()
             info('Executing regular download test for network speed')
             url = self.config.get('Agent', 'DownloadSpeedTestUrl', defaultUrl)
