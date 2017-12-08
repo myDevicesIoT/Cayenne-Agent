@@ -62,7 +62,7 @@ if not 'i2c' in user_groups:
     os.system('adduser {} i2c'.format(username))
     relogin = True
 
-if Hardware().getModel() == 'Tinker Board':
+if Hardware().isTinkerBoard():
     # Add spi group if it doesn't exist
     all_groups = [g.gr_name for g in grp.getgrall()]
     if not 'spi' in all_groups:

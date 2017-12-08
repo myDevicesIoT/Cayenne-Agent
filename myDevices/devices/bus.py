@@ -20,8 +20,8 @@ from myDevices.utils.logger import debug, info
 from myDevices.system.version import OS_VERSION, OS_JESSIE, OS_WHEEZY
 from myDevices.system.hardware import Hardware
 
-MODEL = Hardware().getModel()
-if MODEL == 'Tinker Board':
+hardware = Hardware()
+if hardware.isTinkerBoard():
     # Tinker Board only supports I2C and SPI for now. These are enabled by default and 
     # don't need to load any modules.
     BUSLIST = {
@@ -33,7 +33,7 @@ if MODEL == 'Tinker Board':
             "enabled": True,
         }
     }
-elif 'BeagleBone' in MODEL:
+elif hardware.isBeagleBone():
     BUSLIST = {
         "I2C": {
             "enabled": True,

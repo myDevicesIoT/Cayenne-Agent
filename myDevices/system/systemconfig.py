@@ -30,7 +30,7 @@ class SystemConfig:
             config_id: Id of command to run
             parameters: Parameters to use when executing command
         """
-        if any(model in Hardware().getModel() for model in ('Tinker Board', 'BeagleBone')):
+        if not Hardware().isRaspberryPi():
             return (1, 'Not supported')
         debug('SystemConfig::ExecuteConfigCommand')
         if config_id == 0:
@@ -53,7 +53,7 @@ class SystemConfig:
     def getConfig():
         """Return dict containing configuration settings"""
         config = {}
-        if any(model in Hardware().getModel() for model in ('Tinker Board', 'BeagleBone')):
+        if not Hardware().isRaspberryPi():
             return config
         commands = {10: 'DeviceTree', 18: 'Serial', 20: 'OneWire', 21: 'I2C', 22: 'SPI'}
         for command, name in commands.items():

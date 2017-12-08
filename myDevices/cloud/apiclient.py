@@ -41,13 +41,14 @@ class CayenneApiClient:
     def getMessageBody(self, inviteCode):
         body = {'id': inviteCode}
         hardware = Hardware()
-        hardware_id = hardware.getMac()
-        if hardware_id:
-            body['type'] = 'mac'
-            body['hardware_id'] = hardware_id
-        elif hardware.Serial:
-            body['type'] = 'raspberrypi'
-            body['hardware_id'] = hardware.Serial
+        if hardware.Serial and hardware.isRaspberryPi():
+            body['type'] = 'rpi'
+            body['hardware_id'] = hardware.Serial       
+        else:
+            hardware_id = hardware.getMac()
+            if hardware_id:
+                body['type'] = 'mac'
+                body['hardware_id'] = hardware_id
         return json.dumps(body)
 
     def authenticate(self, inviteCode):

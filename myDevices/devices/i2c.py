@@ -52,10 +52,10 @@ class I2C(Bus):
             raise Exception("SLAVE_ADDRESS_USED")
         
         self.channel = 0
-        model = Hardware().getModel()
-        if BOARD_REVISION > 1 or model == 'Tinker Board':
+        hardware = Hardware()
+        if BOARD_REVISION > 1 or hardware.isTinkerBoard():
             self.channel = 1
-        elif 'BeagleBone' in model:
+        elif hardware.isBeagleBone():
             self.channel = 2
 
         Bus.__init__(self, "I2C", "/dev/i2c-%d" % self.channel)

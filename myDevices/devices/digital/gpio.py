@@ -363,10 +363,10 @@ class NativeGPIO(Singleton, GPIOPort):
         return function_string
 
     def setPinMapping(self):
-        model = Hardware().getModel()
-        if model == 'Tinker Board':
+        hardware = Hardware()
+        if hardware.isTinkerBoard():
             self.MAPPING = ["V33", "V50", 252, "V50", 253, "GND", 17, 161, "GND", 160, 164, 184, 166, "GND", 167, 162, "V33", 163, 257, "GND", 256, 171, 254, 255, "GND", 251, "DNC", "DNC" , 165, "GND", 168, 239, 238, "GND", 185, 223, 224, 187, "GND", 188]
-        elif 'BeagleBone' in model:
+        elif hardware.isBeagleBone():
             self.MAPPING = {"headers": {"P9": ["GND", "GND", "V33", "V33", "V50", "V50", "V50", "V50", "PWR", "RST", 30, 60, 31, 50, 48, 51, 5, 4, "I2C2_SCL", "I2C2_SDA", 3, 2, 49, 15, 117, 14, 115, "SPI1_CS0", "SPI1_D0", 112, "SPI1_CLK", "VDD_ADC", "AIN4", "GNDA_ADC", "AIN6", "AIN5", "AIN2", "AIN3", "AIN0", "AIN1", 20, 7, "GND", "GND", "GND", "GND"],
                                         "P8": ["GND", "GND", "MMC1_DAT6", "MMC1_DAT7", "MMC1_DAT2", "MMC1_DAT3", 66, 67, 69, 68, 45, 44, 23, 26, 47, 46, 27, 65, 22, "MMC1_CMD", "MMC1_CLK", "MMC1_DAT5", "MMC1_DAT4", "MMC1_DAT1", "MMC1_DAT0", 61, "LCD_VSYNC", "LCD_PCLK", "LCD_HSYNC", "LCD_ACBIAS", "LCD_DATA14", "LCD_DATA15", "LCD_DATA13", "LCD_DATA11", "LCD_DATA12", "LCD_DATA10", "LCD_DATA8", "LCD_DATA9", "LCD_DATA6", "LCD_DATA7", "LCD_DATA4", "LCD_DATA5", "LCD_DATA2", "LCD_DATA3", "LCD_DATA0", "LCD_DATA1"]},
                             "order": ["P9", "P8"]}

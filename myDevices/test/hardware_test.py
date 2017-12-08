@@ -35,6 +35,9 @@ class HarwareTest(unittest.TestCase):
         info(CPU_HARDWARE)
         self.assertNotEqual(CPU_HARDWARE, '')
 
+    def testDeviceVerification(self):
+        device_checks = (self.hardware.isRaspberryPi(), self.hardware.isTinkerBoard(), self.hardware.isBeagleBone())
+        self.assertEqual(device_checks.count(True), 1)
 
 if __name__ == '__main__':
     unittest.main()

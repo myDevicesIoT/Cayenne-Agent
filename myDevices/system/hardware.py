@@ -4,7 +4,6 @@ a class for getting hardware info, including manufacturer, model and MAC address
 """
 import re
 import sys
-import netifaces
 from myDevices.utils.logger import exception, info, warn, error, debug
 
 BOARD_REVISION = 0
@@ -58,25 +57,25 @@ class Hardware:
             exception ("Error reading cpuinfo")
         self.model = 'Unknown'
         if self.Revision == 'Beta':
-            self.model = 'Model B (Beta)'
+            self.model = 'Raspberry Pi Model B (Beta)'
         if self.Revision in ('000d', '000e', '000f', '0002', '0003', '0004', '0005', '0006'):
-            self.model = 'Model B'
+            self.model = 'Raspberry Pi Model B'
         if self.Revision in ('0007', '0008', '0009'):
-            self.model = 'Model A'
+            self.model = 'Raspberry Pi Model A'
         if self.Revision in ('0010', '0013', '900032'):
-            self.model = 'Model B +'
+            self.model = 'Raspberry Pi Model B +'
         if self.Revision in ('0011', '0014'):
-            self.model = 'Compute Module'
+            self.model = 'Raspberry Pi Compute Module'
         if self.Revision in ('0012', '0015'):
-            self.model = 'Model A+'
+            self.model = 'Raspberry Pi Model A+'
         if self.Revision in ('a01041', 'a21041', 'a22042'):
-            self.model = 'Pi 2 Model B'
+            self.model = 'Raspberry Pi 2 Model B'
         if self.Revision in ('900092', '900093'):
-            self.model = 'Zero'
+            self.model = 'Raspberry Pi Zero'
         if self.Revision in ('9000c1',):
-            self.model = 'Zero W'
+            self.model = 'Raspberry Pi Zero W'
         if self.Revision in ('a02082', 'a22082'):
-            self.model = 'Pi 3 Model B'            
+            self.model = 'Raspberry Pi 3 Model B'            
         if 'Rockchip' in CPU_HARDWARE:
             self.model = 'Tinker Board'
         self.manufacturer = 'Element14/Premier Farnell'
@@ -114,6 +113,8 @@ class Hardware:
 
     def getMac(self):
         """Return MAC address as a string or None if no MAC address is found"""
+        # Import netifaces here to prevent error importing this module in setup.py
+        import netifaces
         interfaces = ['eth0', 'wlan0']
         try:
             interfaces.append(netifaces.gateways()['default'][netifaces.AF_INET][1])
@@ -127,3 +128,15 @@ class Hardware:
             except:
                 exception('Error getting MAC address')
         return None
+
+    def isRaspberryPi(self):
+        """Return True if device is a Raspberry Pi"""
+        return 'Raspberry Pi' in self.model
+
+    def isTinkerBoard(self):
+        """Return True if device is a Tinker Board"""
+        return 'Tinker Board' == self.model
+
+    def isBeagleBone(self):
+        """Return True if device is a BeagleBone"""
+        return 'BeagleBone' in self.model
