@@ -70,11 +70,7 @@ class CayenneApiClient:
         return json.loads(body)
 
     def loginDevice(self, inviteCode):
-        response = self.authenticate(inviteCode)
+        response = self.activate(inviteCode)
         if response and response.status_code == 200:
             return self.getCredentials(response.content)
-        if not response or response.status_code == 412:
-            response = self.activate(inviteCode)
-            if response and response.status_code == 200:
-                return self.getCredentials(response.content)
         return None

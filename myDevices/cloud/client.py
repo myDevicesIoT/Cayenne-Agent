@@ -160,9 +160,9 @@ class CloudServerClient:
         self.CayenneApiHost = cayenneApiHost
         self.config = Config(APP_SETTINGS)
         self.networkConfig = Config(NETWORK_SETTINGS)
-        self.username = None
-        self.password = None
-        self.clientId = None
+        self.username = self.config.get('Agent', 'Username', None)
+        self.password = self.config.get('Agent', 'Password', None)
+        self.clientId = self.config.get('Agent', 'ClientID', None)
         self.connected = False
         self.exiting = Event()
 
@@ -181,7 +181,8 @@ class CloudServerClient:
             if not self.installDate:
                 self.installDate = int(time())
                 self.config.set('Agent', 'InstallDate', self.installDate)
-            self.CheckSubscription()
+            if not self.username and not self.password and not self.clientId:
+                self.CheckSubscription()
             if not self.Connect():
                 error('Error starting agent')
                 return
@@ -296,6 +297,9 @@ class CloudServerClient:
                 self.username = credentials['mqtt']['username']
                 self.password = credentials['mqtt']['password']
                 self.clientId = credentials['mqtt']['clientId']
+                self.config.set('Agent', 'Username', self.username)
+                self.config.set('Agent', 'Password', self.password)
+                self.config.set('Agent', 'ClientID', self.clientId)
             except:
                 exception('Invalid credentials, closing the process')
                 raise SystemExit
