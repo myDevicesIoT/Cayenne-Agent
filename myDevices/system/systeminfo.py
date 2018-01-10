@@ -17,8 +17,8 @@ class SystemInfo():
         system_info = []
         try:
             system_info += self.getCpuInfo()
-            system_info += self.getMemoryInfo()
-            system_info += self.getDiskInfo()
+            system_info += self.getMemoryInfo((cayennemqtt.USAGE,))
+            system_info += self.getDiskInfo((cayennemqtt.USAGE,))
             system_info += self.getNetworkInfo()
         except:
             exception('Error retrieving system info')
@@ -45,8 +45,11 @@ class SystemInfo():
             exception('Error getting CPU info')
         return cpu_info
 
-    def getMemoryInfo(self):
-        """Get disk usage information as a list formatted for Cayenne MQTT
+    def getMemoryInfo(self, types):
+        """Get memory information as a list formatted for Cayenne MQTT.
+
+        Args:
+            types: Iterable containing types of memory info to retrieve matching cayennemqtt suffixes, e.g. cayennemqtt.USAGE
 
         Returned list example::
 
@@ -61,14 +64,19 @@ class SystemInfo():
         memory_info = []
         try:
             vmem = psutil.virtual_memory()
-            cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.USAGE, value=vmem.total - vmem.available)
-            cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.CAPACITY, value=vmem.total)
+            if not types or cayennemqtt.USAGE in types:
+                cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.USAGE, value=vmem.total - vmem.available)
+            if not types or cayennemqtt.CAPACITY in types:
+                cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.CAPACITY, value=vmem.total)
         except:
             exception('Error getting memory info')
         return memory_info
 
-    def getDiskInfo(self):
-        """Get disk usage information as a list formatted for Cayenne MQTT
+    def getDiskInfo(self, types):
+        """Get disk information as a list formatted for Cayenne MQTT
+
+        Args:
+            types: Iterable containing types of disk info to retrieve matching cayennemqtt suffixes, e.g. cayennemqtt.USAGE
 
         Returned list example::
 
@@ -90,12 +98,13 @@ class SystemInfo():
         try:
             for partition in psutil.disk_partitions(True):
                 try:
-                    mount_dir = partition.mountpoint.split('/')[1]
-                    if partition.mountpoint == '/' or mount_dir in ('mnt', 'mount', 'Volumes'):
+                    if partition.mountpoint == '/':
                         usage = psutil.disk_usage(partition.mountpoint)
                         if usage.total:
-                            cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.USAGE, usage.used)
-                            cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.CAPACITY, usage.total)
+                            if not types or cayennemqtt.USAGE in types:
+                                cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.USAGE, usage.used)
+                            if not types or cayennemqtt.CAPACITY in types:
+                                cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.CAPACITY, usage.total)
                 except:
                     pass
         except:

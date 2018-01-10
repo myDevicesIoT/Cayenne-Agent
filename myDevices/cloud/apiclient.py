@@ -3,6 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 from myDevices.utils.logger import error, exception
 from myDevices.system.hardware import Hardware
+from myDevices.system.systeminfo import SystemInfo
+from myDevices.cloud import cayennemqtt
+from myDevices.devices.digital.gpio import NativeGPIO
 
 class CayenneApiClient:
     def __init__(self, host):
@@ -49,6 +52,21 @@ class CayenneApiClient:
             if hardware_id:
                 body['type'] = 'mac'
                 body['hardware_id'] = hardware_id
+        try:
+            system_data = []
+            cayennemqtt.DataChannel.add(system_data, cayennemqtt.SYS_HARDWARE_MAKE, value=hardware.getManufacturer(), type='string', unit='utf8')
+            cayennemqtt.DataChannel.add(system_data, cayennemqtt.SYS_HARDWARE_MODEL, value=hardware.getModel(), type='string', unit='utf8')
+            system_info = SystemInfo()
+            capacity_data = system_info.getMemoryInfo((cayennemqtt.CAPACITY,))
+            capacity_data += system_info.getDiskInfo((cayennemqtt.CAPACITY,))
+            for item in capacity_data:
+                cayennemqtt.DataChannel.add(system_data, item['channel'], value=item['value'], type='memory', unit='byte')
+            body['properties'] = {}
+            body['properties']['gpiomap'] = NativeGPIO().MAPPING
+            if system_data:
+                body['properties']['sysinfo'] = system_data
+        except:
+            exception('Error getting system info')
         return json.dumps(body)
 
     def authenticate(self, inviteCode):

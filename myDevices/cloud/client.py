@@ -240,8 +240,6 @@ class CloudServerClient:
         """Enqueue a packet containing system info to send to the server"""
         try:
             data = []
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_HARDWARE_MAKE, value=self.hardware.getManufacturer())
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_HARDWARE_MODEL, value=self.hardware.getModel())
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
             cayennemqtt.DataChannel.add(data, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent', 'Version', __version__))
