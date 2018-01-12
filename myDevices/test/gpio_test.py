@@ -7,7 +7,10 @@ class GpioTest(unittest.TestCase):
         self.gpio = NativeGPIO()
 
     def testGPIO(self):
-        for pin in self.gpio.pins:
+        pins = []
+        for header in self.gpio.MAPPING:
+            pins.extend([pin['gpio'] for pin in header['map'] if 'gpio' in pin and 'alt0' not in pin])
+        for pin in pins:
             info('Testing pin {}'.format(pin))
             function = self.gpio.setFunctionString(pin, "OUT")
             if function == "UNKNOWN":

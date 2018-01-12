@@ -19,7 +19,7 @@ from myDevices.utils.types import M_JSON
 from myDevices.utils.logger import debug, info, error, exception
 from myDevices.utils.singleton import Singleton
 from myDevices.devices.digital import GPIOPort
-from myDevices.decorators.rest import request, response
+from myDevices.decorators.rest import response
 from myDevices.system.hardware import BOARD_REVISION, Hardware
 from myDevices.utils.subprocess import executeCommand
 try:
@@ -78,7 +78,7 @@ class NativeGPIO(Singleton, GPIOPort):
                 error(err)
 
     def __del__(self):
-        if self.gpio_map:
+        if hasattr(self, 'gpio_map'):
             self.gpio_map.close()
         for value in self.valueFile.values():
             if value:
@@ -188,7 +188,7 @@ class NativeGPIO(Singleton, GPIOPort):
             if not valRet:
                 return
             mode = 'w+'
-            if (gpio_library or 'BeagleBone' in Hardware().getModel()) and os.geteuid() != 0:
+            if (gpio_library or Hardware().isBeagleBone()) and os.geteuid() != 0:
                 #On devices with root permissions on gpio files open the file in read mode from non-root process
                 mode = 'r'
             for i in range(10):
@@ -208,7 +208,7 @@ class NativeGPIO(Singleton, GPIOPort):
             if not valRet:
                 return
             mode = 'w+'
-            if (gpio_library or 'BeagleBone' in Hardware().getModel()) and os.geteuid() != 0:
+            if (gpio_library or Hardware().isBeagleBone()) and os.geteuid() != 0:
                 #On devices with root permissions on gpio files open the file in read mode from non-root process
                 mode = 'r'
             for i in range(10):
@@ -353,11 +353,16 @@ class NativeGPIO(Singleton, GPIOPort):
     def getFunctionString(self, channel):
         f = self.getFunction(channel)
         function_string = 'UNKNOWN'
-        functions = {0:'IN', 1:'OUT', 2:'ALT5', 3:'ATL4', 4:'ALT0', 5:'ALT1', 6:'ALT2', 7:'ALT3', 8:'PWM',
+        functions = {0:'IN', 1:'OUT', 2:'ALT5', 3:'ALT4', 4:'ALT0', 5:'ALT1', 6:'ALT2', 7:'ALT3', 8:'PWM',
                     40:'SERIAL', 41:'SPI', 42:'I2C', 43:'PWM', 44:'GPIO', 45:'TS_XXXX', 46:'RESERVED', 47:'I2S'}
         if f >= 0:
             try:
                 function_string = functions[f]
+                # On Raspberry Pis using the spi_bcm2835 driver SPI chip select is done via software rather than hardware
+                # so the pin function is OUT instead of ALT0. Here we override that if the SPI MOSI pin is set to ALT0
+                # so the GPIO map in the UI will display the appropriate SPI pin info.
+                if channel in self.chip_select_pins and f == 1 and self.getFunction(self.spi_mosi_pin) == 4:
+                    function_string = functions[4]
             except:
                 pass
         return function_string
@@ -365,21 +370,261 @@ class NativeGPIO(Singleton, GPIOPort):
     def setPinMapping(self):
         hardware = Hardware()
         if hardware.isTinkerBoard():
-            self.MAPPING = ["V33", "V50", 252, "V50", 253, "GND", 17, 161, "GND", 160, 164, 184, 166, "GND", 167, 162, "V33", 163, 257, "GND", 256, 171, 254, 255, "GND", 251, "DNC", "DNC" , 165, "GND", 168, 239, 238, "GND", 185, 223, 224, 187, "GND", 188]
+           self.MAPPING = [{'name': 'GPIO',
+                            'map': [
+                                {'power': 'V33'},
+                                {'power': 'V50'},
+                                {'gpio': 252},
+                                {'power': 'V50'},
+                                {'gpio': 253},
+                                {'power': 'GND'},
+                                {'gpio': 17},
+                                {'gpio': 161},
+                                {'power': 'GND'},
+                                {'gpio': 160},
+                                {'gpio': 164},
+                                {'gpio': 184},
+                                {'gpio': 166},
+                                {'power': 'GND'},
+                                {'gpio': 167},
+                                {'gpio': 162},
+                                {'power': 'V33'},
+                                {'gpio': 163},
+                                {'gpio': 257},
+                                {'power': 'GND'},
+                                {'gpio': 256},
+                                {'gpio': 171},
+                                {'gpio': 254},
+                                {'gpio': 255},
+                                {'power': 'GND'},
+                                {'gpio': 251},
+                                {'dnc': True},
+                                {'dnc': True},
+                                {'gpio': 165},
+                                {'power': 'GND'},
+                                {'gpio': 168},
+                                {'gpio': 239},
+                                {'gpio': 238},
+                                {'power': 'GND'},
+                                {'gpio': 185},
+                                {'gpio': 223},
+                                {'gpio': 224},
+                                {'gpio': 187},
+                                {'power': 'GND'},
+                                {'gpio': 188}
+                            ]}]
         elif hardware.isBeagleBone():
-            self.MAPPING = {"headers": {"P9": ["GND", "GND", "V33", "V33", "V50", "V50", "V50", "V50", "PWR", "RST", 30, 60, 31, 50, 48, 51, 5, 4, "I2C2_SCL", "I2C2_SDA", 3, 2, 49, 15, 117, 14, 115, "SPI1_CS0", "SPI1_D0", 112, "SPI1_CLK", "VDD_ADC", "AIN4", "GNDA_ADC", "AIN6", "AIN5", "AIN2", "AIN3", "AIN0", "AIN1", 20, 7, "GND", "GND", "GND", "GND"],
-                                        "P8": ["GND", "GND", "MMC1_DAT6", "MMC1_DAT7", "MMC1_DAT2", "MMC1_DAT3", 66, 67, 69, 68, 45, 44, 23, 26, 47, 46, 27, 65, 22, "MMC1_CMD", "MMC1_CLK", "MMC1_DAT5", "MMC1_DAT4", "MMC1_DAT1", "MMC1_DAT0", 61, "LCD_VSYNC", "LCD_PCLK", "LCD_HSYNC", "LCD_ACBIAS", "LCD_DATA14", "LCD_DATA15", "LCD_DATA13", "LCD_DATA11", "LCD_DATA12", "LCD_DATA10", "LCD_DATA8", "LCD_DATA9", "LCD_DATA6", "LCD_DATA7", "LCD_DATA4", "LCD_DATA5", "LCD_DATA2", "LCD_DATA3", "LCD_DATA0", "LCD_DATA1"]},
-                            "order": ["P9", "P8"]}
+            self.MAPPING = [{'name': 'P9',
+                            'map': [
+                                {'power': 'GND'},
+                                {'power': 'GND'},
+                                {'power': 'V33'},
+                                {'power': 'V33'},
+                                {'power': 'V50'},
+                                {'power': 'V50'},
+                                {'power': 'V50'},
+                                {'power': 'V50'},
+                                {'power': 'PWR'},
+                                {'power': 'RST'},
+                                {'gpio': 30},
+                                {'gpio': 60},
+                                {'gpio': 31},
+                                {'gpio': 50},
+                                {'gpio': 48},
+                                {'gpio': 51},
+                                {'gpio': 5},
+                                {'gpio': 4},
+                                {'alt0': {'channel': 'sys:i2c:2', 'name': 'SCL'}},
+                                {'alt0': {'channel': 'sys:i2c:2', 'name': 'SDA'}},
+                                {'gpio': 3},
+                                {'gpio': 2},
+                                {'gpio': 49},
+                                {'gpio': 15},
+                                {'gpio': 117},
+                                {'gpio': 14},
+                                {'gpio': 115},
+                                {'gpio': 113, 'alt0': {'channel': 'sys:spi:1', 'name': 'CS0'}},
+                                {'gpio': 111, 'alt0': {'channel': 'sys:spi:1', 'name': 'D0'}},
+                                {'gpio': 112, 'alt0': {'channel': 'sys:spi:1', 'name': 'D1'}},
+                                {'gpio': 110, 'alt0': {'channel': 'sys:spi:1', 'name': 'SCLK'}},
+                                {'power': 'VDD_ADC'},
+                                {'analog': 4},
+                                {'power': 'GNDA_ADC'},
+                                {'analog': 6},
+                                {'analog': 5},
+                                {'analog': 2},
+                                {'analog': 3},
+                                {'analog': 0},
+                                {'analog': 1},
+                                {'gpio': 20},
+                                {'gpio': 7},
+                                {'power': 'GND'},
+                                {'power': 'GND'},
+                                {'power': 'GND'},
+                                {'power': 'GND'}]},
+                            {'name': 'P8',
+                            'map': [
+                                {'power': 'GND'},
+                                {'power': 'GND'},
+                                {'gpio': 38},
+                                {'gpio': 39},
+                                {'gpio': 34},
+                                {'gpio': 35},
+                                {'gpio': 66},
+                                {'gpio': 67},
+                                {'gpio': 69},
+                                {'gpio': 68},
+                                {'gpio': 45},
+                                {'gpio': 44},
+                                {'gpio': 23},
+                                {'gpio': 26},
+                                {'gpio': 47},
+                                {'gpio': 46},
+                                {'gpio': 27},
+                                {'gpio': 65},
+                                {'gpio': 22},
+                                {'gpio': 63},
+                                {'gpio': 62},
+                                {'gpio': 37},
+                                {'gpio': 36},
+                                {'gpio': 33},
+                                {'gpio': 32},
+                                {'gpio': 61},
+                                {'gpio': 86},
+                                {'gpio': 88},
+                                {'gpio': 87},
+                                {'gpio': 89},
+                                {'gpio': 10},
+                                {'gpio': 11},
+                                {'gpio': 9},
+                                {'gpio': 81},
+                                {'gpio': 8},
+                                {'gpio': 80},
+                                {'gpio': 78},
+                                {'gpio': 79},
+                                {'gpio': 76},
+                                {'gpio': 77},
+                                {'gpio': 74},
+                                {'gpio': 75},
+                                {'gpio': 72},
+                                {'gpio': 73},
+                                {'gpio': 70},
+                                {'gpio': 71}
+                            ]}]
         else:
-            if BOARD_REVISION == 1:
-                self.MAPPING = ["V33", "V50", 0, "V50", 1, "GND", "1-WIRE", 14, "GND", 15, 17, 18, 21, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
+            if BOARD_REVISION == 1: 
+                self.MAPPING = [{'name': 'P1',
+                                'map': [
+                                    {'power': 'V33'},
+                                    {'power': 'V50'},
+                                    {'gpio': 0, 'alt0': {'channel': 'sys:i2c', 'name': 'SDA'}},
+                                    {'power': 'V50'},
+                                    {'gpio': 1, 'alt0': {'channel': 'sys:i2c', 'name': 'SCL'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 4, 'alt0': {'channel': 'sys:clk', 'name': 'GPCLK'}},
+                                    {'gpio': 14, 'alt0': {'channel': 'sys:uart', 'name': 'TX'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 15, 'alt0': {'channel': 'sys:uart', 'name': 'RX'}},
+                                    {'gpio': 17},
+                                    {'gpio': 18},
+                                    {'gpio': 21},
+                                    {'power': 'GND'},
+                                    {'gpio': 22},
+                                    {'gpio': 23},
+                                    {'power': 'V33'},
+                                    {'gpio': 24},
+                                    {'gpio': 10, 'alt0': {'channel': 'sys:spi', 'name': 'MOSI'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 9, 'alt0': {'channel': 'sys:spi', 'name': 'MISO'}},
+                                    {'gpio': 25},
+                                    {'gpio': 11, 'alt0': {'channel': 'sys:spi', 'name': 'SCLK'}},
+                                    {'gpio': 8, 'alt0': {'channel': 'sys:spi', 'name': 'CE0'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 7, 'alt0': {'channel': 'sys:spi', 'name': 'CE1'}}
+                                ]}]
             elif BOARD_REVISION == 2:
-                self.MAPPING = ["V33", "V50", 2, "V50", 3, "GND", "1-WIRE", 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
+                self.MAPPING = [{'name': 'P1',
+                                'map': [
+                                    {'power': 'V33'},
+                                    {'power': 'V50'},
+                                    {'gpio': 2, 'alt0': {'channel': 'sys:i2c', 'name': 'SDA'}},
+                                    {'power': 'V50'},
+                                    {'gpio': 3, 'alt0': {'channel': 'sys:i2c', 'name': 'SCL'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 4, 'alt0': {'channel': 'sys:clk', 'name': 'GPCLK'}},
+                                    {'gpio': 14, 'alt0': {'channel': 'sys:uart', 'name': 'TX'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 15, 'alt0': {'channel': 'sys:uart', 'name': 'RX'}},
+                                    {'gpio': 17},
+                                    {'gpio': 18},
+                                    {'gpio': 27},
+                                    {'power': 'GND'},
+                                    {'gpio': 22},
+                                    {'gpio': 23},
+                                    {'power': 'V33'},
+                                    {'gpio': 24},
+                                    {'gpio': 10, 'alt0': {'channel': 'sys:spi', 'name': 'MOSI'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 9, 'alt0': {'channel': 'sys:spi', 'name': 'MISO'}},
+                                    {'gpio': 25},
+                                    {'gpio': 11, 'alt0': {'channel': 'sys:spi', 'name': 'SCLK'}},
+                                    {'gpio': 8, 'alt0': {'channel': 'sys:spi', 'name': 'CE0'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 7, 'alt0': {'channel': 'sys:spi', 'name': 'CE1'}}
+                                ]}]
             elif BOARD_REVISION == 3:
-                self.MAPPING = ["V33", "V50", 2, "V50", 3, "GND", "1-WIRE", 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7, "DNC", "DNC" , 5, "GND", 6, 12, 13, "GND", 19, 16, 26, 20, "GND", 21]
+                self.MAPPING = [{'name': 'P1',
+                                'map': [
+                                    {'power': 'V33'},
+                                    {'power': 'V50'},
+                                    {'gpio': 2, 'alt0': {'channel': 'sys:i2c', 'name': 'SDA'}},
+                                    {'power': 'V50'},
+                                    {'gpio': 3, 'alt0': {'channel': 'sys:i2c', 'name': 'SCL'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 4, 'overlay': {'channel': 'sys:1wire', 'name': 'DATA'}},
+                                    {'gpio': 14, 'alt0': {'channel': 'sys:uart', 'name': 'TX'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 15, 'alt0': {'channel': 'sys:uart', 'name': 'RX'}},
+                                    {'gpio': 17},
+                                    {'gpio': 18},
+                                    {'gpio': 27},
+                                    {'power': 'GND'},
+                                    {'gpio': 22},
+                                    {'gpio': 23},
+                                    {'power': 'V33'},
+                                    {'gpio': 24},
+                                    {'gpio': 10, 'alt0': {'channel': 'sys:spi', 'name': 'MOSI'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 9, 'alt0': {'channel': 'sys:spi', 'name': 'MISO'}},
+                                    {'gpio': 25},
+                                    {'gpio': 11, 'alt0': {'channel': 'sys:spi', 'name': 'SCLK'}},
+                                    {'gpio': 8, 'alt0': {'channel': 'sys:spi', 'name': 'CE0'}},
+                                    {'power': 'GND'},
+                                    {'gpio': 7, 'alt0': {'channel': 'sys:spi', 'name': 'CE1'}},
+                                    {'dnc': True},
+                                    {'dnc': True},
+                                    {'gpio': 5},
+                                    {'power': 'GND'},
+                                    {'gpio': 6},
+                                    {'gpio': 12},
+                                    {'gpio': 13},
+                                    {'power': 'GND'},
+                                    {'gpio': 19},
+                                    {'gpio': 16},
+                                    {'gpio': 26},
+                                    {'gpio': 20},
+                                    {'power': 'GND'},
+                                    {'gpio': 21}
+                                ]}]
         if isinstance(self.MAPPING, list):
-            self.pins = [pin for pin in self.MAPPING if type(pin) is int]
-        elif 'headers' in self.MAPPING:
             self.pins = []
-            for header in self.MAPPING['headers'].values():
-                self.pins.extend([pin for pin in header if type(pin) is int])
+            for header in self.MAPPING:
+                self.pins.extend([pin['gpio'] for pin in header['map'] if 'gpio' in pin])
+            try:
+                if Hardware().isRaspberryPi():
+                    self.chip_select_pins = []
+                    self.spi_mosi_pin = 10
+                    for header in self.MAPPING:
+                        self.chip_select_pins.extend([pin['gpio'] for pin in header['map'] if 'alt0' in pin and pin['alt0']['name'] in ('CE0', 'CE1')])
+            except:
+                pass

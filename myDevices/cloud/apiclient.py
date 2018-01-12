@@ -62,7 +62,7 @@ class CayenneApiClient:
             for item in capacity_data:
                 cayennemqtt.DataChannel.add(system_data, item['channel'], value=item['value'], type='memory', unit='byte')
             body['properties'] = {}
-            body['properties']['gpiomap'] = NativeGPIO().MAPPING
+            body['properties']['pinmap'] = NativeGPIO().MAPPING
             if system_data:
                 body['properties']['sysinfo'] = system_data
         except:

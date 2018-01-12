@@ -13,7 +13,7 @@ class ApiClientTest(unittest.TestCase):
         self.assertIn('hardware_id', message)
         self.assertIn('properties', message)
         self.assertIn('sysinfo', message['properties'])
-        self.assertIn('gpiomap', message['properties'])
+        self.assertIn('pinmap', message['properties'])
 
 
 if __name__ == '__main__':
