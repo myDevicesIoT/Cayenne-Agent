@@ -329,7 +329,7 @@ class SensorsClient():
             elif value.lower() in ('out', 'output'):
                 return str(self.gpio.setFunctionString(channel, 'out'))
         elif command in ('value', ''):
-            return self.gpio.digitalWrite(channel, value)
+            return self.gpio.digitalWrite(channel, int(value))
         debug('GPIO command failed')
         return 'failure'
 
