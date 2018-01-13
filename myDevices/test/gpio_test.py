@@ -9,14 +9,14 @@ class GpioTest(unittest.TestCase):
     def testGPIO(self):
         pins = []
         for header in self.gpio.MAPPING:
-            pins.extend([pin['gpio'] for pin in header['map'] if 'gpio' in pin and 'alt0' not in pin])
+            pins.extend([pin['gpio'] for pin in header['map'] if 'gpio' in pin and 'alt0' not in pin and 'overlay' not in pin])
         for pin in pins:
             info('Testing pin {}'.format(pin))
-            function = self.gpio.setFunctionString(pin, "OUT")
-            if function == "UNKNOWN":
+            function = self.gpio.setFunctionString(pin, 'OUT')
+            if function == 'UNKNOWN':
                 info('Pin {} function UNKNOWN, skipping'.format(pin))
                 continue
-            self.assertEqual("OUT", function)
+            self.assertEqual('OUT', function)
             value = self.gpio.digitalWrite(pin, 1)
             self.assertEqual(value, 1)
             value = self.gpio.digitalWrite(pin, 0)
@@ -24,12 +24,13 @@ class GpioTest(unittest.TestCase):
 
     def testPinStatus(self):
         pin_status = self.gpio.wildcard()
-        # print(pin_status)
-        self.assertEqual(set(self.gpio.pins), set(pin_status.keys()))
-        for pin in pin_status.values():
-            self.assertCountEqual(pin.keys(), ('function', 'value'))
-            self.assertGreaterEqual(pin['value'], 0)
-            self.assertLessEqual(pin['value'], 1)
+        info(pin_status)
+        self.assertEqual(set(self.gpio.pins + self.gpio.overlay_pins), set(pin_status.keys()))
+        for key, value in pin_status.items():
+            self.assertCountEqual(value.keys(), ('function', 'value'))
+            if key in self.gpio.pins:
+                self.assertGreaterEqual(value['value'], 0)
+                self.assertLessEqual(value['value'], 1)
 
 
 if __name__ == '__main__':
