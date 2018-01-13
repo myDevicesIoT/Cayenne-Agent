@@ -254,6 +254,7 @@ do_change_hostname() {
     sed -i "s/127.0.1.1.*$CURRENT_HOSTNAME/127.0.1.1\t$NEW_HOSTNAME/g" /etc/hosts
     ASK_TO_REBOOT=1
 }
+
 # $1 is 0 to enable overscan, 1 to disable it
 set_overscan() {
   # Stop if /boot is not a mountpoint
@@ -270,6 +271,7 @@ set_overscan() {
     set_config_var disable_overscan 0 $CONFIG
   fi
 }
+
 get_memory_split(){
   if [ -e /boot/start_cd.elf ]; then
     # New-style memory split setting
@@ -285,6 +287,7 @@ get_memory_split(){
     echo "${MEMSPLIT_DESCRIPTION}"
   fi
 }
+
 do_overscan() {
   RET=${args[1]}
   if [ $RET -eq 0 ] || [ $RET -eq 1 ]; then
@@ -294,6 +297,7 @@ do_overscan() {
     return 1
   fi
 }
+
 do_ssh() {
   if [ -e /var/log/regen_ssh_keys.log ] && ! grep -q "^finished" /var/log/regen_ssh_keys.log; then
     echo "Initial ssh key generation still running. Please wait and try again."
@@ -309,6 +313,7 @@ do_ssh() {
     return $RET
   fi
 }
+
 do_devicetree() {
   CURRENT_SETTING="enabled" # assume not disabled
   DEFAULT=
@@ -340,12 +345,14 @@ do_devicetree() {
   fi
   
 }
+
 get_devicetree() {
-  CURRENT_SETTING="1" # assume not disabled
-  if [ -e $CONFIG ] && grep -q "^device_tree=$" $CONFIG; then
-    CURRENT_SETTING="0"
-  fi
-  echo "${CURRENT_SETTING}"
+  echo 0 # assume enabled since recent kernels don't appear to allow disabling the device tree anymore
+  # CURRENT_SETTING="1" # assume not disabled
+  # if [ -e $CONFIG ] && grep -q "^device_tree=$" $CONFIG; then
+  #   CURRENT_SETTING="0"
+  # fi
+  # echo "${CURRENT_SETTING}"
 }
 
 #arg[1] enable I2C 1/0 arg[2] load by default 1/0
@@ -435,7 +442,6 @@ get_i2c() {
     echo 1
   fi
 }
-
 
 #arg[1] enable SPI 1/0 arg[2] load by default 1/0
 #again 0 enable 1 disable
@@ -556,22 +562,26 @@ get_camera() {
 }
 
 get_serial() {
-    if ! grep -q "^T.*:.*:respawn:.*ttyAMA0" /etc/inittab; then
-        echo 0
-        return 0
-    fi
+  if grep -q -E "^enable_uart=1" $CONFIG ; then
+    echo 0
+  elif grep -q -E "^enable_uart=0" $CONFIG ; then
     echo 1
-    return 0
+  elif [ -e /dev/serial0 ] ; then
+    echo 0
+  else
+    echo 1
+  fi
 }
+
 get_w1(){
-    output=$( cat $CONFIG | grep ' *dtoverlay*=*w1-gpio' )
-    if [ -z "$output" ]; then
-        echo 0
-    else
-        echo 1
-    fi
-    return 0
+  if grep -q -E "^dtoverlay=w1-gpio" $CONFIG; then
+      echo 0
+  else
+      echo 1
+  fi
+  return 0
 }
+
 do_w1(){
     RET=${args[1]}
     CURRENT=$(get_w1)
