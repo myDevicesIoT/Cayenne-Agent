@@ -13,12 +13,12 @@ from myDevices.utils.subprocess import executeCommand
 SETUP_NAME = 'myDevicesSetup_raspberrypi.sh'
 INSTALL_PATH = '/etc/myDevices/'
 UPDATE_PATH = INSTALL_PATH + 'updates/'
-UPDATE_CFG = UPDATE_PATH + 'update'
+UPDATE_CFG = UPDATE_PATH + 'updatecfg'
 SETUP_PATH = UPDATE_PATH + SETUP_NAME
 
 TIME_TO_CHECK = 60 + random.randint(60, 300) #seconds - at least 2 minutes
 TIME_TO_SLEEP = 60
-UPDATE_URL = 'https://updates.mydevices.com/raspberry/update'
+UPDATE_URL = 'https://updates.mydevices.com/raspberry/updatecfg'
 SETUP_URL = 'https://updates.mydevices.com/raspberry/'
 
 try:
