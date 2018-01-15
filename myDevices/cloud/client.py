@@ -117,6 +117,7 @@ class WriterThread(Thread):
                         message = dumps(message)
                     self.cloudClient.mqttClient.publish_packet(topic, message)
                     message = None
+                    self.cloudClient.writeQueue.task_done()
             except:
                 exception("WriterThread Unexpected error")
         return
@@ -243,6 +244,8 @@ class CloudServerClient:
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
             cayennemqtt.DataChannel.add(data, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent', 'Version', __version__))
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_POWER_RESET, value=0)
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_POWER_HALT, value=0)
             config = SystemConfig.getConfig()
             if config:
                 channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}
@@ -374,7 +377,7 @@ class CloudServerClient:
             return
         channel = message['channel']
         info('ExecuteMessage: {}'.format(message))
-        if channel == cayennemqtt.SYS_POWER:
+        if channel in (cayennemqtt.SYS_POWER_RESET, cayennemqtt.SYS_POWER_HALT):
             self.ProcessPowerCommand(message)
         elif channel.startswith(cayennemqtt.DEV_SENSOR):
             self.ProcessSensorCommand(message)
@@ -391,16 +394,27 @@ class CloudServerClient:
 
     def ProcessPowerCommand(self, message):
         """Process command to reboot/shutdown the system"""
-        error = None
+        error_message = None
         try:
-            commands = {'reset': 'sudo shutdown -r now', 'halt': 'sudo shutdown -h now'}
-            output, result = executeCommand(commands[message['payload']])
-            debug('ProcessPowerCommand: {}, result: {}, output: {}'.format(message, result, output))
-            if result != 0:
-                error = 'Error executing shutdown command'
+            self.EnqueueCommandResponse(message, error_message)
+            commands = {cayennemqtt.SYS_POWER_RESET: 'sudo shutdown -r now', cayennemqtt.SYS_POWER_HALT: 'sudo shutdown -h now'}
+            if int(message['payload']) == 1:
+                debug('Processing power command')
+                data = []
+                cayennemqtt.DataChannel.add(data, message['channel'], value=1)
+                self.EnqueuePacket(data)
+                self.writeQueue.join()
+                output, result = executeCommand(commands[message['channel']])
+                debug('ProcessPowerCommand: {}, result: {}, output: {}'.format(message, result, output))
+                if result != 0:
+                    error_message = 'Error executing shutdown command'
         except Exception as ex:
-            error = '{}: {}'.format(type(ex).__name__, ex)
-        self.EnqueueCommandResponse(message, error)
+            error_message = '{}: {}'.format(type(ex).__name__, ex)           
+        if error_message:
+            error(error_message)
+            data = []
+            cayennemqtt.DataChannel.add(data, message['channel'], value=0)
+            self.EnqueuePacket(data)
 
     def ProcessAgentCommand(self, message):
         """Process command to manage the agent state"""
