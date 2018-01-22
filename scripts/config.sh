@@ -315,35 +315,35 @@ do_ssh() {
 }
 
 do_devicetree() {
-  CURRENT_SETTING="enabled" # assume not disabled
-  DEFAULT=
-  if [ -e $CONFIG ] && grep -q "^device_tree=$" $CONFIG; then
-    CURRENT_SETTING="disabled"
-    DEFAULT=--defaultno
-  fi
-  RET=${args[1]}
-  if [ $RET -eq 0 ]; then
-    sed $CONFIG -i -e "s/^\(device_tree=\)$/#\1/"
-    sed $CONFIG -i -e "s/^#\(device_tree=.\)/\1/"
-    SETTING=enabled
-  elif [ $RET -eq 1 ]; then
-    sed $CONFIG -i -e "s/^#\(device_tree=\)$/\1/"
-    sed $CONFIG -i -e "s/^\(device_tree=.\)/#\1/"
-    if ! grep -q "^device_tree=$" $CONFIG; then
-      printf "device_tree=\n" >> $CONFIG
-    fi
-    SETTING=disabled
-  else
-    return 0
-  fi
-  TENSE=is
-  REBOOT=
-  if [ $SETTING != $CURRENT_SETTING ]; then
-    TENSE="will be"
-    REBOOT=" after a reboot"
-    ASK_TO_REBOOT=1
-  fi
-  
+  return 1 # No longer allow disabling the device tree since it is required and can prevent the Pi from booting
+  # CURRENT_SETTING="enabled" # assume not disabled
+  # DEFAULT=
+  # if [ -e $CONFIG ] && grep -q "^device_tree=$" $CONFIG; then
+  #   CURRENT_SETTING="disabled"
+  #   DEFAULT=--defaultno
+  # fi
+  # RET=${args[1]}
+  # if [ $RET -eq 0 ]; then
+  #   sed $CONFIG -i -e "s/^\(device_tree=\)$/#\1/"
+  #   sed $CONFIG -i -e "s/^#\(device_tree=.\)/\1/"
+  #   SETTING=enabled
+  # elif [ $RET -eq 1 ]; then
+  #   sed $CONFIG -i -e "s/^#\(device_tree=\)$/\1/"
+  #   sed $CONFIG -i -e "s/^\(device_tree=.\)/#\1/"
+  #   if ! grep -q "^device_tree=$" $CONFIG; then
+  #     printf "device_tree=\n" >> $CONFIG
+  #   fi
+  #   SETTING=disabled
+  # else
+  #   return 0
+  # fi
+  # TENSE=is
+  # REBOOT=
+  # if [ $SETTING != $CURRENT_SETTING ]; then
+  #   TENSE="will be"
+  #   REBOOT=" after a reboot"
+  #   ASK_TO_REBOOT=1
+  # fi 
 }
 
 get_devicetree() {
@@ -524,27 +524,77 @@ get_spi() {
   fi
 }
 
+get_serial() {
+  if grep -q -E "console=(serial0|ttyAMA0|ttyS0)" $CMDLINE ; then
+    echo 0
+  else
+    echo 1
+  fi
+}
+
+get_serial_hw() {
+  if grep -q -E "^enable_uart=1" $CONFIG ; then
+    echo 0
+  elif grep -q -E "^enable_uart=0" $CONFIG ; then
+    echo 1
+  elif [ -e /dev/serial0 ] ; then
+    echo 0
+  else
+    echo 1
+  fi
+}
+
 do_serial() {
-  CURRENT_STATUS="yes" # assume ttyAMA0 output enabled
-  if ! grep -q "^T.*:.*:respawn:.*ttyAMA0" /etc/inittab; then
-    CURRENT_STATUS="no"
+  CMDLINE=/boot/cmdline.txt
+  DEFAULTS=--defaultno
+  DEFAULTH=--defaultno
+  CURRENTS=0
+  CURRENTH=0
+
+  if [ $(get_serial) -eq 0 ]; then
+      DEFAULTS=
+      CURRENTS=1
+  fi
+  if [ $(get_serial_hw) -eq 0 ]; then
+      DEFAULTH=
+      CURRENTH=1
+  fi
+  RET=${args[1]}
+  if [ $RET -eq $CURRENTS ]; then
+    ASK_TO_REBOOT=1
   fi
 
-  #"Would you like a login shell to be accessible over serial?"
-  RET=${args[1]}
-  if [ $RET -eq 1 ]; then
-    sed -i /etc/inittab -e "s|^.*:.*:respawn:.*ttyAMA0|#&|"
-    sed -i /boot/cmdline.txt -e "s/console=ttyAMA0,[0-9]\+ //"
-    #"Serial is now disabled" 
-  elif [ $RET -eq 0 ]; then
-    sed -i /etc/inittab -e "s|^#\(.*:.*:respawn:.*ttyAMA0\)|\1|"
-    if ! grep -q "^T.*:.*:respawn:.*ttyAMA0" /etc/inittab; then
-      printf "T0:23:respawn:/sbin/getty -L ttyAMA0 115200 vt100\n" >> /etc/inittab
+  if [ $RET -eq 0 ]; then
+    if grep -q "console=ttyAMA0" $CMDLINE ; then
+      if [ -e /proc/device-tree/aliases/serial0 ]; then
+        sed -i $CMDLINE -e "s/console=ttyAMA0/console=serial0/"
+      fi
+    elif ! grep -q "console=ttyAMA0" $CMDLINE && ! grep -q "console=serial0" $CMDLINE ; then
+      if [ -e /proc/device-tree/aliases/serial0 ]; then
+        sed -i $CMDLINE -e "s/root=/console=serial0,115200 root=/"
+      else
+        sed -i $CMDLINE -e "s/root=/console=ttyAMA0,115200 root=/"
+      fi
     fi
-    if ! grep -q "console=ttyAMA0" /boot/cmdline.txt; then
-      sed -i /boot/cmdline.txt -e "s/root=/console=ttyAMA0,115200 root=/"
+    set_config_var enable_uart 1 $CONFIG
+    SSTATUS=enabled
+    HSTATUS=enabled
+  elif [ $RET -eq 1 ]; then
+    sed -i $CMDLINE -e "s/console=ttyAMA0,[0-9]\+ //"
+    sed -i $CMDLINE -e "s/console=serial0,[0-9]\+ //"
+    SSTATUS=disabled
+    if [ $RET -eq $CURRENTH ]; then
+     ASK_TO_REBOOT=1
     fi
-    #"Serial is now enabled"
+    if [ $RET -eq 0 ]; then
+      set_config_var enable_uart 1 $CONFIG
+      HSTATUS=enabled
+    elif [ $RET -eq 1 ]; then
+      set_config_var enable_uart 0 $CONFIG
+      HSTATUS=disabled
+    else
+      return $RET
+    fi
   else
     return $RET
   fi
@@ -559,18 +609,6 @@ do_audio() {
 get_camera() {
     OUTPUT="$(vcgencmd get_camera)"
     echo $OUTPUT
-}
-
-get_serial() {
-  if grep -q -E "^enable_uart=1" $CONFIG ; then
-    echo 0
-  elif grep -q -E "^enable_uart=0" $CONFIG ; then
-    echo 1
-  elif [ -e /dev/serial0 ] ; then
-    echo 0
-  else
-    echo 1
-  fi
 }
 
 get_w1(){
@@ -618,7 +656,7 @@ case "$FUN" in
   15) get_timezone ;;
   16) do_timezone ;;
   17) get_camera ;;
-  18) get_serial ;;
+  18) get_serial_hw ;;
   19) do_w1 ;;
   20) get_w1 ;;
   21) get_i2c ;;

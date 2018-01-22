@@ -248,7 +248,8 @@ class CloudServerClient:
             cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_POWER_HALT, value=0)
             config = SystemConfig.getConfig()
             if config:
-                channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}
+                channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART,
+                                'OneWire': cayennemqtt.SYS_ONEWIRE, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}
                 for key, channel in channel_map.items():
                     try:
                         cayennemqtt.DataChannel.add(data, channel, value=config[key])
@@ -385,7 +386,7 @@ class CloudServerClient:
             self.ProcessGpioCommand(message)
         elif channel == cayennemqtt.AGENT_DEVICES:
             self.ProcessDeviceCommand(message)
-        elif channel in (cayennemqtt.SYS_I2C, cayennemqtt.SYS_SPI, cayennemqtt.SYS_UART, cayennemqtt.SYS_DEVICETREE):
+        elif channel in (cayennemqtt.SYS_I2C, cayennemqtt.SYS_SPI, cayennemqtt.SYS_UART, cayennemqtt.SYS_ONEWIRE):
             self.ProcessConfigCommand(message)
         elif channel == cayennemqtt.AGENT_MANAGE:
             self.ProcessAgentCommand(message)
@@ -442,7 +443,7 @@ class CloudServerClient:
         error = None
         try:
             value = 1 - int(message['payload']) #Invert the value since the config script uses 0 for enable and 1 for disable
-            command_id = {cayennemqtt.SYS_I2C: 11, cayennemqtt.SYS_SPI: 12, cayennemqtt.SYS_UART: 13, cayennemqtt.SYS_DEVICETREE: 9}
+            command_id = {cayennemqtt.SYS_I2C: 11, cayennemqtt.SYS_SPI: 12, cayennemqtt.SYS_UART: 13, cayennemqtt.SYS_ONEWIRE: 19}
             result, output = SystemConfig.ExecuteConfigCommand(command_id[message['channel']], value)
             debug('ProcessConfigCommand: {}, result: {}, output: {}'.format(message, result, output))
             if result != 0:
