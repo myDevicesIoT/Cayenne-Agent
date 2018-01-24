@@ -159,10 +159,11 @@ class CayenneMQTTClient:
         """
         try:
             message = {}
-            if msg.topic[-len(COMMAND_JSON_TOPIC):] == COMMAND_JSON_TOPIC:              
-                message['payload'] = loads(msg.payload.decode())
-                message['cmdId'] = message['payload']['cmdId']
-                channel = message['payload']['channel'].split('/')[-1].split(';')
+            if msg.topic[-len(COMMAND_JSON_TOPIC):] == COMMAND_JSON_TOPIC:
+                payload = loads(msg.payload.decode())
+                message['payload'] = payload['value']
+                message['cmdId'] = payload['cmdId']
+                channel = payload['channel'].split('/')[-1].split(';')
             else:
                 payload = msg.payload.decode().split(',')
                 if len(payload) > 1:
