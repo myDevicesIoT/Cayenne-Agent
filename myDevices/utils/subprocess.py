@@ -1,7 +1,7 @@
 """
 This module contains functions for launching subprocesses and returning output from them.
 """
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, DEVNULL
 from myDevices.utils.logger import debug, info, error, exception
 
 def setMemoryLimits():
@@ -13,16 +13,20 @@ def setMemoryLimits():
     except:
         pass
 
-def executeCommand(command, increaseMemoryLimit=False):
+def executeCommand(command, increaseMemoryLimit=False, disablePipe=False):
     """Execute a specified command, increasing the processes memory limits if specified"""
     debug('executeCommand: ' +  command)
     output = ''
     returncode = 1
     try:
-        setLimit = None
+        preexec = None
+        pipe = PIPE
         if increaseMemoryLimit:
-            setLimit = setMemoryLimits
-        process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, preexec_fn=setLimit)
+            preexec = setMemoryLimits
+        if disablePipe:
+            debug('Disable pipe to prevent child exiting when parent exits')
+            pipe = DEVNULL
+        process = Popen(command, stdout=pipe, stderr=pipe, shell=True, preexec_fn=preexec)
         (stdout_data, stderr_data) = process.communicate()
         returncode = process.wait()
         returncode = process.returncode

@@ -422,7 +422,7 @@ class CloudServerClient:
         error = None
         try:
             if message['suffix'] == 'uninstall':
-                output, result = executeCommand('sudo /etc/myDevices/uninstall/uninstall.sh')
+                output, result = executeCommand('sudo /etc/myDevices/uninstall/uninstall.sh', disablePipe=True)
                 debug('ProcessAgentCommand: {}, result: {}, output: {}'.format(message, result, output))
                 if result != 0:
                     error = 'Error uninstalling agent'
@@ -434,6 +434,8 @@ class CloudServerClient:
             #         else:
             #             info('Set config item: {} {}'.format(key, value))
             #             self.config.set('Agent', key, value)
+            else:
+                error = 'Unknown agent command: {}'.format(message['suffix'])
         except Exception as ex:
             error = '{}: {}'.format(type(ex).__name__, ex)
         self.EnqueueCommandResponse(message, error)
@@ -495,7 +497,7 @@ class CloudServerClient:
             elif message['suffix'] == 'delete':
                 result = self.sensorsClient.RemoveSensor(payload['sensorId'])
             else:
-                info('Unknown device command: {}'.format(message['suffix']))
+                error = 'Unknown device command: {}'.format(message['suffix'])
             debug('ProcessDeviceCommand result: {}'.format(result))
             if result is False:
                 error = 'Device command failed'
