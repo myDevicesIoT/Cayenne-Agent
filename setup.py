@@ -6,14 +6,15 @@ from myDevices import __version__
 from myDevices.system.hardware import Hardware
 
 
-classifiers = ['Development Status :: 1 - Alpha',
+classifiers = ['Development Status :: 5 - Production/Stable',
                'Operating System :: POSIX :: Linux',
                'License :: OSI Approved :: MIT License',
                'Intended Audience :: Developers',
                'Programming Language :: Python :: 3',
                'Topic :: Software Development',
                'Topic :: Home Automation',
-               'Topic :: System :: Hardware']
+               'Topic :: System :: Hardware',
+               'Topic :: System :: Monitoring']
 
 try:
     # Try to install under the cayenne user, if it exists.
