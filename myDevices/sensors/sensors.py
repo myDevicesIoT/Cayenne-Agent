@@ -167,8 +167,12 @@ class SensorsClient():
                 extension_types = {'ADC': {'function': 'analogReadAllFloat'},
                                     'DAC': {'function': 'analogReadAllFloat'},
                                     'PWM': {'function': 'pwmWildcard'},
-                                    'DAC': {'function': 'wildcard'}}
+                                    'GPIOPort': {'function': 'wildcard'}}
                 for device_type in device['type']:
+                    try:
+                        display_name = device['description']
+                    except:
+                        display_name = None
                     if device_type in sensor_types:
                         try:
                             sensor_type = sensor_types[device_type]
@@ -177,7 +181,7 @@ class SensorsClient():
                                 channel = '{}:{}'.format(device['name'], device_type.lower())
                             else:
                                 channel = device['name']
-                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=self.CallDeviceFunction(func), **sensor_type['data_args'])
+                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=self.CallDeviceFunction(func), **sensor_type['data_args'], name=display_name)
                         except:
                             exception('Failed to get sensor data: {} {}'.format(device_type, device['name']))
                     else:
@@ -186,7 +190,7 @@ class SensorsClient():
                             func = getattr(sensor, extension_type['function'])
                             values = self.CallDeviceFunction(func)
                             for pin, value in values.items():
-                                cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['name'] + ':' + str(pin), cayennemqtt.VALUE, value)
+                                cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['name'] + ':' + str(pin), cayennemqtt.VALUE, value, name=display_name)
                         except:
                             exception('Failed to get extension data: {} {}'.format(device_type, device['name']))
         logJson('Sensors info: {}'.format(sensors_info))
