@@ -146,6 +146,7 @@ class SensorsClient():
 
     def SensorsInfo(self):
         """Return a list with current sensor states for all enabled sensors"""
+        manager.deviceDetector()
         devices = manager.getDeviceList()
         sensors_info = []
         if devices is None:
