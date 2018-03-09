@@ -422,7 +422,7 @@ class CloudServerClient:
         error = None
         try:
             if message['suffix'] == 'uninstall':
-                output, result = executeCommand('sudo /etc/myDevices/uninstall/uninstall.sh', disablePipe=True)
+                output, result = executeCommand('sudo -n /etc/myDevices/uninstall/uninstall.sh', disablePipe=True)
                 debug('ProcessAgentCommand: {}, result: {}, output: {}'.format(message, result, output))
                 if result != 0:
                     error = 'Error uninstalling agent'
