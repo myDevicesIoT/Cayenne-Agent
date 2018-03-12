@@ -49,17 +49,17 @@ class DownloadSpeed():
     def TestDownload(self):
         """Test download speed by retrieving a file"""
         try:
-            a = datetime.now()
             info('Executing regular download test for network speed')
             url = self.config.get('Agent', 'DownloadSpeedTestUrl', defaultUrl)
             debug(url + ' ' + download_path)
+            a = datetime.now()
             request.urlretrieve(url, download_path)
-            request.urlcleanup()
             b = datetime.now()
+            request.urlcleanup()
             c = b - a
             if path.exists(download_path):
                 size = path.getsize(download_path)/mb
-                self.downloadSpeed = size/c.total_seconds()
+                self.downloadSpeed = size/c.total_seconds() * 8 #Convert to megabits per second
                 remove(download_path)
                 return True
         except socket_error as serr:

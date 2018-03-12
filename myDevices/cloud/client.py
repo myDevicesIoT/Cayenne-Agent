@@ -266,7 +266,7 @@ class CloudServerClient:
             data = []
             download_speed = self.downloadSpeed.getDownloadSpeed()
             if download_speed:
-                cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed)
+                cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed, type='bw', unit='mbps')
             data += self.sensorsClient.systemData
             info('Send system state: {} items'.format(len(data)))
             self.EnqueuePacket(data)

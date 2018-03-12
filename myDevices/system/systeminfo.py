@@ -31,16 +31,20 @@ class SystemInfo():
 
             [{
                 'channel': 'sys:cpu;load',
-                'value': 12.8
+                'value': 12.8,
+                'type': 'cpuload',
+                'unit': 'p'
             }, {
                 'channel': 'sys:cpu;temp',
-                'value': 50.843
+                'value': 50.843,
+                'type': 'temp',
+                'unit': 'c'                
             }]
         """
         cpu_info = []
         try:
-            cayennemqtt.DataChannel.add(cpu_info, cayennemqtt.SYS_CPU, suffix=cayennemqtt.LOAD, value=psutil.cpu_percent(1))
-            cayennemqtt.DataChannel.add(cpu_info, cayennemqtt.SYS_CPU, suffix=cayennemqtt.TEMPERATURE, value=CpuInfo.get_cpu_temp())
+            cayennemqtt.DataChannel.add(cpu_info, cayennemqtt.SYS_CPU, suffix=cayennemqtt.LOAD, value=psutil.cpu_percent(1), type='cpuload', unit='p')
+            cayennemqtt.DataChannel.add(cpu_info, cayennemqtt.SYS_CPU, suffix=cayennemqtt.TEMPERATURE, value=CpuInfo.get_cpu_temp(), type='temp', unit='c')
         except:
             exception('Error getting CPU info')
         return cpu_info
@@ -55,19 +59,23 @@ class SystemInfo():
 
             [{
                 'channel': 'sys:ram;capacity',
-                'value': 968208384
+                'value': 968208384,
+                'type': 'memory',                
+                'type': 'b'
             }, {
                 'channel': 'sys:ram;usage',
-                'value': 296620032
+                'value': 296620032,
+                'type': 'memory',                
+                'type': 'b'               
             }]
         """
         memory_info = []
         try:
             vmem = psutil.virtual_memory()
             if not types or cayennemqtt.USAGE in types:
-                cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.USAGE, value=vmem.total - vmem.available)
+                cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.USAGE, value=vmem.total - vmem.available, type='memory', unit='b')
             if not types or cayennemqtt.CAPACITY in types:
-                cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.CAPACITY, value=vmem.total)
+                cayennemqtt.DataChannel.add(memory_info, cayennemqtt.SYS_RAM, suffix=cayennemqtt.CAPACITY, value=vmem.total, type='memory', unit='b')
         except:
             exception('Error getting memory info')
         return memory_info
@@ -82,16 +90,24 @@ class SystemInfo():
 
             [{
                 'channel': 'sys:storage:/;capacity',
-                'value': 13646516224
+                'value': 13646516224,
+                'type': 'memory',                
+                'type': 'b'
             }, {
                 'channel': 'sys:storage:/;usage',
-                'value': 6353821696
+                'value': 6353821696,
+                'type': 'memory',                
+                'type': 'b'
             }, {
                 'channel': 'sys:storage:/mnt/cdrom;capacity',
-                'value': 479383552
+                'value': 479383552,
+                'type': 'memory',                
+                'type': 'b'
             }, {
                 'channel': 'sys:storage:/mnt/cdrom;usage',
-                'value': 0
+                'value': 0,
+                'type': 'memory',                
+                'type': 'b'
             }]
         """
         storage_info = []
@@ -102,9 +118,9 @@ class SystemInfo():
                         usage = psutil.disk_usage(partition.mountpoint)
                         if usage.total:
                             if not types or cayennemqtt.USAGE in types:
-                                cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.USAGE, usage.used)
+                                cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.USAGE, usage.used, type='memory', unit='b')
                             if not types or cayennemqtt.CAPACITY in types:
-                                cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.CAPACITY, usage.total)
+                                cayennemqtt.DataChannel.add(storage_info, cayennemqtt.SYS_STORAGE, partition.mountpoint, cayennemqtt.CAPACITY, usage.total, type='memory', unit='b')
                 except:
                     pass
         except:

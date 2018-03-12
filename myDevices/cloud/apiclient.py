@@ -60,7 +60,7 @@ class CayenneApiClient:
             capacity_data = system_info.getMemoryInfo((cayennemqtt.CAPACITY,))
             capacity_data += system_info.getDiskInfo((cayennemqtt.CAPACITY,))
             for item in capacity_data:
-                cayennemqtt.DataChannel.add(system_data, item['channel'], value=item['value'], type='memory', unit='byte')
+                system_data.append(item)
             body['properties'] = {}
             body['properties']['pinmap'] = NativeGPIO().MAPPING
             if system_data:
