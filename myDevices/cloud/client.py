@@ -509,9 +509,10 @@ class CloudServerClient:
         """Send response after processing a command message"""
         debug('EnqueueCommandResponse error: {}'.format(error))
         if error:
-            response = '{},error={}'.format(message['cmdId'], error)
+            response = 'error,{}={}'.format(message['cmdId'], error)
         else:
-            response = '{},ok'.format(message['cmdId'])
+            response = 'ok,{}'.format(message['cmdId'])
+        info(response)
         self.EnqueuePacket(response, cayennemqtt.COMMAND_RESPONSE_TOPIC)
 
     def EnqueuePacket(self, message, topic=cayennemqtt.DATA_TOPIC):
