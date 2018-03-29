@@ -337,6 +337,7 @@ class NativeGPIO(Singleton, GPIOPort):
             f = "function"
             v = "value"
         values = {}
+        self.system_config = SystemConfig.getConfig()
         for i in self.pins + self.overlay_pins:
             if compact:
                 func = self.getFunction(i)
@@ -360,9 +361,11 @@ class NativeGPIO(Singleton, GPIOPort):
                 pass
             try:
                 # On Raspberry Pis using the spi_bcm2835 driver SPI chip select is done via software rather than hardware
-                # so the pin function is OUT instead of ALT0. Here we override that if the SPI MOSI pin is set to ALT0
-                # so the GPIO map in the UI will display the appropriate SPI pin info.
-                if channel in self.chip_select_pins and f == 1 and self.getFunction(self.spi_mosi_pin) == 4:
+                # so the pin function is OUT instead of ALT0. Here we override that (and the I2C to be safe) so the GPIO map
+                # in the UI will display the appropriate pin info.
+                if channel in self.spi_pins and self.system_config['SPI'] == 1:
+                    function_string = functions[4]
+                if channel in self.i2c_pins and self.system_config['I2C'] == 1:
                     function_string = functions[4]
             except:
                 pass
@@ -626,16 +629,17 @@ class NativeGPIO(Singleton, GPIOPort):
         if isinstance(self.MAPPING, list):
             self.pins = []
             self.overlay_pins = []
+            self.spi_pins = []
+            self.i2c_pins = []
+            self.system_config = SystemConfig.getConfig()
             for header in self.MAPPING:
                 self.pins.extend([pin['gpio'] for pin in header['map'] if 'gpio' in pin])
             try:
                 if Hardware().isRaspberryPi():
-                    if SystemConfig.getConfig()['OneWire'] == 1:
+                    if self.system_config['OneWire'] == 1:
                         self.overlay_pins.extend([pin['gpio'] for pin in header['map'] if 'overlay' in pin and pin['overlay']['channel'] == 'sys:1wire'])
                         self.pins = [pin for pin in self.pins if pin not in self.overlay_pins]
-                    self.chip_select_pins = []
-                    self.spi_mosi_pin = 10
-                    for header in self.MAPPING:
-                        self.chip_select_pins.extend([pin['gpio'] for pin in header['map'] if 'alt0' in pin and pin['alt0']['name'] in ('CE0', 'CE1')])
+                    self.spi_pins.extend([pin['gpio'] for pin in header['map'] if 'alt0' in pin and pin['alt0']['channel'] == 'sys:spi'])
+                    self.i2c_pins.extend([pin['gpio'] for pin in header['map'] if 'alt0' in pin and pin['alt0']['channel'] == 'sys:i2c'])
             except:
                 pass
