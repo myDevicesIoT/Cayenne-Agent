@@ -45,10 +45,10 @@ I2C_SMBUS       = 0x0720    # SMBus transfer */
 SLAVES = [None for i in range(128)]
 
 class I2C(Bus):
-    def __init__(self, slave):
+    def __init__(self, slave, allow_duplicates=False):
         global SLAVES
         
-        if SLAVES[slave] != None:
+        if SLAVES[slave] != None and not allow_duplicates:
             raise Exception("SLAVE_ADDRESS_USED")
         
         self.channel = 0
@@ -63,7 +63,12 @@ class I2C(Bus):
         if fcntl.ioctl(self.fd, I2C_SLAVE, self.slave):
             raise Exception("Error binding I2C slave 0x%02X" % self.slave)
         
-        SLAVES[self.slave] = self
+        # Since we now allow duplicates, e.g. BMP180_TEMPERATURE & BMP180_PRESSURE, we might need to 
+        # change the SLAVES list to store a reference count or base class name as a way of making sure
+        # only the same base sensor type is duplicated. That doesn't seem to be an issue currently though
+        # so for now we just ignore the SLAVES check.
+        if not allow_duplicates:
+            SLAVES[self.slave] = self
         
     def __str__(self):
         return "I2C(slave=0x%02X)" % self.slave
