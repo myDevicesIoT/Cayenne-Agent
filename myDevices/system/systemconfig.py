@@ -63,5 +63,5 @@ class SystemConfig:
                     config[name] = 1 - int(output.strip()) #Invert the value since the config script uses 0 for enable and 1 for disable
             except:
                 exception('Get config')
-        info('SystemConfig: {}'.format(config))
+        debug('SystemConfig: {}'.format(config))
         return config
