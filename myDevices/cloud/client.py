@@ -459,7 +459,8 @@ class CloudServerClient:
         error = None
         try:
             channel = int(message['channel'].replace(cayennemqtt.SYS_GPIO + ':', ''))
-            result = self.sensorsClient.GpioCommand(message['suffix'], channel, message['payload'])
+            suffix = getattr(message, 'suffix', 'value')
+            result = self.sensorsClient.GpioCommand(suffix, channel, message['payload'])
             debug('ProcessGpioCommand result: {}'.format(result))
             if result == 'failure':
                 error = 'GPIO command failed'
@@ -476,7 +477,8 @@ class CloudServerClient:
             channel = None
             if len(sensor_info) > 1:
                 channel = sensor_info[1]
-            result = self.sensorsClient.SensorCommand(message['suffix'], sensor, channel, message['payload'])
+            suffix = getattr(message, 'suffix', 'value')
+            result = self.sensorsClient.SensorCommand(suffix, sensor, channel, message['payload'])
             debug('ProcessSensorCommand result: {}'.format(result))
             if result is False:
                 error = 'Sensor command failed'
