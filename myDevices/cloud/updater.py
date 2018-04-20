@@ -10,7 +10,7 @@ import random
 from myDevices.utils.config import Config
 from myDevices.utils.subprocess import executeCommand
 
-SETUP_NAME = 'myDevicesSetup_raspberrypi.sh'
+SETUP_NAME = 'update_raspberrypi.sh'
 INSTALL_PATH = '/etc/myDevices/'
 UPDATE_PATH = INSTALL_PATH + 'updates/'
 UPDATE_CFG = UPDATE_PATH + 'updatecfg'
@@ -52,7 +52,7 @@ class Updater(Thread):
         self.Continue = True
         self.currentVersion = ''
         self.newVersion = ''
-        self.downloadUrl = ''
+        # self.downloadUrl = ''
         self.UpdateCleanup()
         self.startTime = datetime.now() - timedelta(days=1)
 
@@ -146,9 +146,12 @@ class Updater(Thread):
             updateConfig = Config(UPDATE_CFG)
             try:
                 self.newVersion = updateConfig.get('UPDATES','Version')
-                self.downloadUrl = updateConfig.get('UPDATES','Url')
             except:
-                error('Updater missing: update version or Url')
+                error('Updater missing version')
+            # try:
+            #     self.downloadUrl = updateConfig.get('UPDATES','Url')
+            # except:
+            #     error('Updater missing url')
             info('Updater retrieve update success')
             return True
         except:
@@ -157,7 +160,7 @@ class Updater(Thread):
 
     def DownloadFile(self, url, localPath):
         try:
-            info( url + ' ' + localPath)
+            info(url + ' ' + localPath)
             with urlopen(url) as response:
                 with open(localPath, 'wb') as output:
                     output.write(response.read())
