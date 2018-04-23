@@ -49,18 +49,18 @@ class DataChannel:
     def add(data_list, prefix, channel=None, suffix=None, value=None, type=None, unit=None, name=None):
         """Create data channel dict and append it to a list"""
         data_channel = prefix
-        if channel:
+        if channel is not None:
             data_channel += ':' + str(channel)
-        if suffix:
+        if suffix is not None:
             data_channel += ';' + str(suffix)
         data = {}
         data['channel'] = data_channel
         data['value'] = value
-        if type:
+        if type is not None:
             data['type'] = type
-        if unit:
+        if unit is not None:
             data['unit'] = unit
-        if name:
+        if name is not None:
             data['name'] = name
         data_list.append(data)
         
