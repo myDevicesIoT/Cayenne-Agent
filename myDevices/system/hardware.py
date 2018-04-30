@@ -12,9 +12,9 @@ CPU_HARDWARE = ""
 
 try:
     with open("/proc/cpuinfo") as f:
-        info = f.read()
+        cpuinfo = f.read()
         rc = re.compile("Revision\s*:\s(.*)\n")
-        result = rc.search(info)
+        result = rc.search(cpuinfo)
         if result:
             CPU_REVISION = result.group(1)
             if CPU_REVISION.startswith("1000"):
@@ -28,7 +28,7 @@ try:
                 else:
                     BOARD_REVISION = 3
         rc = re.compile("Hardware\s*:\s(.*)\n")
-        result = rc.search(info)
+        result = rc.search(cpuinfo)
         CPU_HARDWARE = result.group(1)
 except:
     exception("Error reading cpuinfo")
@@ -39,7 +39,7 @@ class Hardware:
 
     def __init__(self):
         """Initialize board revision and model info"""
-        self.Revision  = '0'
+        self.Revision = '0'
         self.Serial = None
         try:
             with open('/proc/cpuinfo','r') as f:
@@ -68,20 +68,26 @@ class Hardware:
             self.model = 'Raspberry Pi Compute Module'
         if self.Revision in ('0012', '0015'):
             self.model = 'Raspberry Pi Model A+'
-        if self.Revision in ('a01041', 'a21041', 'a22042'):
+        if self.Revision in ('a01040', 'a01041', 'a21041', 'a22042'):
             self.model = 'Raspberry Pi 2 Model B'
-        if self.Revision in ('900092', '900093'):
+        if self.Revision in ('900092', '900093', '920093'):
             self.model = 'Raspberry Pi Zero'
         if self.Revision in ('9000c1',):
             self.model = 'Raspberry Pi Zero W'
-        if self.Revision in ('a02082', 'a22082'):
+        if self.Revision in ('a02082', 'a22082', 'a32082'):
             self.model = 'Raspberry Pi 3 Model B'            
+        if self.Revision in ('a020d3'):
+            self.model = 'Raspberry Pi 3 Model B+'
+        if self.Revision in ('a020a0'):
+            self.model = 'Raspberry Pi Compute Module 3'
         if 'Rockchip' in CPU_HARDWARE:
             self.model = 'Tinker Board'
         self.manufacturer = 'Element14/Premier Farnell'
-        if self.Revision in ('a01041', '900092', 'a02082', '0012', '0011', '0010', '000e', '0008', '0004'):
+        if self.Revision in ('a01041', '900092', 'a02082', '0012', '0011', '0010', '000e', '0008', '0004', 'a020d3', 'a01040', 'a020a0'):
             self.manufacturer = 'Sony, UK'
-        if self.Revision in ('0014', '0015', 'a21041', 'a22082'):
+        if self.Revision in ('a32082'):
+            self.manufacturer = 'Sony, Japan'
+        if self.Revision in ('0014', '0015', 'a21041', 'a22082', '920093'):
             self.manufacturer = 'Embest, China'
         if self.Revision in ('0005', '0009', '000f'):
             self.manufacturer = 'Qisda'
