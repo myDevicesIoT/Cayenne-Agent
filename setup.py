@@ -35,6 +35,9 @@ for directory in directories:
         pass
     os.chown(directory, user_id, group_id)
 
+# Touch config file so it overwrites older versions
+os.utime('scripts/config.sh', None)
+
 setup(name             = 'myDevices',
       version          = __version__,
       author           = 'myDevices',
