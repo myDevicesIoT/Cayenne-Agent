@@ -192,8 +192,8 @@ class History:
                                 count_sensor['SensorsInfo'][value['sensor']] += 1
                                 if value['type'] == 'Temperature':
                                     averageSensorsDictionary[value['sensor']]['Celsius'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['Celsius'], value['Celsius'], count_sensor['SensorsInfo'][value['sensor']] ) 
-                                    averageSensorsDictionary[value['sensor']]['Fahrenheit'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['Fahrenheit'], value['Fahrenheit'], count_sensor['SensorsInfo'][value['sensor']] ) 
-                                    averageSensorsDictionary[value['sensor']]['Kelvin'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['Kelvin'], value['Kelvin'], count_sensor['SensorsInfo'][value['sensor']] ) 
+                                    # averageSensorsDictionary[value['sensor']]['Fahrenheit'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['Fahrenheit'], value['Fahrenheit'], count_sensor['SensorsInfo'][value['sensor']] ) 
+                                    # averageSensorsDictionary[value['sensor']]['Kelvin'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['Kelvin'], value['Kelvin'], count_sensor['SensorsInfo'][value['sensor']] ) 
                                 if value['type'] == 'Pressure':
                                     averageSensorsDictionary[value['sensor']]['Pascal'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['Pascal'], value['Pascal'], count_sensor['SensorsInfo'][value['sensor']] ) 
                                 if value['type'] == 'Luminosity':
@@ -224,8 +224,8 @@ class History:
                                     averageSensorsDictionary[value['sensor']]['value'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['value'], value['value'], count_sensor['SensorsInfo'][value['sensor']] ) 
                                 if value['type'] == 'AnalogSensor':
                                     averageSensorsDictionary[value['sensor']]['float'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['float'], value['float'], count_sensor['SensorsInfo'][value['sensor']] ) 
-                                    averageSensorsDictionary[value['sensor']]['integer'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['integer'], value['integer'], count_sensor['SensorsInfo'][value['sensor']] ) 
-                                    averageSensorsDictionary[value['sensor']]['volt'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['volt'], value['volt'], count_sensor['SensorsInfo'][value['sensor']] ) 
+                                    # averageSensorsDictionary[value['sensor']]['integer'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['integer'], value['integer'], count_sensor['SensorsInfo'][value['sensor']] ) 
+                                    # averageSensorsDictionary[value['sensor']]['volt'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['volt'], value['volt'], count_sensor['SensorsInfo'][value['sensor']] ) 
                                 if value['type'] == 'ServoMotor':
                                     averageSensorsDictionary[value['sensor']]['angle'] = self.CalculateAverage(averageSensorsDictionary[value['sensor']]['angle'], value['angle'], count_sensor['SensorsInfo'][value['sensor']] ) 
                                 if value['type'] == 'AnalogActuator':

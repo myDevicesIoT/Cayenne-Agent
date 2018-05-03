@@ -1,44 +1,27 @@
+"""
+This module provides classes for retrieving process and service info, as well as managing processes and services.
+"""
 from subprocess import Popen, PIPE
 from enum import Enum, unique
-from myDevices.utils.logger import exception, info, warn, error, debug
-from psutil import Process, process_iter, virtual_memory, cpu_percent
 from threading import RLock
+from psutil import Process, process_iter, virtual_memory, cpu_percent
+from myDevices.utils.logger import exception, info, warn, error, debug
+from myDevices.utils.subprocess import executeCommand
+
 
 class ProcessInfo:
+    """Class for getting process info and killing processes"""
+
     def __init__(self):
+        """Initialize process information"""
         self.Name = None
-        self.Pid  = None
-        self.Username  = None
+        self.Pid = None
+        self.Username = None
         self.Cmdline = None
-        # self.Cwd  = None
-        # self.Process = None
-        # self.CpuPercent = None
-        # self.Exe = None
-        # self.Status = None
-        # self.CreateTime = None
-        # self.MemoryPercent = None
-        # self.NumThreads = None
-        # self.NumFds = None
-    def Suspend(self):
-        debug('ProcessManager::Suspend Name:' + self.Name + ' PID:' + str(self.Pid))
-        try:
-            process = Process(self.Pid)
-            process.suspend()
-        except Exception as ex:
-            error('ProcessInfo::Suspend failed Name:' + self.Name + ' PID:'  + str(self.Pid) + ' Exception:' + str(ex))
-            return False
-        return True
-    def Resume(self):
-        debug('ProcessManager::Resume Name:' + self.Name + ' PID:' + str(self.Pid))
-        try:
-            process = Process(self.Pid)
-            process.resume()
-        except Exception as ex:
-            error('ProcessInfo::Resume failed Name:' + self.Name + ' PID:'  + str(self.Pid) + ' Exception:' + str(ex))
-            return False
-        return True
+
     def Terminate(self):
-        print('ProcessManager::Terminate Name:' + self.Name + ' PID:' + str(self.Pid))
+        """Terminate the process"""
+        info('ProcessManager::Terminate Name:' + self.Name + ' PID:' + str(self.Pid))
         try:
             process = Process(self.Pid)
             process.terminate()
@@ -46,16 +29,10 @@ class ProcessInfo:
             error('ProcessInfo::Terminate failed Name:' + self.Name + ' PID:'  + str(self.Pid) + ' Exception:' + str(ex))
             return False
         return True
-    def Wait(self, waitTimeout):
-        debug('ProcessManager::Wait Name:' + self.Name + ' PID:' + str(self.Pid))
-        try:
-            process = Process(self.Pid)
-            process.wait(timeout = waitTimeout)
-        except Exception as ex:
-            error('ProcessInfo::Wait failed Name:' + self.Name + ' PID:' + str(self.Pid) + ' Exception:' + str(ex))
-            return False
-        return True
+
+    @staticmethod
     def IsRunning(pid):
+        """Return True if process with specified pid is running"""
         try:
             process = Process(pid)
         except Exception as ex:
@@ -64,7 +41,10 @@ class ProcessInfo:
         return True
 
 class ProcessManager:
+    """Class for retrieving running processes and processor usage info"""
+
     def __init__(self):
+        """Initialize process and processor info"""
         debug('')
         self.mapProcesses = {}
         self.VisibleMemory = 0
@@ -77,7 +57,9 @@ class ProcessManager:
         self.totalMemoryCount = 0
         self.totalProcessorCount = 0
         self.mutex = RLock()
+
     def Run(self):
+        """Get running process info"""
         debug('')
         try:
             running_processes = []
@@ -91,18 +73,8 @@ class ProcessManager:
                             processInfo.Name = p.name() if callable(p.name) else p.name
                             processInfo.Username = p.username() if callable(p.username) else p.username
                             processInfo.Cmdline = p.cmdline() if callable(p.cmdline) else p.cmdline
-                            # processInfo.Cwd = p.getcwd()
-                            # processInfo.Process = p
-                            # processInfo.CpuPercent = p.get_cpu_percent(interval=0.1)
-                            # processInfo.Exe = p.exe
-                            # processInfo.Status = p.status
-                            # processInfo.CreateTime = p.create_time
-                            # processInfo.MemoryPercent = p.get_memory_percent()
-                            # processInfo.NumThreads = p.get_num_threads()
-                            # processInfo.NumFds = p.get_num_fds()
                             self.mapProcesses[p.pid] = processInfo
-                    except Exception as e:
-                        # debug('ProcessManager::Run Exception {} on pid {}'.format(e, pid))
+                    except Exception:
                         pass
                 remove = [key for key in self.mapProcesses.keys() if key not in running_processes]
                 for key in remove:
@@ -111,7 +83,9 @@ class ProcessManager:
         except:
             exception('ProcessManager::Run failed')
         debug('ProcessManager::Run retrieved {} processes'.format(len(self.mapProcesses)))
+
     def GetProcessList(self):
+        """Return list of running processes"""
         process_list = []
         with self.mutex:
             for key, value in self.mapProcesses.items():
@@ -125,7 +99,9 @@ class ProcessManager:
                 process['pid'] = value.Pid
                 process_list.append(process)
         return process_list
+
     def KillProcess(self, pid):
+        """Kill the process specified by pid"""
         retVal = False
         with self.mutex:
             process = self.mapProcesses.get(pid)
@@ -138,7 +114,9 @@ class ProcessManager:
                     debug('KillProcess: {}'.format(e))
                     pass
         return retVal
+
     def RefreshProcessManager(self):
+        """Refresh processor usage and memory info"""
         try:
             if self.VisibleMemory:
                 del self.VisibleMemory
@@ -164,23 +142,28 @@ class ProcessManager:
                 self.PeakMemoryUsage = self.AvailableMemory
         except:
             exception('ProcessManager::RefreshProcessManager failed')
-                    
+
 @unique
 class ServiceState(Enum):
-    Unkown = 0
+    Unknown = 0
     Running = 1
     NotRunning = 2
     NotAvailable = 3
-    
+
 class ServiceManager:
+    """Class for retrieving service info and managing services"""
+
     def __init__(self):
+        """Initialize service info"""
         self.Init = True
         self.mapServices = {}
         self.mutex = RLock()
+
     def Run(self):
+        """Get info about services"""
         debug('ServiceManager::Run')
         with self.mutex:
-            (output, returnCode) = ServiceManager.ExecuteCommand("service --status-all")
+            (output, returnCode) = executeCommand("service --status-all")
             servicesList = output.split("\n")
             service_names = []
             for line in servicesList:
@@ -201,68 +184,42 @@ class ServiceManager:
                 del self.mapServices[key]
         debug('ServiceManager::Run retrieved ' + str(len(self.mapServices)) + ' services')
         del output
+
     def GetServiceList(self):
+        """Return list of services"""
         service_list = []
         with self.mutex:
             for key, value in self.mapServices.items():
                 process = {}
-                process['ProcessName'] =  str(key)
+                process['ProcessName'] = str(key)
                 process['ProcessDescription'] = str(value)
-                process['CompanyName'] =  str(key)
+                process['CompanyName'] = str(key)
                 service_list.append(process)
         return service_list
+
     def Start(self, serviceName):
+        """Start the named service"""
         debug('ServiceManager::Start')
         command = "sudo service " + serviceName + " start"
-        (output, returnCode) = ServiceManager.ExecuteCommand(command)
+        (output, returnCode) = executeCommand(command)
         debug('ServiceManager::Start command:' + command + " output: " + output)
         del output
         return returnCode
+
     def Stop(self, serviceName):
+        """Stop the named service"""
         debug('ServiceManager::Stop')
         command = "sudo service " + serviceName + " stop"
-        (output, returnCode) = ServiceManager.ExecuteCommand(command)
+        (output, returnCode) = executeCommand(command)
         debug('ServiceManager::Stop command:' + command + " output: " + output)
         del output
         return returnCode
+
     def Status(self, serviceName):
+        """Get the status of the named service"""
         debug('ServiceManager::Status')
         command = "service " + serviceName + " status"
-        (output, returnCode) = ServiceManager.ExecuteCommand(command)
+        (output, returnCode) = executeCommand(command)
         debug('ServiceManager::Stop command:' + command + " output: " + output)
         del output
         return returnCode
-    def SetMemoryLimits():
-        try:
-            from resource import getrlimit, setrlimit, RLIMIT_AS
-            soft, hard = getrlimit(RLIMIT_AS)
-            setrlimit(RLIMIT_AS, (hard, hard))
-            soft, hard = getrlimit(RLIMIT_AS)
-        except:
-            pass
-    def ExecuteCommand(command, increaseMemoryLimit=False):
-        debug('ServiceManager::ExecuteCommand: ' +  command)
-        output = ""
-        returncode = 1
-        try:
-            setLimit = None
-            if increaseMemoryLimit:
-                setLimit = ServiceManager.SetMemoryLimits
-            process = Popen(command, stdout=PIPE, shell=True, preexec_fn=setLimit)
-            processOutput = process.communicate()
-            returncode = process.wait()
-            returncode = process.returncode
-            debug('ServiceManager::ExecuteCommand: ' + str(processOutput))
-            if processOutput and processOutput[0]:
-                output = str(processOutput[0].decode('utf-8'))
-                processOutput = None
-        except OSError as oserror:
-            warn('ServiceManager::ExecuteCommand handled: ' + command + ' Exception:' + str(traceback.format_exc()))
-            from myDevices.os.daemon import Daemon
-            Daemon.OnFailure('services', oserror.errno)
-        except:
-            exception('ServiceManager::ExecuteCommand failed: ' + command)
-        debug('ServiceManager::ExecuteCommand: ' +  command + ' ' + str(output))
-        retOut = str(output)
-        del output
-        return (retOut, returncode)

@@ -1,12 +1,11 @@
 from abc import ABCMeta, abstractmethod
-import subprocess
+# import subprocess
 from time import sleep
-from myDevices.os.services import ServiceManager
+from myDevices.utils.subprocess import executeCommand
 
 # send a command to the shell and return the result
 def cmd(cmd):
     response = ""
-
     try:
         #response = subprocess.Popen(
         #    cmd, shell=True,
@@ -14,7 +13,7 @@ def cmd(cmd):
         #process.stdout.close()
         #process.stdin.close()
         #process.stderr.close()
-        response, returncode = ServiceManager.ExecuteCommand(cmd)
+        response, returncode = executeCommand(cmd)
     except:
         reponse = "Error"
     return response

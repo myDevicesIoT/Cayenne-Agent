@@ -23,7 +23,7 @@ import time
 from myDevices.devices.i2c import I2C
 from myDevices.devices.sensor import Luminosity, Distance
 from myDevices.utils.types import toint
-from myDevices.utils.logger import debug 
+from myDevices.utils.logger import debug
 
 class VCNL4000(I2C, Luminosity, Distance):
     REG_COMMAND           = 0x80
@@ -52,8 +52,10 @@ class VCNL4000(I2C, Luminosity, Distance):
     MASK_PROX_READY      = 0b00100000
     MASK_AMB_READY       = 0b01000000
     
-    def __init__(self, slave=0b0010011, current=20, frequency=781, prox_threshold=15, prox_cycles=10, cal_cycles= 5):
-        I2C.__init__(self, toint(slave))
+    def __init__(self, slave=0b0010011, current=20, frequency=781, prox_threshold=15, prox_cycles=10, cal_cycles=5, luminosity=True, distance=True):
+        self.luminosity = luminosity
+        self.distance = distance
+        I2C.__init__(self, toint(slave), True)
         self.setCurrent(toint(current))
         self.setFrequency(toint(frequency))
         self.prox_threshold = toint(prox_threshold)
@@ -68,7 +70,12 @@ class VCNL4000(I2C, Luminosity, Distance):
         return "VCNL4000(slave=0x%02X)" % self.slave
 
     def __family__(self):
-        return [Luminosity.__family__(self), Distance.__family__(self)]
+        family = []
+        if self.luminosity:
+            family.append(Luminosity.__family__(self))
+        if self.distance:
+            family.append(Distance.__family__(self))
+        return family
 
     def __setProximityTiming__(self):
         self.writeRegister(self.REG_PROX_ADJUST, self.VAL_MOD_TIMING_DEF)
@@ -85,12 +92,10 @@ class VCNL4000(I2C, Luminosity, Distance):
         self.offset = self.__measureOffset__()
         debug ("VCNL4000: offset = %d" % (self.offset))
         return self.offset
-
         
     def setCurrent(self, current):
         self.current = current
         self.__setCurrent__()
-        
 
     def getCurrent(self):
         return self.__getCurrent__()
@@ -141,9 +146,20 @@ class VCNL4000(I2C, Luminosity, Distance):
         return bits_current * 10
         
     def __getLux__(self):
-        self.writeRegister(self.REG_COMMAND, self.VAL_START_AMB)
-        while not (self.readRegister(self.REG_COMMAND) & self.MASK_AMB_READY):
-            time.sleep(0.001)
+        count = 0
+        while count < 5:
+            # This try catch loop is a hacky fix for issues when making an initial ambient light reading
+            # using a VCNL4010 sensor. It should be removed when true VCNL4010 support is added.
+            try:
+                self.writeRegister(self.REG_COMMAND, self.VAL_START_AMB)
+                while not (self.readRegister(self.REG_COMMAND) & self.MASK_AMB_READY):
+                    time.sleep(0.001)
+                count = 10
+            except OSError as ex:
+                count = count + 1
+                time.sleep(0.05)
+                if count >= 5:
+                    raise ex
         light_bytes = self.readRegisters(self.REG_AMB_RESULT_HIGH, 2)
         light_word = light_bytes[0] << 8 | light_bytes[1]
         return self.__calculateLux__(light_word)
@@ -206,6 +222,19 @@ class VCNL4000(I2C, Luminosity, Distance):
         while not (self.readRegister(self.REG_COMMAND) & self.MASK_PROX_READY):
             time.sleep(0.001)
         proximity_bytes = self.readRegisters(self.REG_PROX_RESULT_HIGH, 2)
-        debug ("VCNL4000: prox raw value = %d" % (proximity_bytes[0] << 8 | proximity_bytes[1]))
+        debug("VCNL4000: prox raw value = %d" % (proximity_bytes[0] << 8 | proximity_bytes[1]))
         return (proximity_bytes[0] << 8 | proximity_bytes[1])
     
+class VCNL4000_LUMINOSITY(VCNL4000):
+    def __init__(self):
+        VCNL4000.__init__(self, luminosity=True, distance=False)
+
+    def __str__(self):
+        return "VCNL4000_LUMINOSITY"
+
+class VCNL4000_DISTANCE(VCNL4000):
+    def __init__(self):
+        VCNL4000.__init__(self, luminosity=False, distance=True)
+
+    def __str__(self):
+        return "VCNL4000_DISTANCE"

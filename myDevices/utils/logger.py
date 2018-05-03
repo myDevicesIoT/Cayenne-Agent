@@ -7,7 +7,7 @@ from os import path, getpid, remove
 from datetime import datetime
 from hashlib import sha256
 import time
-from myDevices.os.threadpool import ThreadPool
+from myDevices.utils.threadpool import ThreadPool
 from glob import iglob
 
 MAX_JSON_ITEMS_PER_CATEGORY = 100
@@ -18,19 +18,10 @@ FLOOD_LOGGING_COUNT = 10
 LOG_FORMATTER = Formatter(fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
 LOGGER = getLogger("myDevices")
 LOGGER.setLevel(WARN)
-#Now setup the json logger
-# JsonLogger = getLogger("myDevicesData")
 
 CONSOLE_HANDLER = StreamHandler()
 CONSOLE_HANDLER.setFormatter(LOG_FORMATTER)
 LOGGER.addHandler(CONSOLE_HANDLER)
-# memoryhandler = MemoryHandler(capacity=1024*10, target=CONSOLE_HANDLER)
-# LOGGER.addHandler(memoryhandler)
-
-# JsonLogger.addHandler(CONSOLE_HANDLER)
-# JsonLogger.addHandler(memoryhandler)
-# rotatingFileHandler = RotatingFileHandler(JSON_FILE_LOGGER, mode='a', maxBytes=1000000)
-# JsonLogger.addHandler(rotatingFileHandler)
 
 jsonData = {}
 messageFrequence={}
@@ -53,7 +44,7 @@ def rotator(source, dest):
             tar.close()
             remove(source)
         # Remove old myDevices.log backups if they are older than a week. This code can be removed
-        #  in later versions if myDevices.log files have been replaced with cayenne.log.
+        # in later versions if myDevices.log files have been replaced with cayenne.log.
         for old_file in iglob('/var/log/myDevices/myDevices.log*'):
             if path.getmtime(old_file) + 604800 < time.time(): 
                 remove(old_file)
@@ -83,10 +74,6 @@ def rotatorJson():
         debug('rotatorJson called')
         lastRotate = datetime.now()
         ThreadPool.Submit(rotatorJsonMp)
-        # p = Process(target=rotatorJsonMp,  args=())
-        # p.start()
-        # p.join()
-        #no wait for process -> p.join()
     except:
         exception('rotatorJson exception')
 

@@ -2,6 +2,7 @@ import imp
 import os.path
 import json as JSON
 from time import sleep, time
+from threading import RLock
 from myDevices.utils import logger
 from myDevices.utils import types
 from myDevices.utils.config import Config
@@ -12,6 +13,9 @@ from myDevices.devices.onewire import detectOneWireDevices
 PACKAGES = [serial, digital, analog, sensor, shield]
 DYNAMIC_DEVICES  = {}
 DEVICES_JSON_FILE = "/etc/myDevices/devices.json"
+
+mutex = RLock()
+
 def deviceDetector():
     logger.debug('deviceDetector')
     try:
@@ -28,8 +32,6 @@ def deviceDetector():
                     saveDevice(dev['name'], int(time()))
     except Exception as e:
         logger.error("Device detector: %s" % e)
-
-    sleep(5)
 
 def findDeviceClass(name):
     for package in PACKAGES:
@@ -48,34 +50,36 @@ def findDeviceClass(name):
     return None
 
 def saveDevice(name, install_date):
-    logger.debug('saveDevice: ' + str(name))
-    if name not in DEVICES:
-        return
-    #never save to json devices that are manually added
-    if DEVICES[name]['origin'] == 'manual':
-        return
-    DYNAMIC_DEVICES[name] = DEVICES[name]
-    DEVICES[name]['install_date'] = install_date
-    json_devices = getJSON(DYNAMIC_DEVICES)
-    with open(DEVICES_JSON_FILE, 'w') as outfile:
-        outfile.write(json_devices)
+    with mutex:
+        logger.debug('saveDevice: ' + str(name))
+        if name not in DEVICES:
+            return
+        #never save to json devices that are manually added
+        if DEVICES[name]['origin'] == 'manual':
+            return
+        DYNAMIC_DEVICES[name] = DEVICES[name]
+        DEVICES[name]['install_date'] = install_date
+        json_devices = getJSON(DYNAMIC_DEVICES)
+        with open(DEVICES_JSON_FILE, 'w') as outfile:
+            outfile.write(json_devices)
 
 def removeDevice(name):
-    if name in DEVICES:
-        if name in DYNAMIC_DEVICES:
-            if hasattr(DEVICES[name]["device"], 'close'):
-                    DEVICES[name]["device"].close()
-            del DEVICES[name]
-            del DYNAMIC_DEVICES[name]
-            json_devices = getJSON(DYNAMIC_DEVICES)
-            with open(DEVICES_JSON_FILE, 'w') as outfile:
-                outfile.write(json_devices)
-            logger.debug("Deleted device %s" % name)
-            return (200, None, None)
-        logger.error("Cannot delete %s, found but not added via REST" % name)
-        return (403, None, None)
-    logger.error("Cannot delete %s, not found" % name)
-    return (404, None, None)
+    with mutex:
+        if name in DEVICES:
+            if name in DYNAMIC_DEVICES:
+                if hasattr(DEVICES[name]["device"], 'close'):
+                        DEVICES[name]["device"].close()
+                del DEVICES[name]
+                del DYNAMIC_DEVICES[name]
+                json_devices = getJSON(DYNAMIC_DEVICES)
+                with open(DEVICES_JSON_FILE, 'w') as outfile:
+                    outfile.write(json_devices)
+                logger.debug("Deleted device %s" % name)
+                return (200, None, None)
+            logger.error("Cannot delete %s, found but not added via REST" % name)
+            return (403, None, None)
+        logger.error("Cannot delete %s, not found" % name)
+        return (404, None, None)
 
 
 def addDeviceJSON(json):
@@ -106,62 +110,63 @@ def addDeviceJSON(json):
         return (500, "ERROR", "text/plain")
 
 def updateDevice(name, json):
-    if not name in DEVICES:
-        return (404, None, None)
+    with mutex:
+        if not name in DEVICES:
+            return (404, None, None)
 
-    if "name" in json:
-#       forbid name changed
-#        if json["name"] != name:
-#            return (403, "FORBIDDEN", "text/plain")
+        if "name" in json:
+    #       forbid name changed
+    #        if json["name"] != name:
+    #            return (403, "FORBIDDEN", "text/plain")
 
-        if json["name"] != name and json["name"] in DEVICES:
-            return (403, "ALREADY_EXISTS", "text/plain")
+            if json["name"] != name and json["name"] in DEVICES:
+                return (403, "ALREADY_EXISTS", "text/plain")
 
-    logger.info("Edit %s" % name)
-    (c, d, t) = removeDevice(name)
-    if c == 200:
-        (c, d, t) = addDeviceJSON(json)
-    
-    return (c, d, t)
-
+        logger.info("Edit %s" % name)
+        (c, d, t) = removeDevice(name)
+        if c == 200:
+            (c, d, t) = addDeviceJSON(json)
+        
+        return (c, d, t)
 
 def addDevice(name, device, description, args, origin):
-    if name in DEVICES:
-        logger.error("Device <%s> already exists" % name)
-        return -1
-    logger.debug('addDevice: ' + str(name) + ' ' + str(device))
-#    if '/' in device:
-#        deviceClass = device.split('/')[0]
-#    else:
-#        deviceClass = device
-    try:
-        constructor = findDeviceClass(device)
-    except Exception as ex:
-        logger.debug('findDeviceClass failure:' + str(ex))
-        return 0
-    logger.debug('constructor class found ' + str(constructor))
-    if constructor == None:
-        raise Exception("Device driver not found for %s" % device)
+    with mutex:
+        if name in DEVICES:
+            logger.error("Device <%s> already exists" % name)
+            return -1
+        logger.debug('addDevice: ' + str(name) + ' ' + str(device))
+    #    if '/' in device:
+    #        deviceClass = device.split('/')[0]
+    #    else:
+    #        deviceClass = device
+        try:
+            constructor = findDeviceClass(device)
+        except Exception as ex:
+            logger.debug('findDeviceClass failure:' + str(ex))
+            return 0
+        logger.debug('constructor class found ' + str(constructor))
+        if constructor == None:
+            raise Exception("Device driver not found for %s" % device)
 
-    instance = None
-    try:
-        if len(args) > 0:
-            instance = constructor(**args)
-        else:
-            instance = constructor()
-        logger.debug('Adding instance ' + str(instance))
-        addDeviceInstance(name, device, description, instance, args, origin)
-        return 1
-    except Exception as e:
-        logger.error("Error while adding device %s(%s) : %s" % (name, device, e))
-        # addDeviceInstance(name, device, description, None, args, origin)
-        removeDevice(name)
-    return 0
+        instance = None
+        try:
+            if len(args) > 0:
+                instance = constructor(**args)
+            else:
+                instance = constructor()
+            logger.debug('Adding instance ' + str(instance))
+            addDeviceInstance(name, device, description, instance, args, origin)
+            return 1
+        except Exception as e:
+            logger.error("Error while adding device %s(%s) : %s" % (name, device, e))
+            # addDeviceInstance(name, device, description, None, args, origin)
+            removeDevice(name)
+        return 0
 
 def addDeviceConf(devices, origin):
     for (name, params) in devices:
         values = params.split(" ")
-        driver = values[0];
+        driver = values[0]
         description = name
         args = {}
         i = 1
@@ -223,13 +228,14 @@ def addDeviceInstance(name, device, description, instance, args, origin):
     }
         
 def closeDevices():
-    devices = [k for k in DEVICES.keys()]
-    for name in devices:
-        device = DEVICES[name]["device"]
-        logger.debug("Closing device %s - %s" %  (name, device))
-        del DEVICES[name]
-        if hasattr(device, 'close'):
-            device.close()
+    with mutex:
+        devices = [k for k in DEVICES.keys()]
+        for name in devices:
+            device = DEVICES[name]["device"]
+            logger.debug("Closing device %s - %s" %  (name, device))
+            del DEVICES[name]
+            if hasattr(device, 'close'):
+                device.close()
 
 def getJSON(devices_list):
     return types.jsonDumps(getDeviceList(devices_list))

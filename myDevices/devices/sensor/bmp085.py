@@ -18,9 +18,12 @@ from myDevices.devices.i2c import I2C
 from myDevices.devices.sensor import Temperature, Pressure
 
 class BMP085(I2C, Temperature, Pressure):
-    def __init__(self, altitude=0, external=None):
-        I2C.__init__(self, 0x77)
-        Pressure.__init__(self, altitude, external)
+    def __init__(self, altitude=0, external=None, temperature=True, pressure=True):
+        self.temperature = temperature
+        self.pressure = pressure
+        I2C.__init__(self, 0x77, True)
+        if self.pressure:
+            Pressure.__init__(self, altitude, external)
         
         self.ac1 = self.readSignedInteger(0xAA)
         self.ac2 = self.readSignedInteger(0xAC)
@@ -38,7 +41,12 @@ class BMP085(I2C, Temperature, Pressure):
         return "BMP085"
     
     def __family__(self):
-        return [Temperature.__family__(self), Pressure.__family__(self)]
+        family = []
+        if self.temperature:
+            family.append(Temperature.__family__(self))
+        if self.pressure:
+            family.append(Pressure.__family__(self))
+        return family
 
     def readUnsignedInteger(self, address):
         d = self.readRegisters(address, 2)
@@ -100,9 +108,22 @@ class BMP085(I2C, Temperature, Pressure):
         return int(p)
 
 class BMP180(BMP085):
-    def __init__(self, altitude=0, external=None):
-        BMP085.__init__(self, altitude, external)
+    def __init__(self, altitude=0, external=None, temperature=True, pressure=True):
+        BMP085.__init__(self, altitude, external, temperature, pressure)
 
     def __str__(self):
         return "BMP180"
     
+class BMP180_TEMPERATURE(BMP180):
+    def __init__(self, altitude=0, external=None):
+        BMP180.__init__(self, altitude, external, temperature=True, pressure=False)
+
+    def __str__(self):
+        return "BMP180_TEMPERATURE"
+
+class BMP180_PRESSURE(BMP180):
+    def __init__(self, altitude=0, external=None):
+        BMP180.__init__(self, altitude, external, temperature=False, pressure=True)
+
+    def __str__(self):
+        return "BMP180_PRESSURE"

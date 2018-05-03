@@ -1,39 +1,47 @@
-from myDevices.utils.config import Config
+"""
+This module is the main entry point for the Cayenne agent. It processes any command line parameters and launches the client.
+"""
 from os import path, getpid, remove
+from sys import __excepthook__, argv, maxsize
+from threading import Thread
+from myDevices.utils.config import Config
 from myDevices.cloud.client import CloudServerClient
 from myDevices.utils.logger import exception, setDebug, info, debug, error, logToFile, setInfo
-from sys import excepthook, __excepthook__, argv, maxsize
-from threading import Thread
 from signal import signal, SIGUSR1, SIGINT
 from resource import getrlimit, setrlimit, RLIMIT_AS
-from myDevices.os.services import ProcessInfo
-from myDevices.os.daemon import Daemon
+from myDevices.system.services import ProcessInfo
+from myDevices.utils.daemon import Daemon
 
-def setMemoryLimit(rsrc, megs = 200):
+def setMemoryLimit(rsrc, megs=200):
+    """Set the memory usage limit for the agent process"""
     size = megs * 1048576
     soft, hard = getrlimit(rsrc)
-    setrlimit(rsrc, (size, hard)) #limit to one kilobyte
-    soft, hard = getrlimit(rsrc)
-    info ('Limit changed to :'+ str( soft))
+    setrlimit(rsrc, (size, hard))
+
 try:
     #Only set memory limit on 32-bit systems
     if maxsize <= 2**32:
         setMemoryLimit(RLIMIT_AS)
-except Exception as e:
-    error('Cannot set limit to memory: ' + str(e))
+except Exception as ex:
+    print('Cannot set limit to memory: ' + str(ex))
 
 client = None
 pidfile = '/var/run/myDevices/cayenne.pid'
 def signal_handler(signal, frame):
-    if client:
+    """Handle program interrupt so the agent can exit cleanly"""
+    if client and client.connected:
         if signal == SIGINT:
             info('Program interrupt received, client exiting')
             client.Destroy()
             remove(pidfile)
         else:
             client.Restart()
+    elif signal == SIGINT:
+        remove(pidfile)
+        raise SystemExit
 signal(SIGUSR1, signal_handler)
 signal(SIGINT, signal_handler)
+
 
 def exceptionHook(exc_type, exc_value, exc_traceback):
     """Make sure any uncaught exceptions are logged"""
@@ -46,7 +54,7 @@ def exceptionHook(exc_type, exc_value, exc_traceback):
 
 def threadExceptionHook():
     """Make sure any child threads hook exceptions. This should be called before any threads are created."""
-    debug('Daemon::threadExceptionHook ')
+    debug('Daemon::threadExceptionHook')
     init_original = Thread.__init__
     def init(self, *args, **kwargs):
         init_original(self, *args, **kwargs)
@@ -79,51 +87,50 @@ def displayHelp():
     exit()
 
 def writePidToFile(pidfile):
+    """Write the process ID to a file to prevent multiple agents from running at the same time"""
     if path.isfile(pidfile):
         info(pidfile + " already exists, exiting")
         with open(pidfile, 'r') as file:
             pid = int(file.read())
             if ProcessInfo.IsRunning(pid) and pid != getpid():
-                Daemon.Exit()
-                return
+                raise SystemExit
     pid = str(getpid())
     with open(pidfile, 'w') as file:
         file.write(pid)
+
 def main(argv):
+    """Main entry point for starting the agent client"""
     global pidfile
     configfile = None
-    scriptfile = None
     logfile = None
-    isDebug = False
     i = 1
     setInfo()
     while i < len(argv):
         if argv[i] in ["-c", "-C", "--config-file"]:
             configfile = argv[i+1]
-            i+=1
+            i += 1
         elif argv[i] in ["-l", "-L", "--log-file"]:
             logfile = argv[i+1]
-            i+=1
+            i += 1
         elif argv[i] in ["-h", "-H", "--help"]:
             displayHelp()
         elif argv[i] in ["-d", "--debug"]:
             setDebug()
         elif argv[i] in ["-P", "--pidfile"]:
             pidfile = argv[i+1]
-            i+=1
-        i+=1
+            i += 1
+        i += 1
     if configfile == None:
         configfile = '/etc/myDevices/Network.ini'
     writePidToFile(pidfile)
     logToFile(logfile)
-    # SET HOST AND PORT
     config = Config(configfile)
-    HOST = config.get('CONFIG','ServerAddress', 'cloud.mydevices.com')
-    PORT = config.getInt('CONFIG','ServerPort', 8181)
+    HOST = config.get('CONFIG', 'ServerAddress', 'mqtt.mydevices.com')
+    PORT = config.getInt('CONFIG', 'ServerPort', 8883)
     CayenneApiHost = config.get('CONFIG', 'CayenneApi', 'https://api.mydevices.com')
-    # CREATE SOCKET
-    global client 
+    global client
     client = CloudServerClient(HOST, PORT, CayenneApiHost)
+    client.Start()
 
 if __name__ == "__main__":
     try:
