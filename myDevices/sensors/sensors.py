@@ -181,7 +181,7 @@ class SensorsClient():
                                 channel = '{}:{}'.format(device['name'], device_type.lower())
                             else:
                                 channel = device['name']
-                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=self.CallDeviceFunction(func), **sensor_type['data_args'], name=display_name)
+                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=self.CallDeviceFunction(func), name=display_name, **sensor_type['data_args'])
                         except:
                             exception('Failed to get sensor data: {} {}'.format(device_type, device['name']))
                     else:
