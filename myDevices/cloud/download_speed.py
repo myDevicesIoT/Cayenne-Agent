@@ -21,7 +21,7 @@ class DownloadSpeed():
     """Class for checking download speed"""
 
     def __init__(self, config):
-        """Initialize variable and start download speed test"""
+        """Initialize variables and start download speed test"""
         self.downloadSpeed = None
         self.testTime = None
         self.isRunning = False
@@ -49,24 +49,24 @@ class DownloadSpeed():
     def TestDownload(self):
         """Test download speed by retrieving a file"""
         try:
-            a = datetime.now()
-            info('Excuting regular download test for network speed')
-            url = self.config.cloudConfig.DownloadSpeedTestUrl if 'DownloadSpeedTestUrl' in self.config.cloudConfig else defaultUrl
+            info('Executing regular download test for network speed')
+            url = self.config.get('Agent', 'DownloadSpeedTestUrl', defaultUrl)
             debug(url + ' ' + download_path)
+            a = datetime.now()
             request.urlretrieve(url, download_path)
-            request.urlcleanup()
             b = datetime.now()
+            request.urlcleanup()
             c = b - a
             if path.exists(download_path):
                 size = path.getsize(download_path)/mb
-                self.downloadSpeed = size/c.total_seconds()
+                self.downloadSpeed = size/c.total_seconds() * 8 #Convert to megabits per second
                 remove(download_path)
                 return True
         except socket_error as serr:
-                error ('TestDownload:' + str(serr))
-                ret = False
-                Daemon.OnFailure('cloud', serr.errno)
-                return
+            error ('TestDownload:' + str(serr))
+            ret = False
+            Daemon.OnFailure('cloud', serr.errno)
+            return
         except:
             exception('TestDownload Failed')
         return False
@@ -75,7 +75,7 @@ class DownloadSpeed():
         """Return true if it is time to run a new download speed test"""
         if self.testTime is None:
             return True
-        downloadRate = int(self.config.cloudConfig.DownloadSpeedTestRate) if 'DownloadSpeedTestRate' in self.config.cloudConfig else defaultDownloadRate
+        downloadRate = self.config.getInt('Agent', 'DownloadSpeedTestRate', defaultDownloadRate)
         if self.testTime + timedelta(seconds=downloadRate+self.delay ) < datetime.now():
             return True
         return False

@@ -6,6 +6,8 @@ from enum import Enum, unique
 from threading import RLock
 from psutil import Process, process_iter, virtual_memory, cpu_percent
 from myDevices.utils.logger import exception, info, warn, error, debug
+from myDevices.utils.subprocess import executeCommand
+
 
 class ProcessInfo:
     """Class for getting process info and killing processes"""
@@ -161,7 +163,7 @@ class ServiceManager:
         """Get info about services"""
         debug('ServiceManager::Run')
         with self.mutex:
-            (output, returnCode) = ServiceManager.ExecuteCommand("service --status-all")
+            (output, returnCode) = executeCommand("service --status-all")
             servicesList = output.split("\n")
             service_names = []
             for line in servicesList:
@@ -199,7 +201,7 @@ class ServiceManager:
         """Start the named service"""
         debug('ServiceManager::Start')
         command = "sudo service " + serviceName + " start"
-        (output, returnCode) = ServiceManager.ExecuteCommand(command)
+        (output, returnCode) = executeCommand(command)
         debug('ServiceManager::Start command:' + command + " output: " + output)
         del output
         return returnCode
@@ -208,7 +210,7 @@ class ServiceManager:
         """Stop the named service"""
         debug('ServiceManager::Stop')
         command = "sudo service " + serviceName + " stop"
-        (output, returnCode) = ServiceManager.ExecuteCommand(command)
+        (output, returnCode) = executeCommand(command)
         debug('ServiceManager::Stop command:' + command + " output: " + output)
         del output
         return returnCode
@@ -217,46 +219,7 @@ class ServiceManager:
         """Get the status of the named service"""
         debug('ServiceManager::Status')
         command = "service " + serviceName + " status"
-        (output, returnCode) = ServiceManager.ExecuteCommand(command)
+        (output, returnCode) = executeCommand(command)
         debug('ServiceManager::Stop command:' + command + " output: " + output)
         del output
         return returnCode
-
-    @staticmethod
-    def SetMemoryLimits():
-        """Set memory limit when launching a process to the default maximum"""
-        try:
-            from resource import getrlimit, setrlimit, RLIMIT_AS
-            soft, hard = getrlimit(RLIMIT_AS)
-            setrlimit(RLIMIT_AS, (hard, hard))
-        except:
-            pass
-
-    @staticmethod
-    def ExecuteCommand(command, increaseMemoryLimit=False):
-        """Execute a specified command, increasing the processes memory limits if specified"""
-        debug('ServiceManager::ExecuteCommand: ' +  command)
-        output = ""
-        returncode = 1
-        try:
-            setLimit = None
-            if increaseMemoryLimit:
-                setLimit = ServiceManager.SetMemoryLimits
-            process = Popen(command, stdout=PIPE, shell=True, preexec_fn=setLimit)
-            processOutput = process.communicate()
-            returncode = process.wait()
-            returncode = process.returncode
-            debug('ServiceManager::ExecuteCommand: ' + str(processOutput))
-            if processOutput and processOutput[0]:
-                output = str(processOutput[0].decode('utf-8'))
-                processOutput = None
-        except OSError as oserror:
-            warn('ServiceManager::ExecuteCommand handled: ' + command + ' Exception:' + str(traceback.format_exc()))
-            from myDevices.utils.daemon import Daemon
-            Daemon.OnFailure('services', oserror.errno)
-        except:
-            exception('ServiceManager::ExecuteCommand failed: ' + command)
-        debug('ServiceManager::ExecuteCommand: ' +  command + ' ' + str(output))
-        retOut = str(output)
-        del output
-        return (retOut, returncode)

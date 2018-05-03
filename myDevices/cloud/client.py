@@ -4,69 +4,30 @@ to server, retrives system info as well as sensor and actuator info and sends th
 It also responds messages from the server, to set actuator values, change system config settings, etc.
 """
 
-from socket import SOCK_STREAM, socket, AF_INET, gethostname, SHUT_RDWR
-from ssl import CERT_REQUIRED, wrap_socket
 from json import dumps, loads
-from socket import error as socket_error
-from threading import Thread, RLock
+from threading import Thread, Event
 from time import strftime, localtime, tzset, time, sleep
 from queue import Queue, Empty
-from enum import Enum, unique
+from myDevices import __version__
 from myDevices.utils.config import Config
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
-from myDevices.system import services, ipgetter
 from myDevices.sensors import sensors
 from myDevices.system.hardware import Hardware
-from myDevices.wifi import WifiManager
-from myDevices.cloud.scheduler import SchedulerEngine
+# from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
-from myDevices.system.raspiconfig import RaspiConfig
+from myDevices.system.systemconfig import SystemConfig
 from myDevices.utils.daemon import Daemon
 from myDevices.utils.threadpool import ThreadPool
-from myDevices.utils.history import History
-from select import select
-from hashlib import sha256
+# from myDevices.utils.history import History
+from myDevices.utils.subprocess import executeCommand
+# from hashlib import sha256
 from myDevices.cloud.apiclient import CayenneApiClient
-
+import myDevices.cloud.cayennemqtt as cayennemqtt
 
 NETWORK_SETTINGS = '/etc/myDevices/Network.ini'
 APP_SETTINGS = '/etc/myDevices/AppSettings.ini'
 GENERAL_SLEEP_THREAD = 0.20
-
-
-@unique
-class PacketTypes(Enum):
-    """Packet types used when sending/receiving messages"""
-    PT_ACK = 0
-    PT_UTILIZATION = 3
-    PT_SYSTEM_INFO = 4
-    PT_PROCESS_LIST = 5
-    PT_STARTUP_APPLICATIONS = 8
-    PT_START_RDS = 11
-    PT_STOP_RDS = 12
-    PT_RESTART_COMPUTER = 25
-    PT_SHUTDOWN_COMPUTER = 26
-    PT_KILL_PROCESS = 27
-    PT_REQUEST_SCHEDULES = 40
-    PT_UPDATE_SCHEDULES = 41
-    PT_AGENT_MESSAGE = 45
-    PT_PRODUCT_INFO = 50
-    PT_UNINSTALL_AGENT = 51
-    PT_ADD_SENSOR = 61
-    PT_REMOVE_SENSOR = 62
-    PT_UPDATE_SENSOR = 63
-    PT_DEVICE_COMMAND = 64
-    PT_DEVICE_COMMAND_RESPONSE = 65
-    PT_ADD_SCHEDULE = 66
-    PT_REMOVE_SCHEDULE = 67
-    PT_GET_SCHEDULES = 68
-    PT_NOTIFICATION = 69
-    PT_DATA_CHANGED = 70
-    PT_HISTORY_DATA = 71
-    PT_HISTORY_DATA_RESPONSE = 72
-    PT_AGENT_CONFIGURATION = 74
-
 
 def GetTime():
     """Return string with the current time"""
@@ -94,61 +55,11 @@ class OSInfo():
                         continue
                     key = splitLine[0].strip()
                     value = splitLine[1].strip().replace('"', '')
-                    if key == 'PRETTY_NAME':
-                        self.PRETTY_NAME = value
-                        continue
-                    if key == 'NAME':
-                        self.NAME = value
-                        continue
-                    if key == 'VERSION_ID':
-                        self.VERSION_ID = value
-                        continue
-                    if key == 'VERSION':
-                        self.VERSION = value
-                        continue
-                    if key == 'ID_LIKE':
-                        self.ID_LIKE = value
-                        continue
-                    if key == 'ID':
-                        self.ID = value
-                        continue
-                    if key == 'ANSI_COLOR':
-                        self.ANSI_COLOR = value
-                        continue
-                    if key == 'HOME_URL':
-                        self.HOME_URL = value
-                        continue
+                    keys = ('VERSION_ID', 'ID')
+                    if key in keys:
+                        setattr(self, key, value)
         except:
             exception("OSInfo Unexpected error")
-
-
-class ReaderThread(Thread):
-    """Class for reading data from the server on a thread"""
-    
-    def __init__(self, name, client):
-        """Initialize reader thread"""
-        debug('ReaderThread init')
-        Thread.__init__(self, name=name)
-        self.cloudClient = client
-        self.Continue = True
-
-    def run(self):
-        """Read messages from the server until the thread is stopped"""
-        debug('ReaderThread run, continue: ' + str(self.Continue))
-        while self.Continue:
-            try:
-                sleep(GENERAL_SLEEP_THREAD)
-                if not self.cloudClient.connected:
-                    continue
-                self.cloudClient.ReadMessage()
-            except:
-                exception("ReaderThread Unexpected error")
-        return
-
-    def stop(self):
-        """Stop reading messages from the server"""
-        debug('ReaderThread stop')
-        self.Continue = False
 
 
 class ProcessorThread(Thread):
@@ -166,7 +77,8 @@ class ProcessorThread(Thread):
         debug('ProcessorThread run,  continue: ' + str(self.Continue))
         while self.Continue:
             try:
-                sleep(GENERAL_SLEEP_THREAD)
+                if self.cloudClient.exiting.wait(GENERAL_SLEEP_THREAD):
+                    return
                 self.cloudClient.ProcessMessage()
             except:
                 exception("ProcessorThread Unexpected error")
@@ -192,16 +104,20 @@ class WriterThread(Thread):
         """Send messages to the server until the thread is stopped"""
         debug('WriterThread run')
         while self.Continue:
-            sleep(GENERAL_SLEEP_THREAD)
             try:
-                if not self.cloudClient.connected:
+                if self.cloudClient.exiting.wait(GENERAL_SLEEP_THREAD):
+                    return
+                if self.cloudClient.mqttClient.connected == False:
+                    info('WriterThread mqttClient not connected')
                     continue
-                message = self.cloudClient.DequeuePacket()
-                if not message:
-                    continue
-                self.cloudClient.SendMessage(message)
-                del message
-                message = None
+                topic, message = self.cloudClient.DequeuePacket()
+                if message:
+                    # debug('WriterThread, topic: {} {}'.format(topic, message))
+                    if not isinstance(message, str):
+                        message = dumps(message)
+                    self.cloudClient.mqttClient.publish_packet(topic, message)
+                    message = None
+                    self.cloudClient.writeQueue.task_done()
             except:
                 exception("WriterThread Unexpected error")
         return
@@ -230,7 +146,7 @@ class TimerThread(Thread):
         while True:
             try:
                 self.function()
-                sleep(self.interval + GENERAL_SLEEP_THREAD)
+                sleep(self.interval)
             except:
                 exception("TimerThread Unexpected error")
 
@@ -243,329 +159,190 @@ class CloudServerClient:
         self.HOST = host
         self.PORT = port
         self.CayenneApiHost = cayenneApiHost
-        self.onMessageReceived = None
-        self.onMessageSent = None
-        self.initialized = False
-        self.machineName = gethostname()
         self.config = Config(APP_SETTINGS)
-        inviteCode = self.config.get('Agent', 'InviteCode', fallback=None)
-        if not inviteCode:
-            error('No invite code found in {}'.format(APP_SETTINGS))
-            print('Please input an invite code. This can be retrieved from the Cayenne dashboard by adding a new Raspberry Pi device.\n'
-                  'The invite code will be part of the script name shown there: rpi_[invitecode].sh.')
-            inviteCode = input('Invite code: ')
-            if inviteCode:
-                self.config.set('Agent', 'InviteCode', inviteCode)
-            else:
-                print('No invite code set, exiting.')
-                quit()
-        self.installDate=None
-        try:
-            self.installDate = self.config.get('Agent', 'InstallDate', fallback=None)
-        except:
-            pass
-        if not self.installDate:
-            self.installDate = int(time())
-            self.config.set('Agent', 'InstallDate', self.installDate)
         self.networkConfig = Config(NETWORK_SETTINGS)
-        self.sensorsClient = sensors.SensorsClient()
-        self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
-        self.Initialize()
-        self.CheckSubscription()
-        self.FirstRun()
-        self.updater = Updater(self.config)
-        self.updater.start()
-        self.initialized = True
+        self.username = self.config.get('Agent', 'Username', None)
+        self.password = self.config.get('Agent', 'Password', None)
+        self.clientId = self.config.get('Agent', 'ClientID', None)
+        self.connected = False
+        self.exiting = Event()
 
     def __del__(self):
         """Delete the client"""
         self.Destroy()
 
-    def Initialize(self):
-        """Initialize server connection and background threads"""
+    def Start(self):
+        """Connect to server and start background threads"""
         try:
-            self.mutex = RLock()
+            self.installDate=None
+            try:
+                self.installDate = self.config.get('Agent', 'InstallDate', fallback=None)
+            except:
+                pass
+            if not self.installDate:
+                self.installDate = int(time())
+                self.config.set('Agent', 'InstallDate', self.installDate)
+            if not self.username and not self.password and not self.clientId:
+                self.CheckSubscription()
+            if not self.Connect():
+                error('Error starting agent')
+                return
+            # self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
+            self.sensorsClient = sensors.SensorsClient()
             self.readQueue = Queue()
             self.writeQueue = Queue()
-            self.pingRate = 10
-            self.pingTimeout = 35
-            self.waitPing = 0
-            self.lastPing = time()-self.pingRate - 1
-            self.PublicIP = ipgetter.myip()
             self.hardware = Hardware()
             self.oSInfo = OSInfo()
-            self.downloadSpeed = DownloadSpeed(self.config)
-            self.MachineId = None
-            self.connected = False
-            self.exiting = False
-            self.Start
             self.count = 10000
             self.buff = bytearray(self.count)
-            #start thread only after init of other fields
-            self.sensorsClient.SetDataChanged(self.OnDataChanged, self.BuildPT_SYSTEM_INFO)
-            self.processManager = services.ProcessManager()
-            self.serviceManager = services.ServiceManager()
-            self.wifiManager = WifiManager.WifiManager()
+            self.downloadSpeed = DownloadSpeed(self.config)
+            self.downloadSpeed.getDownloadSpeed()
+            self.sensorsClient.SetDataChanged(self.OnDataChanged)
             self.writerThread = WriterThread('writer', self)
             self.writerThread.start()
-            self.readerThread = ReaderThread('reader', self)
-            self.readerThread.start()
             self.processorThread = ProcessorThread('processor', self)
             self.processorThread.start()
-            TimerThread(self.CheckConnectionAndPing, self.pingRate)
-            self.sentHistoryData = {}
-            self.historySendFails = 0
-            self.historyThread = Thread(target=self.SendHistoryData)
-            self.historyThread.setDaemon(True)
-            self.historyThread.start()
+            TimerThread(self.SendSystemInfo, 300)
+            TimerThread(self.SendSystemState, 30, 5)
+            self.updater = Updater(self.config)
+            self.updater.start()
+            # self.sentHistoryData = {}
+            # self.historySendFails = 0
+            # self.historyThread = Thread(target=self.SendHistoryData)
+            # self.historyThread.setDaemon(True)
+            # self.historyThread.start()
         except Exception as e:
             exception('Initialize error: ' + str(e))
 
     def Destroy(self):
         """Destroy client and stop client threads"""
         info('Shutting down client')
-        self.exiting = True
-        self.sensorsClient.StopMonitoring()
+        self.exiting.set()
+        if hasattr(self, 'sensorsClient'):
+            self.sensorsClient.StopMonitoring()
         if hasattr(self, 'schedulerEngine'):
             self.schedulerEngine.stop()
         if hasattr(self, 'updater'):
             self.updater.stop()
         if hasattr(self, 'writerThread'):
             self.writerThread.stop()
-        if hasattr(self, 'readerThread'):
-            self.readerThread.stop()
         if hasattr(self, 'processorThread'):
             self.processorThread.stop()
         ThreadPool.Shutdown()
-        self.Stop()
+        self.Disconnect()
         info('Client shut down')
 
-    def FirstRun(self):
-        """Send messages when client is first started"""
-        self.BuildPT_SYSTEM_INFO()
-        self.RequestSchedules()
-
-    def BuildPT_UTILIZATION(self):
-        """Enqueue a packet containing system utilization data to send to the server"""
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['Timestamp'] = int(time())
-        data['PacketType'] = PacketTypes.PT_UTILIZATION.value
-        self.processManager.RefreshProcessManager()
-        data['VisibleMemory'] = self.processManager.VisibleMemory
-        data['AvailableMemory'] = self.processManager.AvailableMemory
-        data['AverageProcessorUsage'] = self.processManager.AverageProcessorUsage
-        data['PeakProcessorUsage'] = self.processManager.PeakProcessorUsage
-        data['AverageMemoryUsage'] = self.processManager.AverageMemoryUsage
-        data['PeakMemoryUsage'] = self.processManager.AverageMemoryUsage
-        data['PercentProcessorTime'] = self.processManager.PercentProcessorTime
+    def OnDataChanged(self, data):
+        """Enqueue a packet containing changed system data to send to the server"""
+        info('Send changed data: {}'.format([{item['channel']:item['value']} for item in data]))
         self.EnqueuePacket(data)
 
-    def OnDataChanged(self, raspberryValue):
-        """Enqueue a packet containing system utilization data to send to the server"""
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['PacketType'] = PacketTypes.PT_DATA_CHANGED.value
-        data['Timestamp'] = int(time())
-        data['RaspberryInfo'] = raspberryValue
-        self.EnqueuePacket(data)
-        del data
-        del raspberryValue
+    def SendSystemInfo(self):
+        """Enqueue a packet containing system info to send to the server"""
+        try:
+            data = []
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
+            cayennemqtt.DataChannel.add(data, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent', 'Version', __version__))
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_POWER_RESET, value=0)
+            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_POWER_HALT, value=0)
+            config = SystemConfig.getConfig()
+            if config:
+                channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART,
+                                'OneWire': cayennemqtt.SYS_ONEWIRE, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}
+                for key, channel in channel_map.items():
+                    try:
+                        cayennemqtt.DataChannel.add(data, channel, value=config[key])
+                    except:
+                        pass
+            info('Send system info: {}'.format([{item['channel']:item['value']} for item in data]))
+            self.EnqueuePacket(data)
+        except Exception:
+            exception('SendSystemInfo unexpected error')
 
-    def BuildPT_SYSTEM_INFO(self):
+    def SendSystemState(self):
         """Enqueue a packet containing system information to send to the server"""
         try:
-            data = {}
-            data['MachineName'] = self.MachineId
-            data['PacketType'] = PacketTypes.PT_SYSTEM_INFO.value
-            data['Timestamp'] = int(time())
-            data['IpAddress'] = self.PublicIP
-            data['GatewayMACAddress'] = self.hardware.getMac()
-            raspberryValue = {}
-            raspberryValue['NetworkSpeed'] = str(self.downloadSpeed.getDownloadSpeed())
-            raspberryValue['AntiVirus'] = 'None'
-            raspberryValue['Firewall'] = 'iptables'
-            raspberryValue['FirewallEnabled'] = 'true'
-            raspberryValue['ComputerMake'] = self.hardware.getManufacturer()
-            raspberryValue['ComputerModel'] = self.hardware.getModel()
-            raspberryValue['OsName'] = self.oSInfo.ID
-            raspberryValue['OsBuild'] = self.oSInfo.ID_LIKE if hasattr(self.oSInfo, 'ID_LIKE') else self.oSInfo.ID
-            raspberryValue['OsArchitecture'] = self.hardware.Revision
-            raspberryValue['OsVersion'] = self.oSInfo.VERSION_ID
-            raspberryValue['ComputerName'] = self.machineName
-            raspberryValue['AgentVersion'] = self.config.get('Agent', 'Version', fallback='1.0.1.0')
-            raspberryValue['InstallDate'] = self.installDate
-            raspberryValue['GatewayMACAddress'] = self.hardware.getMac()
-            with self.sensorsClient.sensorMutex:
-                raspberryValue['SystemInfo'] = self.sensorsClient.currentSystemInfo
-                raspberryValue['SensorsInfo'] = self.sensorsClient.currentSensorsInfo
-                raspberryValue['BusInfo'] = self.sensorsClient.currentBusInfo
-            raspberryValue['OsSettings'] = RaspiConfig.getConfig()
-            raspberryValue['NetworkId'] = WifiManager.Network.GetNetworkId()
-            raspberryValue['WifiStatus'] = self.wifiManager.GetStatus()
-            try:
-                history = History()
-                history.SaveAverages(raspberryValue)
-            except:
-                exception('History error')
-            data['RaspberryInfo'] = raspberryValue
+            data = []
+            download_speed = self.downloadSpeed.getDownloadSpeed()
+            if download_speed:
+                cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed, type='bw', unit='mbps')
+            data += self.sensorsClient.systemData
+            info('Send system state: {} items'.format(len(data)))
             self.EnqueuePacket(data)
-            logJson('PT_SYSTEM_INFO: ' + dumps(data), 'PT_SYSTEM_INFO')
-            del raspberryValue
-            del data
-            data = None
         except Exception as e:
             exception('ThreadSystemInfo unexpected error: ' + str(e))
 
-    def BuildPT_STARTUP_APPLICATIONS(self):
-        """Schedule a function to run for retrieving a list of services"""
-        ThreadPool.Submit(self.ThreadServiceManager)
-
-    def ThreadServiceManager(self):
-        """Enqueue a packet containing a list of services to send to the server"""
-        self.serviceManager.Run()
-        sleep(GENERAL_SLEEP_THREAD)
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['PacketType'] = PacketTypes.PT_STARTUP_APPLICATIONS.value
-        data['ProcessList'] = self.serviceManager.GetServiceList()
-        self.EnqueuePacket(data)
-
-    def BuildPT_PROCESS_LIST(self):
-        """Schedule a function to run for retrieving a list of processes"""
-        ThreadPool.Submit(self.ThreadProcessManager)
-
-    def ThreadProcessManager(self):
-        """Enqueue a packet containing a list of processes to send to the server"""
-        self.processManager.Run()
-        sleep(GENERAL_SLEEP_THREAD)
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['PacketType'] = PacketTypes.PT_PROCESS_LIST.value
-        data['ProcessList'] = self.processManager.GetProcessList()
-        self.EnqueuePacket(data)
-
-    def ProcessPT_KILL_PROCESS(self, message):
-        """Kill a process specified in message"""
-        pid = message['Pid']
-        retVal = self.processManager.KillProcess(int(pid))
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
-        data['Type'] = 'Info'
-        if retVal:
-            data['Message'] = 'Process Killed!'
-        else:
-            data['Message'] = 'Process not Killed!'
-        self.EnqueuePacket(data)
-
     def CheckSubscription(self):
         """Check that an invite code is valid"""
+        inviteCode = self.config.get('Agent', 'InviteCode', fallback=None)
+        if not inviteCode:
+            error('No invite code found in {}'.format(APP_SETTINGS))
+            print('Please input an invite code. This can be retrieved from the Cayenne dashboard by adding a new Raspberry Pi device.\n'
+                'The invite code will be part of the script name shown there: rpi_[invitecode].sh.')
+            inviteCode = input('Invite code: ')
+            if inviteCode:
+                self.config.set('Agent', 'InviteCode', inviteCode)
+            else:
+                print('No invite code set, exiting.')
+                raise SystemExit
         inviteCode = self.config.get('Agent', 'InviteCode')
         cayenneApiClient = CayenneApiClient(self.CayenneApiHost)
-        authId = cayenneApiClient.loginDevice(inviteCode)
-        if authId == None:
+        credentials = cayenneApiClient.loginDevice(inviteCode)
+        if credentials == None:
             error('Registration failed for invite code {}, closing the process'.format(inviteCode))
-            Daemon.Exit()
+            raise SystemExit
         else:
-            info('Registration succeeded for invite code {}, auth id = {}'.format(inviteCode, authId))
+            info('Registration succeeded for invite code {}, credentials = {}'.format(inviteCode, credentials))
             self.config.set('Agent', 'Initialized', 'true')
-            self.MachineId = authId
-            self.config.set('Agent', 'Id', self.MachineId)
-
-    @property
-    def Start(self):
+            try:
+                self.username = credentials['mqtt']['username']
+                self.password = credentials['mqtt']['password']
+                self.clientId = credentials['mqtt']['clientId']
+                self.config.set('Agent', 'Username', self.username)
+                self.config.set('Agent', 'Password', self.password)
+                self.config.set('Agent', 'ClientID', self.clientId)
+            except:
+                exception('Invalid credentials, closing the process')
+                raise SystemExit
+ 
+    def Connect(self):
         """Connect to the server"""
-        if self.connected:
-            ret = False
-            error('Start already connected')
-        else:
-            info('Connecting to: {}:{}'.format(self.HOST, self.PORT))
-            count = 0
-            with self.mutex:
+        self.connected = False
+        count = 0
+        while self.connected == False and count < 30 and not self.exiting.is_set():
+            try:
+                self.mqttClient = cayennemqtt.CayenneMQTTClient()
+                self.mqttClient.on_message = self.OnMessage
+                self.mqttClient.begin(self.username, self.password, self.clientId, self.HOST, self.PORT)
+                self.mqttClient.loop_start()
+                self.connected = True
+            except OSError as oserror:
+                Daemon.OnFailure('cloud', oserror.errno)
+                error('Connect failed: ' + str(self.HOST) + ':' + str(self.PORT) + ' Error:' + str(oserror))
+                if self.exiting.wait(30):
+                    # If we are exiting return immediately
+                    return self.connected
                 count += 1
-                while self.connected == False and count < 30:
-                    try:
-                        self.sock = None
-                        self.wrappedSocket = None
-                        self.sock = socket(AF_INET, SOCK_STREAM)
-                        self.wrappedSocket = wrap_socket(self.sock)
-                        self.wrappedSocket.connect((self.HOST, self.PORT))
-                        info('myDevices cloud connected')
-                        self.connected = True
-                    except socket_error as serr:
-                        Daemon.OnFailure('cloud', serr.errno)
-                        error('Start failed: ' + str(self.HOST) + ':' + str(self.PORT) + ' Error:' + str(serr))
-                        self.connected = False
-                        sleep(30-count)
         return self.connected
 
-    def Stop(self):
+    def Disconnect(self):
         """Disconnect from the server"""
         Daemon.Reset('cloud')
-        ret = True
-        if self.connected == False:
-            ret = False
-            error('Stop not connected')
-        else:
-            with self.mutex:
-                try:
-                    self.wrappedSocket.shutdown(SHUT_RDWR)
-                    self.wrappedSocket.close()
-                    info('myDevices cloud disconnected')
-                except socket_error as serr:
-                    debug(str(serr))
-                    error('myDevices cloud disconnected error:' + str(serr))
-                    ret = False
-                self.connected = False
-        return ret
+        try:
+            if hasattr(self, 'mqttClient'):
+                self.mqttClient.loop_stop()
+                info('myDevices cloud disconnected')
+        except:
+            exception('Error stopping client')
 
     def Restart(self):
         """Restart the server connection"""
-        if not self.exiting:
+        if not self.exiting.is_set():
             debug('Restarting cycle...')
             sleep(1)
-            self.Stop()
-            self.Start
-
-    def SendMessage(self, message):
-        """Send a message packet to the server"""
-        logJson(message, 'SendMessage')
-        ret = True
-        if self.connected == False:
-            error('SendMessage fail')
-            ret = False
-        else:
-            try:
-                data = bytes(message, 'UTF-8')
-                max_size = 16383
-                if len(data) > max_size:
-                    start = 0
-                    current = max_size
-                    end = len(data)
-                    self.wrappedSocket.send(data[start:current])
-                    while current < end:
-                        start = current
-                        current = start + max_size if start + max_size < end else end
-                        self.wrappedSocket.send(data[start:current])
-                else:
-                    self.wrappedSocket.send(data)
-                if self.onMessageSent:
-                    self.onMessageSent(message)
-                message = None
-            except socket_error as serr:
-                error('SendMessage:' + str(serr))
-                ret = False
-                Daemon.OnFailure('cloud', serr.errno)
-                sleep(1)
-            except IOError as ioerr:
-                debug('IOError: ' + str(ioerr))
-                self.Restart()
-            except socket_error as serr:
-                Daemon.OnFailure('cloud', serr.errno)
-            except:
-                exception('SendMessage error')
-        return ret
+            self.Disconnect()
+            self.Connect()
 
     def CheckJson(self, message):
         """Check if a JSON message is valid"""
@@ -575,77 +352,15 @@ class CloudServerClient:
             return False
         return True
 
-    def ReadMessage(self):
-        """Read a message from the server"""
-        ret = True
-        if self.connected == False:
-            ret = False
-        else:
-            try:
-                self.count = 4096
-                timeout_in_seconds = 10
-                ready = select([self.wrappedSocket], [], [], timeout_in_seconds)
-                if ready[0]:
-                    message = self.wrappedSocket.recv(self.count).decode()
-                    buffering = len(message) == 4096
-                    while buffering and message:
-                        if self.CheckJson(message):
-                            buffering = False
-                        else:
-                            more = self.wrappedSocket.recv(self.count).decode()
-                            if not more:
-                                buffering = False
-                            else:
-                                message += more
-                    try:
-                        if message:
-                            messageObject = loads(message)
-                            del message
-                            self.readQueue.put(messageObject)
-                        else:
-                            error('ReadMessage received empty message string')
-                    except:
-                        exception('ReadMessage error: ' + str(message))
-                        return False
-                    Daemon.Reset('cloud')
-            except IOError as ioerr:
-                debug('IOError: ' + str(ioerr))
-                self.Restart()
-            except socket_error as serr:
-                Daemon.OnFailure('cloud', serr.errno)
-            except:
-                exception('ReadMessage error')
-                ret = False
-                sleep(1)
-                Daemon.OnFailure('cloud')
-        return ret
+    def OnMessage(self, message):
+        """Add message from the server to the queue"""
+        info('OnMessage: {}'.format(message))
+        self.readQueue.put(message)
 
     def RunAction(self, action):
         """Run a specified action"""
         debug('RunAction')
-        if 'MachineName' in action:
-            #Use the config file machine if self.MachineId has not been set yet due to connection issues 
-            machine_id = self.MachineId if self.MachineId else self.config.get('Agent', 'Id')
-            if machine_id != action['MachineName']:
-                debug('Scheduler action is not assigned for this machine: ' + str(action))
-                return
         self.ExecuteMessage(action)
-
-    def SendNotification(self, notify, subject, body):
-        """Enqueue a notification message packet to send to the server"""
-        info('SendNotification: ' + str(notify) + ' ' + str(subject) + ' ' + str(body))
-        try:
-            data = {}
-            data['PacketType'] = PacketTypes.PT_NOTIFICATION.value
-            data['MachineName'] = self.MachineId
-            data['Subject'] = subject
-            data['Body'] = body
-            data['Notify'] = notify
-            self.EnqueuePacket(data)
-        except:
-            debug('')
-            return False
-        return True
 
     def ProcessMessage(self):
         """Process a message from the server"""
@@ -655,381 +370,204 @@ class CloudServerClient:
                 return False
         except Empty:
             return False
-        with self.mutex:
-            retVal = self.CheckPT_ACK(messageObject)
-        if retVal:
-            return
         self.ExecuteMessage(messageObject)
 
-    def CheckPT_ACK(self, messageObject):
-        """Check if message is a keep alive packet"""
-        try:
-            packetType = int(messageObject['PacketType'])
-            if packetType == PacketTypes.PT_ACK.value:
-                self.lastPing = time()
-                return True
-        except:
-            debug('')
-            error('CheckPT_ACK failure: ' + str(messageObject))
-        return False
-
-    def ExecuteMessage(self, messageObject):
+    def ExecuteMessage(self, message):
         """Execute an action described in a message object"""
-        if not messageObject:
+        if not message:
             return
-        info("ExecuteMessage: " + str(messageObject['PacketType']))
-        packetType = int(messageObject['PacketType'])
-        if packetType == PacketTypes.PT_UTILIZATION.value:
-            self.BuildPT_UTILIZATION()
-            info(PacketTypes.PT_UTILIZATION)
-            return
-        if packetType == PacketTypes.PT_SYSTEM_INFO.value:
-            self.BuildPT_SYSTEM_INFO()
-            info(PacketTypes.PT_SYSTEM_INFO)
-            return
-        if packetType == PacketTypes.PT_UNINSTALL_AGENT.value:
-            command = "sudo /etc/myDevices/uninstall/uninstall.sh"
-            services.ServiceManager.ExecuteCommand(command)
-            return
-        if packetType == PacketTypes.PT_STARTUP_APPLICATIONS.value:
-            self.BuildPT_STARTUP_APPLICATIONS()
-            info(PacketTypes.PT_STARTUP_APPLICATIONS)
-            return
-        if packetType == PacketTypes.PT_PROCESS_LIST.value:
-            self.BuildPT_PROCESS_LIST()
-            info(PacketTypes.PT_PROCESS_LIST)
-            return
-        if packetType == PacketTypes.PT_KILL_PROCESS.value:
-            self.ProcessPT_KILL_PROCESS(messageObject)
-            info(PacketTypes.PT_KILL_PROCESS)
-            return
-        if packetType == PacketTypes.PT_PRODUCT_INFO.value:
-            self.config.set('Subscription', 'ProductCode', messageObject['ProductCode'])
-            info(PacketTypes.PT_PRODUCT_INFO)
-            return
-        if packetType == PacketTypes.PT_RESTART_COMPUTER.value:
-            info(PacketTypes.PT_RESTART_COMPUTER)
-            data = {}
-            data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
-            data['MachineName'] = self.MachineId
-            data['Message'] = 'Computer Restarted!'
-            self.EnqueuePacket(data)
-            command = "sudo shutdown -r now"
-            services.ServiceManager.ExecuteCommand(command)
-            return
-        if packetType == PacketTypes.PT_SHUTDOWN_COMPUTER.value:
-            info(PacketTypes.PT_SHUTDOWN_COMPUTER)
-            data = {}
-            data['PacketType'] = PacketTypes.PT_AGENT_MESSAGE.value
-            data['MachineName'] = self.MachineId
-            data['Message'] = 'Computer Powered Off!'
-            self.EnqueuePacket(data)
-            command = "sudo shutdown -h now"
-            services.ServiceManager.ExecuteCommand(command)
-            return
-        if packetType == PacketTypes.PT_AGENT_CONFIGURATION.value:
-            info('PT_AGENT_CONFIGURATION: ' + str(messageObject.Data))
-            self.config.setCloudConfig(messageObject.Data)
-            return
-        if packetType == PacketTypes.PT_ADD_SENSOR.value:
-            try:
-                info(PacketTypes.PT_ADD_SENSOR)
-                parameters = None
-                deviceName = None
-                deviceClass = None
-                description = None
-                #for backward compatibility check the DisplayName and overwrite it over the other variables
-                displayName = None
-                if 'DisplayName' in messageObject:
-                    displayName = messageObject['DisplayName']
+        channel = message['channel']
+        info('ExecuteMessage: {}'.format(message))
+        if channel in (cayennemqtt.SYS_POWER_RESET, cayennemqtt.SYS_POWER_HALT):
+            self.ProcessPowerCommand(message)
+        elif channel.startswith(cayennemqtt.DEV_SENSOR):
+            self.ProcessSensorCommand(message)
+        elif channel.startswith(cayennemqtt.SYS_GPIO):
+            self.ProcessGpioCommand(message)
+        elif channel == cayennemqtt.AGENT_DEVICES:
+            self.ProcessDeviceCommand(message)
+        elif channel in (cayennemqtt.SYS_I2C, cayennemqtt.SYS_SPI, cayennemqtt.SYS_UART, cayennemqtt.SYS_ONEWIRE):
+            self.ProcessConfigCommand(message)
+        elif channel == cayennemqtt.AGENT_MANAGE:
+            self.ProcessAgentCommand(message)
+        else:
+            info('Unknown message')
 
-                if 'Parameters' in messageObject:
-                    parameters = messageObject['Parameters']
-
-                if 'DeviceName' in messageObject:
-                    deviceName = messageObject['DeviceName']
-                else:
-                    deviceName = displayName
-
-                if 'Description' in messageObject:
-                    description = messageObject['Description']
-                else:
-                    description = deviceName
-
-                if 'Class' in messageObject:
-                    deviceClass = messageObject['Class']
-
-                retValue = True
-                retValue = self.sensorsClient.AddSensor(deviceName, description, deviceClass, parameters)
-            except Exception as ex:
-                exception("PT_ADD_SENSOR Unexpected error"+  str(ex))
-                retValue = False
-            data = {}
-            if 'Id' in messageObject:
-                data['Id'] = messageObject['Id']
-            #0 - None, 1 - Pending, 2-Success, 3 - Not responding, 4 - Failure
-            if retValue:
-                data['State'] = 2
-            else:
-                data['State'] = 4
-            data['PacketType'] = PacketTypes.PT_UPDATE_SENSOR.value
-            data['MachineName'] = self.MachineId
-            self.EnqueuePacket(data)
-            return
-        if packetType == PacketTypes.PT_REMOVE_SENSOR.value:
-            try:
-                info(PacketTypes.PT_REMOVE_SENSOR)
-                retValue = False
-                if 'Name' in messageObject:
-                    Name = messageObject['Name']
-                    retValue = self.sensorsClient.RemoveSensor(Name)
-                data = {}
-                data['Name'] = Name
-                data['PacketType'] = PacketTypes.PT_REMOVE_SENSOR.value
-                data['MachineName'] = self.MachineId
-                data['Response'] = retValue
+    def ProcessPowerCommand(self, message):
+        """Process command to reboot/shutdown the system"""
+        error_message = None
+        try:
+            self.EnqueueCommandResponse(message, error_message)
+            commands = {cayennemqtt.SYS_POWER_RESET: 'sudo shutdown -r now', cayennemqtt.SYS_POWER_HALT: 'sudo shutdown -h now'}
+            if int(message['payload']) == 1:
+                debug('Processing power command')
+                data = []
+                cayennemqtt.DataChannel.add(data, message['channel'], value=1)
                 self.EnqueuePacket(data)
-            except Exception as ex:
-                exception("PT_REMOVE_SENSOR Unexpected error"+  str(ex))
-                retValue = False
-            return
-        if packetType == PacketTypes.PT_DEVICE_COMMAND.value:
-            info(PacketTypes.PT_DEVICE_COMMAND)
-            self.ProcessDeviceCommand(messageObject)
-            return
-        if packetType == PacketTypes.PT_ADD_SCHEDULE.value:
-            info(PacketTypes.PT_ADD_SCHEDULE.value)
-            retVal = self.schedulerEngine.AddScheduledItem(messageObject, True)
-            if 'Update' in messageObject:
-                messageObject['Update'] = messageObject['Update']
-            messageObject['PacketType'] = PacketTypes.PT_ADD_SCHEDULE.value
-            messageObject['MachineName'] = self.MachineId
-            messageObject['Status'] = str(retVal)
-            self.EnqueuePacket(messageObject)
-            return
-        if packetType == PacketTypes.PT_REMOVE_SCHEDULE.value:
-            info(PacketTypes.PT_REMOVE_SCHEDULE)
-            retVal = self.schedulerEngine.RemoveScheduledItem(messageObject)
-            messageObject['PacketType'] = PacketTypes.PT_REMOVE_SCHEDULE.value
-            messageObject['MachineName'] = self.MachineId
-            messageObject['Status'] = str(retVal)
-            self.EnqueuePacket(messageObject)
-            return
-        if packetType == PacketTypes.PT_GET_SCHEDULES.value:
-            info(PacketTypes.PT_GET_SCHEDULES)
-            schedulesJson = self.schedulerEngine.GetSchedules()
-            data['Schedules'] = schedulesJson
-            data['PacketType'] = PacketTypes.PT_GET_SCHEDULES.value
-            data['MachineName'] = self.MachineId
+                self.writeQueue.join()
+                output, result = executeCommand(commands[message['channel']])
+                debug('ProcessPowerCommand: {}, result: {}, output: {}'.format(message, result, output))
+                if result != 0:
+                    error_message = 'Error executing shutdown command'
+        except Exception as ex:
+            error_message = '{}: {}'.format(type(ex).__name__, ex)           
+        if error_message:
+            error(error_message)
+            data = []
+            cayennemqtt.DataChannel.add(data, message['channel'], value=0)
             self.EnqueuePacket(data)
-            return
-        if packetType == PacketTypes.PT_UPDATE_SCHEDULES.value:
-            info(PacketTypes.PT_UPDATE_SCHEDULES)
-            retVal = self.schedulerEngine.UpdateSchedules(messageObject)
-            return
-        if packetType == PacketTypes.PT_HISTORY_DATA_RESPONSE.value:
-            info(PacketTypes.PT_HISTORY_DATA_RESPONSE)
-            try:
-                id = messageObject['Id']
-                history = History()
-                if messageObject['Status']:
-                    history.Sent(True, self.sentHistoryData[id]['HistoryData'])
-                    self.historySendFails = 0
-                else:
-                    history.Sent(False, self.sentHistoryData[id]['HistoryData'])
-                    self.historySendFails += 1
-                del self.sentHistoryData[id]
-            except:
-                exception('Processing history response packet failed')
-            return
-        info("Skipping not required packet: " + str(packetType))
 
-    def ProcessDeviceCommand(self, messageObject):
-        """Execute a command to run on the device as specified in a message object"""
-        commandType = messageObject['Type']
-        commandService = messageObject['Service']
-        parameters = messageObject['Parameters']
-        info('PT_DEVICE_COMMAND: ' + dumps(messageObject))
-        debug('ProcessDeviceCommand: ' + commandType + ' ' + commandService + ' ' + str(parameters))
-        id = messageObject['Id']
-        sensorId = None
-        if 'SensorId' in messageObject:
-            sensorId = messageObject['SensorId']
-        data = {}
-        retValue = ''
-        if commandService == 'wifi':
-            if commandType == 'status':
-                retValue = self.wifiManager.GetStatus()
-            if commandType == 'scan':
-                retValue = self.wifiManager.GetWirelessNetworks()
-            if commandType == 'setup':
-                try:
-                    ssid = parameters["ssid"]
-                    password = parameters["password"]
-                    interface = parameters["interface"]
-                    retValue = self.wifiManager.Setup(ssid, password, interface)
-                except:
-                    retValue = False
-        if commandService == 'services':
-            serviceName = parameters['ServiceName']
-            if commandType == 'status':
-                retValue = self.serviceManager.Status(serviceName)
-            if commandType == 'start':
-                retValue = self.serviceManager.Start(serviceName)
-            if commandType == 'stop':
-                retValue = self.serviceManager.Stop(serviceName)
-        if commandService == 'sensor':
-            debug('SENSOR_COMMAND processing: ' + str(parameters))
-            method = None
-            channel = None
-            value = None
-            driverClass = None
-            sensorType = None
-            sensorName = None
-            if 'SensorName' in parameters:
-                sensorName = parameters["SensorName"]
-            if 'DriverClass' in parameters:
-                driverClass = parameters["DriverClass"]
-            if commandType == 'enable':
-                sensor = None
-                enable = None
-                if 'Sensor' in parameters:
-                    sensor = parameters["Sensor"]
-                if 'Enable' in parameters:
-                    enable = parameters["Enable"]
-                retValue = self.sensorsClient.EnableSensor(sensor, enable)
+    def ProcessAgentCommand(self, message):
+        """Process command to manage the agent state"""
+        error = None
+        try:
+            if message['suffix'] == 'uninstall':
+                output, result = executeCommand('sudo -n /etc/myDevices/uninstall/uninstall.sh', disablePipe=True)
+                debug('ProcessAgentCommand: {}, result: {}, output: {}'.format(message, result, output))
+                if result != 0:
+                    error = 'Error uninstalling agent'
+            # elif message['suffix'] == 'config':
+            #     for key, value in message['payload'].items():
+            #         if value is None:
+            #             info('Remove config item: {}'.format(key))
+            #             self.config.remove('Agent', key)
+            #         else:
+            #             info('Set config item: {} {}'.format(key, value))
+            #             self.config.set('Agent', key, value)
             else:
-                if commandType == 'edit':
-                    description = sensorName
-                    device = None
-                    if "Description" in parameters:
-                        description = parameters["Description"]
-                    if "Args" in parameters:
-                        args = parameters["Args"]
-                    retValue = self.sensorsClient.EditSensor(sensorName, description, driverClass, args)
-                else:
-                    if 'Channel' in parameters:
-                        channel = parameters["Channel"]
-                    if 'Method' in parameters:
-                        method = parameters["Method"]
-                    if 'Value' in parameters:
-                        value = parameters["Value"]
-                    if 'SensorType' in parameters:
-                        sensorType = parameters["SensorType"]
-                    retValue = self.sensorsClient.SensorCommand(commandType, sensorName, sensorType, driverClass, method, channel, value)
-        if commandService == 'gpio':
-            method = parameters["Method"]
-            channel = parameters["Channel"]
-            value = parameters["Value"]
-            debug('ProcessDeviceCommand: ' + commandService + ' ' + method + ' ' + str(channel) + ' ' + str(value))
-            retValue = str(self.sensorsClient.GpioCommand(commandType, method, channel, value))
-            debug('ProcessDeviceCommand gpio returned value: ' + retValue)
-        if commandService == 'config':
-            try:
-                config_id = parameters["id"]
-                arguments = parameters["arguments"]
-                (retValue, output) = RaspiConfig.ExecuteConfigCommand(config_id, arguments)
-                data["Output"] = output
-                retValue = str(retValue)
-            except:
-                exception("Exception on config")
-        data['Response'] = retValue
-        data['Id'] = id
-        data['PacketType'] = PacketTypes.PT_DEVICE_COMMAND_RESPONSE.value
-        data['MachineName'] = self.MachineId
-        info('PT_DEVICE_COMMAND_RESPONSE: ' + dumps(data))
-        if sensorId:
-            data['SensorId'] = sensorId
-        self.EnqueuePacket(data)
+                error = 'Unknown agent command: {}'.format(message['suffix'])
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
 
-    def EnqueuePacket(self, message):
+    def ProcessConfigCommand(self, message):
+        """Process system configuration command"""
+        error = None
+        try:
+            value = 1 - int(message['payload']) #Invert the value since the config script uses 0 for enable and 1 for disable
+            command_id = {cayennemqtt.SYS_I2C: 11, cayennemqtt.SYS_SPI: 12, cayennemqtt.SYS_UART: 13, cayennemqtt.SYS_ONEWIRE: 19}
+            result, output = SystemConfig.ExecuteConfigCommand(command_id[message['channel']], value)
+            debug('ProcessConfigCommand: {}, result: {}, output: {}'.format(message, result, output))
+            if result != 0:
+                error = 'Error executing config command'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
+    
+    def ProcessGpioCommand(self, message):
+        """Process GPIO command"""
+        error = None
+        try:
+            channel = int(message['channel'].replace(cayennemqtt.SYS_GPIO + ':', ''))
+            result = self.sensorsClient.GpioCommand(message.get('suffix', 'value'), channel, message['payload'])
+            debug('ProcessGpioCommand result: {}'.format(result))
+            if result == 'failure':
+                error = 'GPIO command failed'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
+
+    def ProcessSensorCommand(self, message):
+        """Process sensor command"""
+        error = None
+        try:
+            sensor_info = message['channel'].replace(cayennemqtt.DEV_SENSOR + ':', '').split(':')
+            sensor = sensor_info[0]
+            channel = None
+            if len(sensor_info) > 1:
+                channel = sensor_info[1]
+            result = self.sensorsClient.SensorCommand(message.get('suffix', 'value'), sensor, channel, message['payload'])
+            debug('ProcessSensorCommand result: {}'.format(result))
+            if result is False:
+                error = 'Sensor command failed'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
+
+    def ProcessDeviceCommand(self, message):
+        """Process a device command to add/edit/remove a sensor"""
+        error = None
+        try:
+            payload = message['payload']
+            info('ProcessDeviceCommand payload: {}'.format(payload))
+            if message['suffix'] == 'add':
+                result = self.sensorsClient.AddSensor(payload['sensorId'], payload['description'], payload['class'], payload['args'])
+            elif message['suffix'] == 'edit':
+                result = self.sensorsClient.EditSensor(payload['sensorId'], payload['description'], payload['class'], payload['args'])
+            elif message['suffix'] == 'delete':
+                result = self.sensorsClient.RemoveSensor(payload['sensorId'])
+            else:
+                error = 'Unknown device command: {}'.format(message['suffix'])
+            debug('ProcessDeviceCommand result: {}'.format(result))
+            if result is False:
+                error = 'Device command failed'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
+
+    def EnqueueCommandResponse(self, message, error):
+        """Send response after processing a command message"""
+        debug('EnqueueCommandResponse error: {}'.format(error))
+        if error:
+            response = 'error,{}={}'.format(message['cmdId'], error)
+        else:
+            response = 'ok,{}'.format(message['cmdId'])
+        info(response)
+        self.EnqueuePacket(response, cayennemqtt.COMMAND_RESPONSE_TOPIC)
+
+    def EnqueuePacket(self, message, topic=cayennemqtt.DATA_TOPIC):
         """Enqueue a message packet to send to the server"""
-        message['PacketTime'] = GetTime()
-        json_data = dumps(message)+ '\n'
-        message = None
-        self.writeQueue.put(json_data)
+        packet = (topic, message)
+        self.writeQueue.put(packet)
 
     def DequeuePacket(self):
         """Dequeue a message packet to send to the server"""
-        packet = None
+        packet = (None, None)
         try:
-            packet = self.writeQueue.get()
+            packet = self.writeQueue.get(False)
         except Empty:
-            packet = None
+            pass
         return packet
 
-    def CheckConnectionAndPing(self):
-        """Check that the server connection is still alive and send a keep alive packet at intervals"""
-        ticksStart = time()
-        with self.mutex:
-            try:
-                if ticksStart - self.lastPing > self.pingTimeout:
-                    self.Stop()
-                    self.Start
-                    self.lastPing = time() - self.pingRate - 1
-                    warn('Restarting cloud connection -> CheckConnectionAndPing EXPIRED: ' + str(self.lastPing))
-                if ticksStart - self.waitPing >= self.pingRate:
-                    self.SendAckPacket()
-            except:
-                error('CheckConnectionAndPing error')
-
-    def SendAckPacket(self):
-        """Enqueue a keep alive packet to send to the server"""
-        data = {}
-        debug('Last ping: ' + str(self.lastPing) + ' Wait ping: ' + str(self.waitPing))
-        data['MachineName'] = self.MachineId
-        data['IPAddress'] = self.PublicIP
-        data['PacketType'] = PacketTypes.PT_ACK.value
-        self.EnqueuePacket(data)
-        self.waitPing = time()
-
-    def RequestSchedules(self):
-        """Enqueue a packet to request schedules from the server"""
-        data = {}
-        data['MachineName'] = self.MachineId
-        data['Stored'] = "dynamodb"
-        data['PacketType'] = PacketTypes.PT_REQUEST_SCHEDULES.value
-        self.EnqueuePacket(data)
-
-    def SendHistoryData(self):
-        """Enqueue a packet containing historical data to send to the server"""
-        try:
-            info('SendHistoryData start')
-            history = History()
-            history.Reset()
-            while True:
-                try:
-                    #If there is no acknowledgment after a minute we assume failure
-                    sendFailed = [key for key, item in self.sentHistoryData.items() if (item['Timestamp'] + 60) < time()]
-                    info('SendHistoryData previously SendFailed items: ' + str(sendFailed))
-                    for id in sendFailed:
-                        self.historySendFails += len(sendFailed)
-                        history.Sent(False, self.sentHistoryData[id]['HistoryData'])
-                        del self.sentHistoryData[id]
-                    historyData = history.GetHistoricalData()
-                    if historyData:
-                        data = {}
-                        info('SendHistoryData historyData: ' + str(historyData))
-                        data['MachineName'] = self.MachineId
-                        data['Timestamp'] = int(time())
-                        data['PacketType'] = PacketTypes.PT_HISTORY_DATA.value
-                        id = sha256(dumps(historyData).encode('utf8')).hexdigest()
-                        data['Id'] = id
-                        data['HistoryData'] = historyData
-                        info('Sending history data, id = {}'.format(id))
-                        debug('SendHistoryData historyData: ' + str(data))
-                        self.EnqueuePacket(data)
-                        #this will keep accumulating
-                        self.sentHistoryData[id] = data
-                except Exception as ex:
-                    exception('SendHistoryData error' + str(ex))
-                delay = 60
-                if self.historySendFails > 2:
-                    delay = 120
-                if self.historySendFails > 4:
-                    #Wait an hour if we keep getting send failures.
-                    delay = 3600
-                    self.historySendFails = 0
-                sleep(delay)
-        except Exception as ex:
-            exception('SendHistoryData general exception: ' + str(ex))
+    # def SendHistoryData(self):
+    #     """Enqueue a packet containing historical data to send to the server"""
+    #     try:
+    #         info('SendHistoryData start')
+    #         history = History()
+    #         history.Reset()
+    #         while True:
+    #             try:
+    #                 #If there is no acknowledgment after a minute we assume failure
+    #                 sendFailed = [key for key, item in self.sentHistoryData.items() if (item['Timestamp'] + 60) < time()]
+    #                 info('SendHistoryData previously SendFailed items: ' + str(sendFailed))
+    #                 for id in sendFailed:
+    #                     self.historySendFails += len(sendFailed)
+    #                     history.Sent(False, self.sentHistoryData[id]['HistoryData'])
+    #                     del self.sentHistoryData[id]
+    #                 historyData = history.GetHistoricalData()
+    #                 if historyData:
+    #                     data = {}
+    #                     info('SendHistoryData historyData: ' + str(historyData))
+    #                     data['MachineName'] = self.MachineId
+    #                     data['Timestamp'] = int(time())
+    #                     data['PacketType'] = PacketTypes.PT_HISTORY_DATA.value
+    #                     id = sha256(dumps(historyData).encode('utf8')).hexdigest()
+    #                     data['Id'] = id
+    #                     data['HistoryData'] = historyData
+    #                     info('Sending history data, id = {}'.format(id))
+    #                     debug('SendHistoryData historyData: ' + str(data))
+    #                     self.EnqueuePacket(data)
+    #                     #this will keep accumulating
+    #                     self.sentHistoryData[id] = data
+    #             except Exception as ex:
+    #                 exception('SendHistoryData error' + str(ex))
+    #             delay = 60
+    #             if self.historySendFails > 2:
+    #                 delay = 120
+    #             if self.historySendFails > 4:
+    #                 #Wait an hour if we keep getting send failures.
+    #                 delay = 3600
+    #                 self.historySendFails = 0
+    #             sleep(delay)
+    #     except Exception as ex:
+    #         exception('SendHistoryData general exception: ' + str(ex))

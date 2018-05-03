@@ -193,7 +193,7 @@ class SchedulerEngine(Thread):
             subject = scheduleItem.title 
             #build an array of device names
             #if this fails to be sent, save it in the DB and resubmit it
-            runStatus = self.client.SendNotification(scheduleItem.notify, subject, body)
+            runStatus = False #self.client.SendNotification(scheduleItem.notify, subject, body)
             sleep(1)
             if runStatus == False:
                 error('Notification ' + str(scheduleItem.notify) + ' was not sent')

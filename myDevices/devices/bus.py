@@ -17,32 +17,71 @@ import time
 import subprocess
 
 from myDevices.utils.logger import debug, info
-from myDevices.system.version import OS_VERSION, OS_RASPBIAN_JESSIE, OS_RASPBIAN_WHEEZY
+from myDevices.system.version import OS_VERSION, OS_JESSIE, OS_WHEEZY
+from myDevices.system.hardware import Hardware
 
-BUSLIST = {
-    "I2C": {
-        "enabled": False,
-        "gpio": {0:"SDA", 1:"SCL", 2:"SDA", 3:"SCL"},
-        "modules": ["i2c-bcm2708", "i2c-dev"]
-    },
+hardware = Hardware()
+if hardware.isTinkerBoard():
+    # Tinker Board only supports I2C and SPI for now. These are enabled by default and 
+    # don't need to load any modules.
+    BUSLIST = {
+        "I2C": {
+            "enabled": True,
+        },
 
-    "SPI": {
-        "enabled": False,
-        "gpio": {7:"CE1", 8:"CE0", 9:"MISO", 10:"MOSI", 11:"SCLK"},
-        "modules": ["spi-bcm2708" if OS_VERSION == OS_RASPBIAN_WHEEZY else "spi-bcm2835"]
-    },
+        "SPI": {
+            "enabled": True,
+        }
+    }
+elif hardware.isBeagleBone():
+    BUSLIST = {
+        "I2C": {
+            "enabled": True,
+        },
 
-    "UART": {
-        "enabled": False,
-        "gpio": {14:"TX", 15:"RX"}
-    },
+        "SPI": {
+            "enabled": False,
+            "gpio": {17:"SPI0_CS", 18:"SPI0_D1", 21:"SPI0_D1", 22:"SPI0_SCLK"},
+            "configure_pin_command": "sudo config-pin P9.{} spi"
+        }
+    }  
+else:
+    # Raspberry Pi
+    BUSLIST = {
+        "I2C": {
+            "enabled": False,
+            "gpio": {0:"SDA", 1:"SCL", 2:"SDA", 3:"SCL"},
+            "modules": ["i2c-bcm2708", "i2c-dev"]
+        },
 
-    "ONEWIRE": {
-        "enabled": False,
-        "gpio": {4:"DATA"},
-        "modules": ["w1-gpio"],
-        "wait": 2}
-}
+        "SPI": {
+            "enabled": False,
+            "gpio": {7:"CE1", 8:"CE0", 9:"MISO", 10:"MOSI", 11:"SCLK"},
+            "modules": ["spi-bcm2708" if OS_VERSION == OS_WHEEZY else "spi-bcm2835"]
+        },
+
+        "UART": {
+            "enabled": False,
+            "gpio": {14:"TX", 15:"RX"}
+        },
+
+        "ONEWIRE": {
+            "enabled": False,
+            "gpio": {4:"DATA"},
+            "modules": ["w1-gpio"],
+            "wait": 2}
+    }
+
+def enableBus(bus):
+    loadModules(bus)
+    configurePins(bus)
+    BUSLIST[bus]["enabled"] = True
+    
+def configurePins(bus):
+    if "configure_pin_command" in BUSLIST[bus]:
+        for pin in BUSLIST[bus]["gpio"].keys():
+            command = BUSLIST[bus]["configure_pin_command"].format(pin)
+            subprocess.call(command.split(' '))
 
 def loadModule(module):
     subprocess.call(["sudo", "modprobe", module])
@@ -58,8 +97,6 @@ def loadModules(bus):
         if "wait" in BUSLIST[bus]:
             info("Sleeping %ds to let %s modules load" % (BUSLIST[bus]["wait"], bus))
             time.sleep(BUSLIST[bus]["wait"])
-
-    BUSLIST[bus]["enabled"] = True
 
 def unloadModules(bus):
     info("Unloading %s modules" % bus)
@@ -95,7 +132,7 @@ def checkAllBus():
 
 class Bus():
     def __init__(self, busName, device, flag=os.O_RDWR):
-        loadModules(busName)
+        enableBus(busName)
         self.busName = busName
         self.device = device
         self.flag = flag

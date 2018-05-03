@@ -4,7 +4,7 @@ This module provides a class for restarting the agent if errors occur and exitin
 from sys import exit
 from datetime import datetime
 from myDevices.utils.logger import exception, info, warn, error, debug
-from myDevices.system.services import ServiceManager
+from myDevices.utils.subprocess import executeCommand
 
 #defining reset timeout in seconds
 RESET_TIMEOUT = 30
@@ -46,18 +46,18 @@ class Daemon:
         """Restart the agent daemon"""
         try:
             info('Daemon restarting myDevices' )
-            (output, returncode) = ServiceManager.ExecuteCommand('sudo service myDevices restart')
+            (output, returncode) = executeCommand('sudo service myDevices restart')
             debug(str(output) + ' ' + str(returncode))
             del output
         except:
-            exception("Daemon::Restart enexpected error")
+            exception("Daemon::Restart unexpected error")
             Daemon.Exit()
 
     @staticmethod
     def Exit():
         """Stop the agent daemon"""
-        info('Critical failure. Closing myDevices process...')
-        exit('Daemon::Exit closing agent. Critical failure.')
+        error('Critical failure. Closing myDevices process.')
+        raise SystemExit
 
 
 

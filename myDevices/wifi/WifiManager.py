@@ -1,31 +1,31 @@
 from myDevices.wifi.WirelessLib import Wireless
 from json import dumps, loads, JSONEncoder, JSONDecoder
 from myDevices.utils.logger import exception, info, warn, error, debug
-from myDevices.system.services import ServiceManager
+from myDevices.utils.subprocess import executeCommand
 
-class Network():
-    def GetNetworkId():
-        ip = None
-        network = None
-        returnValue = {}
-        try:
-            import netifaces
-            gws=netifaces.gateways()
-            defaultNet = gws['default'].values()
-            for key, val in defaultNet:
-               ip = key
-               network = val
-            command = 'arp -n ' + ip + ' | grep ' + network + ' | awk \'{print $3}\''
-            (output, retCode) = ServiceManager.ExecuteCommand(command)
-            if int(retCode) > 0:
-                return None
-            returnValue['Ip'] = ip
-            returnValue['Network'] = network
-            returnValue['MAC'] = output.strip()
-            del output
-        except Exception as ex:
-            debug('Could not initialize netifaces module: ' + str(ex))
-        return returnValue
+# class Network():
+#     def GetNetworkId():
+#         ip = None
+#         network = None
+#         returnValue = {}
+#         try:
+#             import netifaces
+#             gws=netifaces.gateways()
+#             defaultNet = gws['default'].values()
+#             for key, val in defaultNet:
+#                ip = key
+#                network = val
+#             command = 'arp -n ' + ip + ' | grep ' + network + ' | awk \'{print $3}\''
+#             (output, retCode) = executeCommand(command)
+#             if int(retCode) > 0:
+#                 return None
+#             returnValue['Ip'] = ip
+#             returnValue['Network'] = network
+#             returnValue['MAC'] = output.strip()
+#             del output
+#         except Exception as ex:
+#             debug('Could not initialize netifaces module: ' + str(ex))
+#         return returnValue
 
 #{'stats': {'updated': 75, 'noise': 0, 'quality': 67, 'level': 213}, 'Frequency': b'2.412 GHz', 'Access Point': b'B8:55:10:AC:8F:D8', 'Mode': b'Master', 'Key': b'off', 'BitRate': b'54 Mb/s', 'ESSID': b'SRX-WR300WH'}
 class WifiEndpoint(object):
@@ -81,7 +81,6 @@ class WifiManager(object):
                 exception('Wifi search address')
         return None
 
-
     def Setup(self, ssid, password, interface):
         if interface in self.wirelessModules:
             status = self.wirelessModules[interface].connect(ssid, password)
@@ -97,22 +96,23 @@ class WifiManager(object):
             exception('GetIpAddress failed')
         
         return ip_addr
+
     def GetCurretSSID(self, interface):
         if interface in self.wirelessModules:
             return self.wirelessModules[interface].current()
         return None
+
     def GetDriver(self, interface):
         if interface in self.wirelessModules:
             return self.wirelessModules[interface].driver()
         return None
+
     def GetPowerStatus(self, interface):
         if interface in self.wirelessModules:
             return self.wirelessModules[interface].power()
         return None
-        
-        
-    def GetStatus(self):
-        
+               
+    def GetStatus(self):       
         try:
             jsonDictionary = {}
             interfaces = self.Interfaces()
@@ -137,8 +137,7 @@ class WifiManager(object):
                 driver = self.GetDriver(i)
                 bitRate = ""
                 stats = ""
-                frequency = ""
-                
+                frequency = ""               
                 if ssid is None:
                     ssid = ""
                 else:
@@ -147,7 +146,7 @@ class WifiManager(object):
                         if endpoint["ESSID"].decode('ascii') == ssid:
                             frequency = endpoint["Frequency"].decode('ascii')
                             bitRate = endpoint["BitRate"].decode('ascii')
-                            stats = ToJson(endpoint["stats"])
+                            stats = endpoint["stats"]
                     jsonDictionary[str(i)]["ssid"] = ssid
                     jsonDictionary[str(i)]["PowerStatus"] = str(powerStatus)
                     jsonDictionary[str(i)]["Frequency"] = str(frequency)
@@ -155,7 +154,7 @@ class WifiManager(object):
                     jsonDictionary[str(i)]["stats"] = str(stats)
         except Exception as ex:
             debug('GetStatus: failed address: ' + str(ex))
-        return ToJson(jsonDictionary)
+        return jsonDictionary
 
     def GetWirelessNetworks(self): 
         jsonDictionary = {}
@@ -171,32 +170,32 @@ class WifiManager(object):
                 jsonDictionary[str(i)] = wifiEndpoints
         except Exception as ex:
             debug('GetWirelessNetworks failed: ' + str(ex))
-        return ToJson(jsonDictionary)
+        return jsonDictionary
         
-def ToJson(object):
-    returnValue = "{}"
-    try:
-        import jsonpickle
-        returnValue = jsonpickle.encode(object)
-    except:
-        exception('Json encoding failed')
-    return returnValue 
+# def ToJson(object):
+#     returnValue = "{}"
+#     try:
+#         import jsonpickle
+#         returnValue = jsonpickle.encode(object)
+#     except:
+#         exception('Json encoding failed')
+#     return returnValue 
 
-def testWifiManager():
-    wifiManager = WifiManager()
-    info(ToJson(wifiManager.Interfaces()))
-    info(str(wifiManager.GetWirelessNetworks()))
-    info(str(wifiManager.GetCurretSSID('wlan0')))
-    info(str(wifiManager.GetDriver('wlan0')))
-    info(str(wifiManager.GetPowerStatus('wlan0')))
-    info(str(wifiManager.GetStatus()))
+# def testWifiManager():
+#     wifiManager = WifiManager()
+#     info(wifiManager.Interfaces())
+#     info(str(wifiManager.GetWirelessNetworks()))
+#     info(str(wifiManager.GetCurretSSID('wlan0')))
+#     info(str(wifiManager.GetDriver('wlan0')))
+#     info(str(wifiManager.GetPowerStatus('wlan0')))
+#     info(str(wifiManager.GetStatus()))
     
-    SetBadNetwork(wifiManager)
+#     SetBadNetwork(wifiManager)
     
-def SetBadNetwork(wifiManager):
-    info('============SETUP TESTS============')
-    info('Bad password test: ' + str(wifiManager.Setup('Lizuca&Patrocle', 'badpasswd')))
-    info('Bad network test: ' + str(wifiManager.Setup('None', 'badpasswd')))
-    info('Success setup test: ' + str(wifiManager.Setup('Lizuca&Patrocle', 'fatadraganufitrista')))
+# def SetBadNetwork(wifiManager):
+#     info('============SETUP TESTS============')
+#     info('Bad password test: ' + str(wifiManager.Setup('Lizuca&Patrocle', 'badpasswd')))
+#     info('Bad network test: ' + str(wifiManager.Setup('None', 'badpasswd')))
+#     info('Success setup test: ' + str(wifiManager.Setup('Lizuca&Patrocle', 'fatadraganufitrista')))
 
 #testWifiManager()
