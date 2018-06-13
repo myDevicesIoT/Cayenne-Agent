@@ -110,16 +110,24 @@ class WriterThread(Thread):
                 if self.cloudClient.mqttClient.connected == False:
                     info('WriterThread mqttClient not connected')
                     continue
+                got_packet = False
                 topic, message = self.cloudClient.DequeuePacket()
-                if message:
-                    # debug('WriterThread, topic: {} {}'.format(topic, message))
-                    if not isinstance(message, str):
-                        message = dumps(message)
-                    self.cloudClient.mqttClient.publish_packet(topic, message)
-                    message = None
-                    self.cloudClient.writeQueue.task_done()
+                if topic or message:
+                    got_packet = True
+                try:
+                    if message:
+                        # debug('WriterThread, topic: {} {}'.format(topic, message))
+                        if not isinstance(message, str):
+                            message = dumps(message)
+                        self.cloudClient.mqttClient.publish_packet(topic, message)
+                        message = None
+                except:
+                    exception("WriterThread publish packet error")    
+                finally:
+                    if got_packet:
+                        self.cloudClient.writeQueue.task_done()
             except:
-                exception("WriterThread Unexpected error")
+                exception("WriterThread unexpected error")
         return
 
     def stop(self):
@@ -405,6 +413,7 @@ class CloudServerClient:
                 cayennemqtt.DataChannel.add(data, message['channel'], value=1)
                 self.EnqueuePacket(data)
                 self.writeQueue.join()
+                info('Calling execute: {}'.format(commands[message['channel']]))
                 output, result = executeCommand(commands[message['channel']])
                 debug('ProcessPowerCommand: {}, result: {}, output: {}'.format(message, result, output))
                 if result != 0:
