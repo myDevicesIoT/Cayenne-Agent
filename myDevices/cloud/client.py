@@ -13,7 +13,7 @@ from myDevices.utils.config import Config
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from myDevices.sensors import sensors
 from myDevices.system.hardware import Hardware
-# from myDevices.cloud.scheduler import SchedulerEngine
+from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
 from myDevices.system.systemconfig import SystemConfig
@@ -195,7 +195,7 @@ class CloudServerClient:
             if not self.Connect():
                 error('Error starting agent')
                 return
-            # self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
+            self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
             self.sensorsClient = sensors.SensorsClient()
             self.readQueue = Queue()
             self.writeQueue = Queue()
@@ -398,6 +398,8 @@ class CloudServerClient:
             self.ProcessConfigCommand(message)
         elif channel == cayennemqtt.AGENT_MANAGE:
             self.ProcessAgentCommand(message)
+        elif channel == cayennemqtt.AGENT_SCHEDULE:
+            self.ProcessScheduleCommand(message)
         else:
             info('Unknown message')
 
@@ -514,8 +516,33 @@ class CloudServerClient:
             error = '{}: {}'.format(type(ex).__name__, ex)
         self.EnqueueCommandResponse(message, error)
 
+    def ProcessScheduleCommand(self, message):
+        """Process command to add/edit/remove a scheduled action"""
+        error = None
+        try:
+            if 'actions' in message['payload']:
+                for action in message['payload']['actions']:
+                    self.mqttClient.transform_command(action)
+            if message['suffix'] == 'add':
+                result = self.schedulerEngine.add_scheduled_item(message['payload'], True)
+            elif message['suffix'] == 'edit':
+                result = self.schedulerEngine.update_scheduled_item(message['payload'])
+            elif message['suffix'] == 'delete':
+                result = self.schedulerEngine.remove_scheduled_item(message['payload'])
+            else:
+                error = 'Unknown schedule command: {}'.format(message['suffix'])
+            debug('ProcessScheduleCommand result: {}'.format(result))
+            if result is False:
+                error = 'Schedule command failed'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
+
     def EnqueueCommandResponse(self, message, error):
         """Send response after processing a command message"""
+        if not hasattr(message, 'cmdId'):
+            # If there is no command idea we assume this is a scheduled command and don't send a response message.
+            return
         debug('EnqueueCommandResponse error: {}'.format(error))
         if error:
             response = 'error,{}={}'.format(message['cmdId'], error)

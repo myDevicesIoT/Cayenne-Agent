@@ -30,6 +30,7 @@ SYS_POWER_HALT = 'sys:pwr:halt'
 AGENT_VERSION = 'agent:version'
 AGENT_DEVICES = 'agent:devices'
 AGENT_MANAGE = 'agent:manage'
+AGENT_SCHEDULE = 'agent:schedule'
 DEV_SENSOR = 'dev'
 
 # Channel Suffixes
@@ -68,7 +69,7 @@ class DataChannel:
 class CayenneMQTTClient:
     """Cayenne MQTT Client class.
     
-    This is the main client class for connecting to Cayenne and sending and recFUeiving data.
+    This is the main client class for connecting to Cayenne and sending and receiving data.
     
     Standard usage:
     * Set on_message callback, if you are receiving data.
@@ -150,6 +151,26 @@ class CayenneMQTTClient:
                 print("Reconnect failed, retrying")
                 time.sleep(5)
 
+    def transform_command(self, command, payload=[], channel=[]):
+        """Transform a command message into an object.
+
+        command is the command object that will be transformed in place.
+        payload is an optional list of payload data items.
+        channel is an optional list containing channel and suffix data.
+        """
+        if not payload:
+            command['payload'] = command.pop('value')
+            channel = command['channel'].split('/')[-1].split(';')
+        else:
+            if len(payload) > 1:
+                command['cmdId'] = payload[0]
+                command['payload'] = payload[1]
+            else:
+                command['payload'] = payload[0]
+        command['channel'] = channel[0]
+        if len(channel) > 1:
+            command['suffix'] = channel[1]
+
     def message_callback(self, client, userdata, msg):
         """The callback for when a message is received from the server.
 
@@ -160,21 +181,10 @@ class CayenneMQTTClient:
         try:
             message = {}
             if msg.topic[-len(COMMAND_JSON_TOPIC):] == COMMAND_JSON_TOPIC:
-                payload = loads(msg.payload.decode())
-                message['payload'] = payload['value']
-                message['cmdId'] = payload['cmdId']
-                channel = payload['channel'].split('/')[-1].split(';')
+                message = loads(msg.payload.decode())
+                self.transform_command(message)
             else:
-                payload = msg.payload.decode().split(',')
-                if len(payload) > 1:
-                    message['cmdId'] = payload[0]
-                    message['payload'] = payload[1]
-                else:
-                    message['payload'] = payload[0]
-                channel = msg.topic.split('/')[-1].split(';')
-            message['channel'] = channel[0]
-            if len(channel) > 1:
-                message['suffix'] = channel[1]
+                self.transform_command(message, msg.payload.decode().split(','), msg.topic.split('/')[-1].split(';'))
             debug('message_callback: {}'.format(message))
             if self.on_message:
                 self.on_message(message)
