@@ -155,7 +155,7 @@ class SchedulerEngine(Thread):
                 except:
                     exception('Error adding scheduled item')
         except:
-            exception('AddScheduledItem failed')
+            exception('Failed to add scheduled item')
         return result
 
     def update_scheduled_item(self, json_data):
@@ -165,20 +165,20 @@ class SchedulerEngine(Thread):
         debug('Update scheduled item')
         result = False
         try:
-            scheduleItemNew = ScheduleItem(json_data)
+            new_item = ScheduleItem(json_data)
             with self.mutex:
                 try:
-                    scheduleItemOld = self.schedules[scheduleItemNew.id]
-                    schedule.cancel_job(scheduleItemOld.job)
+                    old_item = self.schedules[new_item.id]
+                    schedule.cancel_job(old_item.job)
                 except KeyError:
-                    debug('Old schedule with id = {} not found'.format(scheduleItemNew.id))
-                result = self.setup(scheduleItemNew)
+                    debug('Old schedule with id = {} not found'.format(new_item.id))
+                result = self.setup(new_item)
                 debug('Update scheduled item result: {}'.format(result))
                 if result == True:
-                    self.update_database_item(dumps(json_data), scheduleItemNew.id)
-                    self.schedules[scheduleItemNew.id] = scheduleItemNew
+                    self.update_database_item(dumps(json_data), new_item.id)
+                    self.schedules[new_item.id] = new_item
         except:
-            exception('UpdateScheduledItem failed')
+            exception('Failed to update scheduled item')
         return result
 
     def setup(self, schedule_item):
@@ -215,35 +215,33 @@ class SchedulerEngine(Thread):
         schedule_item: a ScheduleItem instance representing the item to process and run"""
         debug('')
         if schedule_item is None:
-            error('ProcessAction with empty schedule')
+            error('No scheduled item to run')
             return
         # if schedule_item.job.should_run() == False:
         #     return
-        statusSuccess = True
+        result = True
         schedule_item.last_run = datetime.strftime(datetime.utcnow(), '%Y-%m-%d %H:%M')
         with self.mutex:
             self.update_database_item(schedule_item.to_json(), schedule_item.id)
         #TODO
         #all this scheduler notification should be put in a db and if it was not possible to submit add a checker for sending notifications to cloud
         #right now is a workaround in order to submit
-        debug('Notification: ' + str(schedule_item.notify))
-        if schedule_item.notify:
-            body = 'Scheduler ' + schedule_item.title + ' ran with success: ' + str(statusSuccess) + ' at UTC ' + str(datetime.utcnow())
-            subject = schedule_item.title 
-            #build an array of device names
-            #if this fails to be sent, save it in the DB and resubmit it
-            runStatus = False #self.client.SendNotification(schedule_item.notify, subject, body)
-            sleep(1)
-            if runStatus == False:
-                error('Notification ' + str(schedule_item.notify) + ' was not sent')
+        # debug('Notification: ' + str(schedule_item.notify))
+        # if schedule_item.notify:
+        #     body = 'Scheduler ' + schedule_item.title + ' ran with success: ' + str(status_success) + ' at UTC ' + str(datetime.utcnow())
+        #     subject = schedule_item.title 
+        #     #build an array of device names
+        #     #if this fails to be sent, save it in the DB and resubmit it
+        #     notified = False #self.client.SendNotification(schedule_item.notify, subject, body)
+        #     sleep(1)
+        #     if notified == False:
+        #         error('Notification ' + str(schedule_item.notify) + ' was not sent')
         for action in schedule_item.actions:
-            #call cloudserver 
-            runStatus = self.client.RunAction(action)
-            info('Schedule executing action: ' + str(action))
-            if runStatus == False:
-                error('Action: ' + str(action) + ' failed')
-                statusSuccess = False
-        if schedule_item.type == 'date' and statusSuccess == True:
+            info('Executing scheduled action: {}'.format(action))
+            result = self.client.RunAction(action)
+            if result == False:
+                error('Failed to execute action: {}'.format(action))
+        if schedule_item.type == 'date' and result == True:
             with self.mutex:
                 schedule.cancel_job(schedule_item.job)
 
