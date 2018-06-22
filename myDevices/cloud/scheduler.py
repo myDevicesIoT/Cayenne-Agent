@@ -1,10 +1,11 @@
-from threading import Thread, RLock
-from myDevices.utils.logger import exception, info, warn, error, debug, setDebug, logJson
-import myDevices.schedule as schedule
-from time import sleep
-from json import dumps, loads, JSONEncoder
-from myDevices.cloud.dbmanager import DbManager
 from datetime import datetime
+from json import JSONEncoder, dumps, loads
+from sqlite3 import connect
+from threading import RLock, Thread
+from time import sleep
+
+import myDevices.schedule as schedule
+from myDevices.utils.logger import debug, error, exception, info, logJson, setDebug, warn
 
 
 class ScheduleItemEncoder(JSONEncoder):
@@ -96,6 +97,9 @@ class SchedulerEngine(Thread):
         
         client: the client running the scheduler
         name: name to use for the scheduler thread"""
+        self.connection = connect('/etc/myDevices/agent.db', check_same_thread = False)
+        self.cursor = self.connection.cursor()
+        self.cursor.execute('CREATE TABLE IF NOT EXISTS scheduled_items (id TEXT PRIMARY KEY, data TEXT)')
         Thread.__init__(self, name=name)
         self.mutex = RLock()
         #failover cases: keep last run and next run times 
@@ -104,20 +108,26 @@ class SchedulerEngine(Thread):
         self.testIndex = 0
         self.client = client
         self.running = False
-        self.tablename = 'scheduled_settings'
         #at the end load data
         self.load_data()
         self.start()
-        
+
+    def __del__(self):
+        """Delete scheduler object"""
+        try:
+            self.connection.close()
+        except:
+            exception('Error deleting SchedulerEngine')
+
     def load_data(self):
         """Load saved scheduler data from the database"""
         with self.mutex:
-            results = DbManager.Select(self.tablename)
-            if results:
-                for row in results:
-                    #info('Row: ' + str(row))
-                    #for each item already present in db add call AddScheduledItem with insert false
-                    self.add_scheduled_item(loads(row[1]), False)
+            self.cursor.execute('SELECT * FROM scheduled_items')
+            results = self.cursor.fetchall()
+            for row in results:
+                #info('Row: ' + str(row))
+                #for each item already present in db add call AddScheduledItem with insert false
+                self.add_scheduled_item(loads(row[1]), False)
         return True
 
     def add_scheduled_item(self, json_data, insert = False):
@@ -126,7 +136,7 @@ class SchedulerEngine(Thread):
         json_data: JSON object representing the scheduled item to add
         insert: if True add the item to the database, otherwise just add it to the running scheduler"""
         debug('')
-        retVal = False
+        result = False
         try:
             schedule_item = ScheduleItem(json_data)
             if schedule_item.id is None:
@@ -137,23 +147,23 @@ class SchedulerEngine(Thread):
                         if insert == True:
                             self.add_database_item(schedule_item.id, dumps(json_data))
                         info('Setup item: ' + str(schedule_item.to_dict()))
-                        retVal = self.setup(schedule_item)                        
-                        if retVal == True:
+                        result = self.setup(schedule_item)                        
+                        if result == True:
                             self.schedules[schedule_item.id] = schedule_item
                     else:
-                        retVal = self.update_scheduled_item(json_data)
+                        result = self.update_scheduled_item(json_data)
                 except:
                     exception('Error adding scheduled item')
         except:
-            exception('AddScheduledItem Failed')
-        return retVal
+            exception('AddScheduledItem failed')
+        return result
 
     def update_scheduled_item(self, json_data):
         """Update an existing scheduled item
         
         json_data: JSON object representing the scheduled item to update"""
-        debug('')
-        retVal = False
+        debug('Update scheduled item')
+        result = False
         try:
             scheduleItemNew = ScheduleItem(json_data)
             with self.mutex:
@@ -162,13 +172,14 @@ class SchedulerEngine(Thread):
                     schedule.cancel_job(scheduleItemOld.job)
                 except KeyError:
                     debug('Old schedule with id = {} not found'.format(scheduleItemNew.id))
-                retVal = self.setup(scheduleItemNew)
-                if retVal == True:
+                result = self.setup(scheduleItemNew)
+                debug('Update scheduled item result: {}'.format(result))
+                if result == True:
                     self.update_database_item(dumps(json_data), scheduleItemNew.id)
                     self.schedules[scheduleItemNew.id] = scheduleItemNew
         except:
-            exception('UpdateScheduledItem Failed')
-        return retVal
+            exception('UpdateScheduledItem failed')
+        return result
 
     def setup(self, schedule_item):
         """Setup a job to run a scheduled item
@@ -236,12 +247,12 @@ class SchedulerEngine(Thread):
             with self.mutex:
                 schedule.cancel_job(schedule_item.job)
 
-    def remove_scheduled_item(self, removeItem):
+    def remove_scheduled_item(self, remove_item):
         """Remove an item that has been scheduled
         
-        removeItem: a JSON object specifying the item to remove"""
+        remove_item: a JSON object specifying the item to remove"""
         debug('')
-        return self.remove_scheduled_item_by_id(removeItem['id'])
+        return self.remove_scheduled_item_by_id(remove_item['id'])
 
     def remove_scheduled_item_by_id(self, id):
         """Remove a scheduled item with the specified id
@@ -274,30 +285,29 @@ class SchedulerEngine(Thread):
 
     def get_schedules(self):
         """Return a list of all scheduled items"""
-        jsonSchedules = []
+        schedules = []
         try:
             with self.mutex:
                 for schedule_item in self.schedules:
-                    jsonSchedules.append(self.schedules[schedule_item].to_dict())
+                    schedules.append(self.schedules[schedule_item].to_dict())
         except:
-            exception('GetSchedules Failed')
-        return jsonSchedules
+            exception('GetSchedules failed')
+        return schedules
 
-    def update_schedules(self, json_data):
+    def update_schedules(self, schedule_items):
         """Update all scheduled items
         
-        json_data: JSON containing a list of all the new items to schedule"""
+        schedule_items: list of all the new items to schedule"""
         result = True
-        logJson('UpdateSchedules' + str(json_data), 'schedules')
-        info('Updating schedules')
+        logJson('Update schedules:  {}'.format(schedule_items))
+        debug('Updating schedules')
         try:
             with self.mutex:
-                jsonSchedules = json_data['Schedules']
                 self.remove_schedules()
-                for item in jsonSchedules:
-                    self.add_scheduled_item(item['Schedule'], True)
+                for item in schedule_items:
+                    self.add_scheduled_item(item, True)
         except:
-            exception('UpdateSchedules Failed')
+            exception('UpdateSchedules failed')
             result = False
         return result
 
@@ -306,15 +316,16 @@ class SchedulerEngine(Thread):
         
         json_data: JSON containing the scheduled item
         id: id of the scheduled item"""
-        debug('')
+        debug('Update database item')
         result = True
         try:
-            setClause =  'data = ?'
-            whereClause = 'id = ?'
             with self.mutex:
-                DbManager.Update(self.tablename, setClause, json_data, whereClause, id)
+                self.cursor.execute('UPDATE scheduled_items SET data = ? WHERE id = ?', (json_data, id))
+                self.connection.commit()
         except:
+            exception('Error updating database item')
             result = False
+        debug('Update database item result: {}'.format(result))
         return result
 
     def add_database_item(self, id, json_data):
@@ -322,32 +333,41 @@ class SchedulerEngine(Thread):
         
         id: id of the scheduled item
         json_data: JSON containing the scheduled item"""
-        debug('')
+        debug('Add database item')
         result = False
         with self.mutex:
-            result = DbManager.Insert(self.tablename, id, json_data)
+            self.cursor.execute('INSERT INTO scheduled_items VALUES (?,?)', (id, json_data))
+            self.connection.commit()
+            result = self.cursor.lastrowid
+        debug('Add database item result: {}'.format(result))
         return result
 
     def remove_database_item(self, id):
         """Remove a scheduled item from the database
         
         id: id of the scheduled item"""
+        debug('Remove database item')
         result = True
         try:
             with self.mutex:
-                DbManager.Delete(self.tablename, id)
+                self.cursor.execute('DELETE FROM scheduled_items WHERE id = ?', (id,))
+                self.connection.commit()
         except:
             result = False
+        debug('Remove database item result: {}'.format(result))
         return result
 
     def remove_all_database_items(self):
         """Remove all scheduled items from the database"""        
         result = True
+        debug('Remove all database items')
         try:
             with self.mutex:
-                DbManager.DeleteAll(self.tablename)
+                self.cursor.execute('DELETE FROM scheduled_items')
+                self.connection.commit()
         except:
             result = False
+        debug('Remove all database items result: {}'.format(result))
         return result
 
     def stop(self):
@@ -364,7 +384,7 @@ class SchedulerEngine(Thread):
                 with self.mutex:
                     schedule.run_pending()
             except:
-                exception("SchedulerEngine run, Unexpected error")
+                exception("SchedulerEngine run, unexpected error")
             sleep(1)
 
 
