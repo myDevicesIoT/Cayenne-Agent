@@ -524,11 +524,11 @@ class CloudServerClient:
                 for action in message['payload']['actions']:
                     self.mqttClient.transform_command(action)
             if message['suffix'] == 'add':
-                result = self.schedulerEngine.add_scheduled_item(message['payload'], True)
+                result = self.schedulerEngine.add_scheduled_event(message['payload'], True)
             elif message['suffix'] == 'edit':
-                result = self.schedulerEngine.update_scheduled_item(message['payload'])
+                result = self.schedulerEngine.update_scheduled_event(message['payload'])
             elif message['suffix'] == 'delete':
-                result = self.schedulerEngine.remove_scheduled_item(message['payload'])
+                result = self.schedulerEngine.remove_scheduled_event(message['payload'])
             else:
                 error = 'Unknown schedule command: {}'.format(message['suffix'])
             debug('ProcessScheduleCommand result: {}'.format(result))

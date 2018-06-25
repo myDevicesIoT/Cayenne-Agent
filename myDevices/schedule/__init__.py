@@ -333,7 +333,7 @@ class Job(object):
 
     def run(self):
         """Run the job and immediately reschedule it."""
-        debug('')
+        debug('Run job')
         if self.unit == 'date':
             if self.last_run is not None:
                 info('date job can run only once. Last run: ' + str(self.last_run))
@@ -344,7 +344,7 @@ class Job(object):
                 info('Job scheduled time has passed, job will not be run: ' + str(self.at_time) + ' current time: ' + str(now))
                 return CancelJob
 
-        info('Running job ' + str(self))
+        debug('Running job: {}'.format(self))
 
         if self.end_date is not None:
             if datetime.utcnow() > self.end_date:
