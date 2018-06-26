@@ -162,24 +162,24 @@ class SchedulerEngine(Thread):
         debug('Create job: {}'.format(schedule_item))
         try:
             with self.mutex:
-                event = schedule_item['event']
-                if event['type'] == 'date':
-                    schedule_item['job'] = schedule.once().at(event['start_date'])
-                if event['type'] == 'interval':
-                    if event['unit'] == 'hour':
-                        schedule_item['job'] = schedule.every(event['interval'], event['start_date']).hours
-                    if event['unit'] == 'minute':
-                        schedule_item['job'] = schedule.every(event['interval'], event['start_date']).minutes
-                    if event['unit'] == 'day':
-                        schedule_item['job'] = schedule.every(event['interval'], event['start_date']).days.at(event['start_date'])
-                    if event['unit'] == 'week':
-                        schedule_item['job'] = schedule.every(event['interval'], event['start_date']).weeks.at(event['start_date'])
-                    if event['unit'] == 'month':
-                        schedule_item['job'] = schedule.every(event['interval'], event['start_date']).months.at(event['start_date'])
-                    if event['unit'] == 'year':
-                        schedule_item['job'] = schedule.every(event['interval'], event['start_date']).years.at(event['start_date'])
-                if 'last_run' in event:
-                    schedule_item['job'].set_last_run(event['last_run'])
+                config = schedule_item['event']['config']
+                if config['type'] == 'date':
+                    schedule_item['job'] = schedule.once().at(config['start_date'])
+                if config['type'] == 'interval':
+                    if config['unit'] == 'hour':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).hours
+                    if config['unit'] == 'minute':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).minutes
+                    if config['unit'] == 'day':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).days.at(config['start_date'])
+                    if config['unit'] == 'week':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).weeks.at(config['start_date'])
+                    if config['unit'] == 'month':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).months.at(config['start_date'])
+                    if config['unit'] == 'year':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).years.at(config['start_date'])
+                if 'last_run' in config:
+                    schedule_item['job'].set_last_run(config['last_run'])
                 schedule_item['job'].do(self.run_scheduled_item, schedule_item)
         except:
             exception('Failed setting up scheduler')
@@ -196,7 +196,8 @@ class SchedulerEngine(Thread):
             return
         result = True
         event = schedule_item['event']
-        event['last_run'] = datetime.strftime(datetime.utcnow(), '%Y-%m-%d %H:%M')
+        config = event['config']
+        config['last_run'] = datetime.strftime(datetime.utcnow(), '%Y-%m-%d %H:%M')
         with self.mutex:
             self.update_database_record(event['id'], event)
         for action in event['actions']:
@@ -204,7 +205,7 @@ class SchedulerEngine(Thread):
             result = self.client.RunAction(action)
             if result == False:
                 error('Failed to execute action: {}'.format(action))
-        if event['type'] == 'date' and result == True:
+        if config['type'] == 'date' and result == True:
             with self.mutex:
                 schedule.cancel_job(schedule_item['job'])
 
