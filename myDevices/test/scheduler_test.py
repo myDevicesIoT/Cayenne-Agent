@@ -1,4 +1,5 @@
 import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import pdb
 import sqlite3
@@ -20,13 +21,37 @@ class TestClient():
     def RunAction(self, action):
         info('RunAction: ' + action)
         self.actions_ran.append(action)
+        return True
 
     def SendNotification(self, notification):
         info('SendNotification: ' + notification)
 
 
+class TestHandler(BaseHTTPRequestHandler):
+    def handle_payload(self):
+        data = self.rfile.read(int(self.headers.get('Content-Length'))).decode('utf-8')
+        self.server.received.append(json.loads(data))
+        self.send_response(200)
+        self.end_headers()
+
+    def do_GET(self):
+        # This should match the payload in test_http_notification
+        self.server.received.append({'test':'GET request'})
+
+    def do_POST(self):
+        self.handle_payload()
+
+    def do_PUT(self):
+        self.handle_payload()
+
+    def do_DELETE(self):
+        # This should match the payload in test_http_notification
+        self.server.received.append({'test':'DELETE request'})
+
+
 class SchedulerTest(unittest.TestCase):
     def setUp(self):
+        self.maxDiff = None
         self.test_client = TestClient()
         self.test_engine = SchedulerEngine(self.test_client, 'test')
         self.schedule_events = []
@@ -132,6 +157,9 @@ class SchedulerTest(unittest.TestCase):
         del self.test_client
         self.test_client = TestClient()
         self.test_engine = SchedulerEngine(self.test_client, 'test')
+        for event in schedule_events:
+            if 'last_run' in event:
+                del event['last_run']
         self.check_schedules_added(schedule_events)
         self.check_schedules_run(schedule_events, ('date_job', 'daily_job'))
 
@@ -192,16 +220,44 @@ class SchedulerTest(unittest.TestCase):
         self.assertTrue(self.test_engine.update_scheduled_events(update_schedule_events))
         self.schedule_events = update_schedule_events
         self.check_schedules_run(update_schedule_events)
-        
+
+    def start_http_server(self):
+        self.server = HTTPServer(('localhost', 8000), TestHandler)
+        self.server.received = []
+        self.server.serve_forever()
+
+    def test_http_notification(self):
+        threading.Thread(target=self.start_http_server, daemon=True).start()
+        now = datetime.datetime.strftime(datetime.datetime.utcnow(), '%Y-%m-%dT%H:%M:%S.%fZ')
+        schedule_events = [{'id':'http_1', 'title':'date_get_job', 'actions':['date_job_action'],
+            'http_push':{'url':'http://localhost:8000', 'method':'GET', 'headers':{'Content-Type':'application/json'}, 'payload':{'test': 'GET request'}},
+            'config':{'type':'date', 'start_date':now}},
+            {'id':'http_2', 'title':'date_post_job', 'actions':['date_job_action'],
+            'http_push':{'url':'http://localhost:8000', 'method':'POST', 'headers':{'Content-Type':'application/json'}, 'payload':{'test': 'POST request'}},
+            'config':{'type':'date', 'start_date':now}},
+            {'id':'http_3', 'title':'date_put_job', 'actions':['date_job_action'],
+            'http_push':{'url':'http://localhost:8000', 'method':'PUT', 'headers':{'Content-Type':'application/json'}, 'payload':{'test': 'PUT request'}},
+            'config':{'type':'date', 'start_date':now}},
+            {'id':'http_4', 'title':'date_delete_job', 'actions':['date_job_action'],
+            'http_push':{'url':'http://localhost:8000', 'method':'DELETE', 'headers':{'Content-Type':'application/json'}, 'payload':{'test': 'DELETE request'}},
+            'config':{'type':'date', 'start_date':now}}]
+        self.add_schedules(schedule_events)
+        self.check_schedules_added(schedule_events)
+        self.check_schedules_run(schedule_events)
+        self.assertEqual(4, len(self.server.received))
+        expected = [event['http_push']['payload'] for event in schedule_events]
+        self.assertCountEqual(expected, self.server.received)
+
 
 if __name__ == '__main__':
     # setDebug()
     setInfo()
     unittest.main()
     # test_suite = unittest.TestSuite()
-    # test_suite.addTest(SchedulerTest('test_current_schedules'))
+    # # test_suite.addTest(SchedulerTest('test_current_schedules'))
     # # test_suite.addTest(SchedulerTest('test_future_schedules'))
-    # # test_suite.addTest(SchedulerTest('test_reload'))
+    # test_suite.addTest(SchedulerTest('test_reload'))
     # # test_suite.addTest(SchedulerTest('test_delayed_load'))
+    # # test_suite.addTest(SchedulerTest('test_http_notification'))
     # unittest.TextTestRunner().run(test_suite)
 

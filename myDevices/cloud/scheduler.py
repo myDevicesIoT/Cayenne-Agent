@@ -5,6 +5,7 @@ from threading import RLock, Thread
 from time import sleep
 
 import myDevices.schedule as schedule
+from myDevices.requests_futures.sessions import FuturesSession
 from myDevices.utils.logger import debug, error, exception, info, logJson, setDebug, warn
 
 
@@ -82,13 +83,13 @@ class SchedulerEngine(Thread):
                 try:
                     old_item = self.schedule_items[event['id']]
                     schedule.cancel_job(old_item['job'])
+                    result = self.create_job(schedule_item)
+                    debug('Update scheduled event result: {}'.format(result))
+                    if result == True:
+                        self.update_database_record(event['id'], event)
+                        self.schedule_items[event['id']] = schedule_item
                 except KeyError:
                     debug('Old schedule with id = {} not found'.format(event['id']))
-                result = self.create_job(schedule_item)
-                debug('Update scheduled event result: {}'.format(result))
-                if result == True:
-                    self.update_database_record(event['id'], event)
-                    self.schedule_items[event['id']] = schedule_item
         except:
             exception('Failed to update scheduled event')
         return result
@@ -122,6 +123,12 @@ class SchedulerEngine(Thread):
         try:
             with self.mutex:
                 events = [schedule_item['event'] for schedule_item in self.schedule_items.values()]
+                for event in events:
+                    try:
+                        # Don't include last run value that is only used locally.
+                        del event['last_run']
+                    except:
+                        pass
         except:
             exception('Failed to get scheduled events')
         return events
@@ -178,8 +185,8 @@ class SchedulerEngine(Thread):
                         schedule_item['job'] = schedule.every(config['interval'], config['start_date']).months.at(config['start_date'])
                     if config['unit'] == 'year':
                         schedule_item['job'] = schedule.every(config['interval'], config['start_date']).years.at(config['start_date'])
-                if 'last_run' in config:
-                    schedule_item['job'].set_last_run(config['last_run'])
+                if 'last_run' in schedule_item['event']:
+                    schedule_item['job'].set_last_run(schedule_item['event']['last_run'])
                 schedule_item['job'].do(self.run_scheduled_item, schedule_item)
         except:
             exception('Failed setting up scheduler')
@@ -197,17 +204,43 @@ class SchedulerEngine(Thread):
         result = True
         event = schedule_item['event']
         config = event['config']
-        config['last_run'] = datetime.strftime(datetime.utcnow(), '%Y-%m-%d %H:%M')
+        event['last_run'] = datetime.strftime(datetime.utcnow(), '%Y-%m-%d %H:%M')
         with self.mutex:
             self.update_database_record(event['id'], event)
+        action_executed = False
         for action in event['actions']:
             info('Executing scheduled action: {}'.format(action))
-            result = self.client.RunAction(action)
+            result = self.client.RunAction(action)           
             if result == False:
                 error('Failed to execute action: {}'.format(action))
+            else:
+                action_executed = True
         if config['type'] == 'date' and result == True:
             with self.mutex:
                 schedule.cancel_job(schedule_item['job'])
+        if action_executed and 'http_push' in event:
+            info('Scheduler making HTTP request')
+            http_push = event['http_push']
+            try:
+                future = None
+                session = FuturesSession(max_workers=1)
+                session.headers = http_push['headers']
+                if http_push['method'] == 'GET':
+                    future = session.get(http_push['url'])
+                if http_push['method'] == 'POST':
+                    future = session.post(http_push['url'], dumps(http_push['payload']))
+                if http_push['method'] == 'PUT':
+                    future = session.put(http_push['url'], dumps(http_push['payload']))
+                if http_push['method'] == 'DELETE':
+                    future = session.delete(http_push['url'])
+            except Exception as ex:
+                error('Scheduler HTTP request exception: {}'.format(ex))
+                return None
+            try:
+                response = future.result(30)
+                info('Scheduler HTTP response: {}'.format(response))
+            except:
+                pass
 
     def add_database_record(self, id, event):
         """Add a scheduled event to the database

@@ -9,6 +9,7 @@ DATA_TOPIC = 'data/json'
 COMMAND_TOPIC = 'cmd'
 COMMAND_JSON_TOPIC = 'cmd.json'
 COMMAND_RESPONSE_TOPIC = 'response'
+JOBS_TOPIC = 'jobs.json'
 
 # Data Channels
 SYS_HARDWARE_MAKE = 'sys:hw:make'
@@ -30,7 +31,7 @@ SYS_POWER_HALT = 'sys:pwr:halt'
 AGENT_VERSION = 'agent:version'
 AGENT_DEVICES = 'agent:devices'
 AGENT_MANAGE = 'agent:manage'
-AGENT_SCHEDULE = 'agent:schedule'
+AGENT_SCHEDULER = 'agent:scheduler'
 DEV_SENSOR = 'dev'
 
 # Channel Suffixes
