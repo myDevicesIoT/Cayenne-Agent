@@ -2,26 +2,27 @@
 This module provides a class for interfacing with sensors and actuators. It can add, edit and remove
 sensors and actuators as well as monitor their states and execute commands.
 """
-from myDevices.utils.logger import exception, info, warn, error, debug, logJson
-from time import sleep, time
-from json import loads, dumps
-from threading import RLock, Event
-from myDevices.system import services
 from datetime import datetime, timedelta
-from os import path, getpid
-from myDevices.utils.daemon import Daemon
-from myDevices.cloud.dbmanager import DbManager
-from myDevices.utils.threadpool import ThreadPool
-from myDevices.devices.bus import checkAllBus, BUSLIST
-from myDevices.devices.digital.gpio import NativeGPIO as GPIO
-from myDevices.devices import manager
-from myDevices.devices import instance
-from myDevices.utils.types import M_JSON
-from myDevices.system.systeminfo import SystemInfo
-from myDevices.cloud import cayennemqtt
+from json import dumps, loads
+from os import getpid, path
+from threading import Event, RLock
 
-REFRESH_FREQUENCY = 5 #seconds
-# SENSOR_INFO_SLEEP = 0.05
+from myDevices.cloud import cayennemqtt
+from myDevices.cloud.dbmanager import DbManager
+from myDevices.cloud.download_speed import DownloadSpeed
+from myDevices.devices import instance, manager
+from myDevices.devices.bus import BUSLIST, checkAllBus
+from myDevices.devices.digital.gpio import NativeGPIO as GPIO
+from myDevices.system import services
+from myDevices.system.systeminfo import SystemInfo
+from myDevices.utils.config import Config, APP_SETTINGS
+from myDevices.utils.daemon import Daemon
+from myDevices.utils.logger import debug, error, exception, info, logJson, warn
+from myDevices.utils.threadpool import ThreadPool
+from myDevices.utils.types import M_JSON
+
+REFRESH_FREQUENCY = 15 #seconds
+
 
 class SensorsClient():
     """Class for interfacing with sensors and actuators"""
@@ -31,13 +32,14 @@ class SensorsClient():
         self.sensorMutex = RLock()
         self.exiting = Event()
         self.onDataChanged = None
-        self.onSystemInfo = None
         self.systemData = []
         self.currentSystemState = []
         self.disabledSensors = {}
         self.disabledSensorTable = "disabled_sensors"
         checkAllBus()
         self.gpio = GPIO()
+        self.downloadSpeed = DownloadSpeed(Config(APP_SETTINGS))
+        self.downloadSpeed.getDownloadSpeed()
         manager.addDeviceInstance("GPIO", "GPIO", "GPIO", self.gpio, [], "system")
         manager.loadJsonDevices("rest")
         results = DbManager.Select(self.disabledSensorTable)
@@ -46,15 +48,13 @@ class SensorsClient():
                 self.disabledSensors[row[0]] = 1
         self.StartMonitoring()
 
-    def SetDataChanged(self, onDataChanged=None, onSystemInfo=None):
+    def SetDataChanged(self, onDataChanged=None):
         """Set callbacks to call when data has changed
         
         Args:
             onDataChanged: Function to call when sensor data changes
-            onSystemInfo: Function to call when system info changes
         """
         self.onDataChanged = onDataChanged
-        self.onSystemInfo = onSystemInfo
 
     def StartMonitoring(self):
         """Start thread monitoring sensor data"""
@@ -67,19 +67,26 @@ class SensorsClient():
     def Monitor(self):
         """Monitor bus/sensor states and system info and report changed data via callbacks"""
         debug('Monitoring sensors and os resources started')
+        sendAllData = True
+        nextTime = datetime.now()
         while not self.exiting.is_set():
             try:
-                if not self.exiting.wait(REFRESH_FREQUENCY):
+                difference = nextTime - datetime.now()
+                delay = min(REFRESH_FREQUENCY, difference.total_seconds())
+                delay = max(0, delay)
+                if not self.exiting.wait(delay):
+                    nextTime = datetime.now() + timedelta(seconds=REFRESH_FREQUENCY)
                     self.currentSystemState = []
                     self.MonitorSystemInformation()
                     self.MonitorSensors()
                     self.MonitorBus()
                     if self.currentSystemState != self.systemData:
-                        changedSystemData = self.currentSystemState
-                        if self.systemData:
-                            changedSystemData = [x for x in self.currentSystemState if x not in self.systemData]
-                        if self.onDataChanged and changedSystemData:
-                            self.onDataChanged(changedSystemData)
+                        data = self.currentSystemState
+                        if self.systemData and not sendAllData:
+                            data = [x for x in self.currentSystemState if x not in self.systemData]
+                        if self.onDataChanged and data:
+                            self.onDataChanged(data)
+                    sendAllData = not sendAllData
                     self.systemData = self.currentSystemState
             except:
                 exception('Monitoring sensors and os resources failed')
@@ -109,6 +116,9 @@ class SensorsClient():
         try:
             systemInfo = SystemInfo()
             newSystemInfo = systemInfo.getSystemInformation()
+            download_speed = self.downloadSpeed.getDownloadSpeed()
+            if download_speed:
+                cayennemqtt.DataChannel.add(newSystemInfo, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed, type='bw', unit='mbps')
         except Exception:
             exception('SystemInformation failed')
         return newSystemInfo
@@ -381,4 +391,3 @@ class SensorsClient():
         except Exception:
             exception('SensorCommand failed')
         return result
-

@@ -9,12 +9,11 @@ from threading import Thread, Event
 from time import strftime, localtime, tzset, time, sleep
 from queue import Queue, Empty
 from myDevices import __version__
-from myDevices.utils.config import Config
+from myDevices.utils.config import Config, APP_SETTINGS, NETWORK_SETTINGS
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from myDevices.sensors import sensors
 from myDevices.system.hardware import Hardware
 # from myDevices.cloud.scheduler import SchedulerEngine
-from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
 from myDevices.system.systemconfig import SystemConfig
 from myDevices.utils.daemon import Daemon
@@ -25,9 +24,8 @@ from myDevices.utils.subprocess import executeCommand
 from myDevices.cloud.apiclient import CayenneApiClient
 import myDevices.cloud.cayennemqtt as cayennemqtt
 
-NETWORK_SETTINGS = '/etc/myDevices/Network.ini'
-APP_SETTINGS = '/etc/myDevices/AppSettings.ini'
 GENERAL_SLEEP_THREAD = 0.20
+
 
 def GetTime():
     """Return string with the current time"""
@@ -203,15 +201,13 @@ class CloudServerClient:
             self.oSInfo = OSInfo()
             self.count = 10000
             self.buff = bytearray(self.count)
-            self.downloadSpeed = DownloadSpeed(self.config)
-            self.downloadSpeed.getDownloadSpeed()
             self.sensorsClient.SetDataChanged(self.OnDataChanged)
             self.writerThread = WriterThread('writer', self)
             self.writerThread.start()
             self.processorThread = ProcessorThread('processor', self)
             self.processorThread.start()
             TimerThread(self.SendSystemInfo, 300)
-            TimerThread(self.SendSystemState, 30, 5)
+            # TimerThread(self.SendSystemState, 30, 5)
             self.updater = Updater(self.config)
             self.updater.start()
             # self.sentHistoryData = {}
@@ -242,7 +238,10 @@ class CloudServerClient:
 
     def OnDataChanged(self, data):
         """Enqueue a packet containing changed system data to send to the server"""
-        info('Send changed data: {}'.format([{item['channel']:item['value']} for item in data]))
+        if len(data) > 15:
+            info('Send changed data: {} items'.format(len(data)))
+        else:
+            info('Send changed data: {}'.format([{item['channel']:item['value']} for item in data]))
         self.EnqueuePacket(data)
 
     def SendSystemInfo(self):
@@ -268,24 +267,11 @@ class CloudServerClient:
         except Exception:
             exception('SendSystemInfo unexpected error')
 
-    def SendSystemState(self):
-        """Enqueue a packet containing system information to send to the server"""
-        try:
-            data = []
-            download_speed = self.downloadSpeed.getDownloadSpeed()
-            if download_speed:
-                cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed, type='bw', unit='mbps')
-            data += self.sensorsClient.systemData
-            info('Send system state: {} items'.format(len(data)))
-            self.EnqueuePacket(data)
-        except Exception as e:
-            exception('ThreadSystemInfo unexpected error: ' + str(e))
-
     def CheckSubscription(self):
         """Check that an invite code is valid"""
         inviteCode = self.config.get('Agent', 'InviteCode', fallback=None)
         if not inviteCode:
-            error('No invite code found in {}'.format(APP_SETTINGS))
+            error('No invite code found in {}'.format(self.config.path))
             print('Please input an invite code. This can be retrieved from the Cayenne dashboard by adding a new Raspberry Pi device.\n'
                 'The invite code will be part of the script name shown there: rpi_[invitecode].sh.')
             inviteCode = input('Invite code: ')

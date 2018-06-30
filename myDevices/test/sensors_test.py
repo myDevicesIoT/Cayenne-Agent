@@ -34,7 +34,7 @@ class SensorsClientTest(unittest.TestCase):
         self.currentSystemData = None
         self.done = False
         SensorsClientTest.client.SetDataChanged(self.OnDataChanged)
-        for i in range(25):
+        for i in range(35):
             sleep(1)
             if self.done:
                 break

@@ -1,6 +1,10 @@
 from configparser import RawConfigParser, _UNSET, NoSectionError
 from threading import RLock
 
+NETWORK_SETTINGS = '/etc/myDevices/Network.ini'
+APP_SETTINGS = '/etc/myDevices/AppSettings.ini'
+
+
 class Config:
     def __init__(self, path):
         self.mutex = RLock()
