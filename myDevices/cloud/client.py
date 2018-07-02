@@ -238,10 +238,27 @@ class CloudServerClient:
 
     def OnDataChanged(self, data):
         """Enqueue a packet containing changed system data to send to the server"""
-        if len(data) > 15:
-            info('Send changed data: {} items'.format(len(data)))
-        else:
-            info('Send changed data: {}'.format([{item['channel']:item['value']} for item in data]))
+        try:
+            if len(data) > 15:
+                items = [{item['channel']:item['value']} for item in data if not item['channel'].startswith(cayennemqtt.SYS_GPIO)]
+                info('Send changed data: {} + {}'.format(items, cayennemqtt.SYS_GPIO))
+            else:
+                info('Send changed data: {}'.format([{item['channel']:item['value']} for item in data]))
+            # items = {}
+            # gpio_items = {}
+            # for item in data:
+            #     if not item['channel'].startswith(cayennemqtt.SYS_GPIO):
+            #         items[item['channel']] = item['value']
+            #     else:
+            #         channel = item['channel'].replace(cayennemqtt.SYS_GPIO + ':', '').split(';')
+            #         if not channel[0] in gpio_items:
+            #             gpio_items[channel[0]] = str(item['value'])
+            #         else:
+            #             gpio_items[channel[0]] += ',' + str(item['value'])
+            # info('Send changed data: {}, {}: {}'.format(items, cayennemqtt.SYS_GPIO, gpio_items))
+        except:
+            info('Send changed data')
+            pass
         self.EnqueuePacket(data)
 
     def SendSystemInfo(self):
