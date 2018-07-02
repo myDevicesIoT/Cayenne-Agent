@@ -206,6 +206,7 @@ class CloudServerClient:
             self.writerThread.start()
             self.processorThread = ProcessorThread('processor', self)
             self.processorThread.start()
+            self.systemInfo = []
             TimerThread(self.SendSystemInfo, 300)
             # TimerThread(self.SendSystemState, 30, 5)
             self.updater = Updater(self.config)
@@ -264,23 +265,29 @@ class CloudServerClient:
     def SendSystemInfo(self):
         """Enqueue a packet containing system info to send to the server"""
         try:
-            data = []
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
-            cayennemqtt.DataChannel.add(data, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent', 'Version', __version__))
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_POWER_RESET, value=0)
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_POWER_HALT, value=0)
+            currentSystemInfo = []
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent', 'Version', __version__))
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.SYS_POWER_RESET, value=0)
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.SYS_POWER_HALT, value=0)
             config = SystemConfig.getConfig()
             if config:
                 channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART,
                                 'OneWire': cayennemqtt.SYS_ONEWIRE, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}
                 for key, channel in channel_map.items():
                     try:
-                        cayennemqtt.DataChannel.add(data, channel, value=config[key])
+                        cayennemqtt.DataChannel.add(currentSystemInfo, channel, value=config[key])
                     except:
                         pass
-            info('Send system info: {}'.format([{item['channel']:item['value']} for item in data]))
-            self.EnqueuePacket(data)
+            if currentSystemInfo != self.systemInfo:
+                data = currentSystemInfo
+                if self.systemInfo:
+                    data = [x for x in data if x not in self.systemInfo]
+                if data:
+                    self.systemInfo = currentSystemInfo
+                    info('Send system info: {}'.format([{item['channel']:item['value']} for item in data]))
+                    self.EnqueuePacket(data)
         except Exception:
             exception('SendSystemInfo unexpected error')
 
