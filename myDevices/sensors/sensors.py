@@ -67,7 +67,7 @@ class SensorsClient():
     def Monitor(self):
         """Monitor bus/sensor states and system info and report changed data via callbacks"""
         debug('Monitoring sensors and os resources started')
-        sendAllData = True
+        sendAllDataCount = 0
         nextTime = datetime.now()
         while not self.exiting.is_set():
             try:
@@ -82,11 +82,13 @@ class SensorsClient():
                     self.MonitorBus()
                     if self.currentSystemState != self.systemData:
                         data = self.currentSystemState
-                        if self.systemData and not sendAllData:
+                        if self.systemData and not sendAllDataCount == 0:
                             data = [x for x in self.currentSystemState if x not in self.systemData]
                         if self.onDataChanged and data:
                             self.onDataChanged(data)
-                    sendAllData = not sendAllData
+                    sendAllDataCount += 1
+                    if sendAllDataCount >= 4:
+                        sendAllDataCount = 0
                     self.systemData = self.currentSystemState
             except:
                 exception('Monitoring sensors and os resources failed')
