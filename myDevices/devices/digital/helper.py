@@ -47,11 +47,11 @@ class DigitalSensor():
                 self.gpio.setFunction(self.channel, GPIO.IN)
 
     def setCallback(self, callback, data=None):
-        if self.gpioname == "GPIO":
+        if self.gpioname == "GPIO" and self.__family__() == "DigitalSensor":
             self.gpio.setCallback(self.channel, callback, data)
 
     def removeCallback(self):
-        if self.gpioname == "GPIO":
+        if self.gpioname == "GPIO" and self.__family__() == "DigitalSensor":
             self.gpio.removeCallback(self.channel)
 
     #@request("GET", "value")

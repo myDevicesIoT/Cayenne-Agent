@@ -75,7 +75,7 @@ class SensorsClient():
         devices = manager.getDeviceList()
         for device in devices:
             sensor = instance.deviceInstance(device['name'])
-            if hasattr(sensor, 'setCallback'):
+            if 'DigitalSensor' in device['type'] and hasattr(sensor, 'setCallback'):
                 debug('Set callback for {}'.format(sensor))
                 sensor.setCallback(self.OnSensorChange, device)
 
@@ -84,7 +84,7 @@ class SensorsClient():
         devices = manager.getDeviceList()
         for device in devices:
             sensor = instance.deviceInstance(device['name'])
-            if hasattr(sensor, 'removeCallback'):
+            if 'DigitalSensor' in device['type'] and hasattr(sensor, 'removeCallback'):
                 sensor.removeCallback()
 
     def StartMonitoring(self):
@@ -270,7 +270,8 @@ class SensorsClient():
             info('Add device returned: {}'.format(retValue))
             if retValue[0] == 200:
                 bVal = True
-        except:
+        except Exception as e:
+            exception('Error adding sensor')
             bVal = False
         return bVal
 
