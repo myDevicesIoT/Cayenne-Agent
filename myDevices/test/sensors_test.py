@@ -24,12 +24,17 @@ class SensorsClientTest(unittest.TestCase):
         del cls.client
 
     def OnDataChanged(self, sensor_data):
+        # if len(sensor_data) < 5:
+        #     info('OnDataChanged: {}'.format(sensor_data))
+        # else:
+        #     info('OnDataChanged: {}'.format(len(sensor_data)))
         self.previousSystemData = self.currentSystemData
         self.currentSystemData = sensor_data
         if self.previousSystemData:
             self.done = True
 
     def testMonitor(self):
+        debug('testMonitor')
         self.previousSystemData = None
         self.currentSystemData = None
         self.done = False
@@ -42,6 +47,7 @@ class SensorsClientTest(unittest.TestCase):
         self.assertNotEqual(self.previousSystemData, self.currentSystemData)
 
     def testBusInfo(self):
+        debug('testBusInfo')
         bus = {item['channel']:item['value'] for item in SensorsClientTest.client.BusInfo()}
         info('Bus info: {}'.format(bus))
         for pin in GPIO().pins:
@@ -49,6 +55,7 @@ class SensorsClientTest(unittest.TestCase):
             self.assertIn('sys:gpio:{};value'.format(pin), bus)
 
     def testSensorsInfo(self):
+        debug('testSensorsInfo')
         sensors = SensorsClientTest.client.SensorsInfo()
         info('Sensors info: {}'.format(sensors))
         for sensor in sensors:
@@ -56,15 +63,18 @@ class SensorsClientTest(unittest.TestCase):
             self.assertIn('value', sensor)
 
     def testSetFunction(self):
+        debug('testSetFunciton')
         self.setChannelFunction(GPIO().pins[7], 'IN')
         self.setChannelFunction(GPIO().pins[7], 'OUT')
 
     def testSetValue(self):
+        debug('testSetValue')
         self.setChannelFunction(GPIO().pins[7], 'OUT')
         self.setChannelValue(GPIO().pins[7], 1)
         self.setChannelValue(GPIO().pins[7], 0)
 
     def testSensors(self):
+        debug('testSensors')
         #Test adding a sensor
         channel = GPIO().pins[8]
         testSensor = {'description': 'Digital Input', 'device': 'DigitalSensor', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': channel}, 'name': 'testdevice'}
@@ -90,8 +100,9 @@ class SensorsClientTest(unittest.TestCase):
         self.assertNotIn(testSensor['name'], deviceNames)
 
     def testSensorInfo(self):
-        actuator_channel = GPIO().pins[9]
-        light_switch_channel = GPIO().pins[9]
+        debug('testSensorInfo')
+        actuator_channel = GPIO().pins[10]
+        light_switch_channel = GPIO().pins[11]
         sensors = {'actuator' : {'description': 'Digital Output', 'device': 'DigitalActuator', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': actuator_channel}, 'name': 'test_actuator'},
                    'light_switch' : {'description': 'Light Switch', 'device': 'LightSwitch', 'args': {'gpio': 'GPIO', 'invert': True, 'channel': light_switch_channel}, 'name': 'test_light_switch'},
                    'MCP3004' : {'description': 'MCP3004', 'device': 'MCP3004', 'args': {'chip': '0'}, 'name': 'test_MCP3004'},
@@ -110,6 +121,27 @@ class SensorsClientTest(unittest.TestCase):
         retrievedSensorInfo = next(obj for obj in SensorsClientTest.client.SensorsInfo() if obj['channel'] == channel)
         self.assertGreaterEqual(retrievedSensorInfo['value'], 0.0)
         self.assertLessEqual(retrievedSensorInfo['value'], 1.0)
+        for sensor in sensors.values():
+            self.assertTrue(SensorsClientTest.client.RemoveSensor(sensor['name']))
+
+    def testSensorCallback(self):
+        debug('testSensorCallback')
+        self.previousSystemData = None
+        self.currentSystemData = None
+        self.done = False
+        SensorsClientTest.client.SetDataChanged(self.OnDataChanged)
+        actuator_channel = GPIO().pins[10]
+        sensor_channel = GPIO().pins[11]
+        sensors = {'actuator' : {'description': 'Digital Output', 'device': 'DigitalActuator', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': actuator_channel}, 'name': 'test_actuator'},
+            'sensor': {'description': 'Digital Input', 'device': 'DigitalSensor', 'args': {'gpio': 'GPIO', 'invert': False, 'channel': sensor_channel}, 'name': 'testdevice'}}
+        for sensor in sensors.values():
+            SensorsClientTest.client.AddSensor(sensor['name'], sensor['description'], sensor['device'], sensor['args'])
+        for i in range(35):
+            sleep(1)
+            if self.done:
+                break
+        info('Changed items: {}'.format([x for x in self.currentSystemData if x not in self.previousSystemData]))
+        self.assertNotEqual(self.previousSystemData, self.currentSystemData)
         for sensor in sensors.values():
             self.assertTrue(SensorsClientTest.client.RemoveSensor(sensor['name']))
 
