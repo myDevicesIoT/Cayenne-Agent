@@ -338,10 +338,14 @@ class NativeGPIO(Singleton, GPIOPort):
         with open(self.__getEdgeFilePath__(channel), 'w') as f:
             f.write('both')
         self.callbacks[channel] = {'function':callback, 'data':data}
-        self.edge_poll.register(self.valueFile[channel], (select.EPOLLPRI | select.EPOLLET))
+        try:
+            self.edge_poll.register(self.valueFile[channel], (select.EPOLLPRI | select.EPOLLET))
+        except FileExistsError as e:
+            # Ignore file exists error since it means we already registered the file.
+            pass
              
     def removeCallback(self, channel):
-        info('removeCallback: {}'.format(channel))
+        debug('removeCallback: {}'.format(channel))
         self.__checkFilesystemValue__(channel)
         with open(self.__getEdgeFilePath__(channel), 'w') as f:
             f.write('none')
