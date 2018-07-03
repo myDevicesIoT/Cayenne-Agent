@@ -46,15 +46,46 @@ class SensorsClient():
         if results:
             for row in results:
                 self.disabledSensors[row[0]] = 1
+        self.InitCallbacks()
         self.StartMonitoring()
 
     def SetDataChanged(self, onDataChanged=None):
-        """Set callbacks to call when data has changed
+        """Set callback to call when data has changed
         
         Args:
             onDataChanged: Function to call when sensor data changes
         """
         self.onDataChanged = onDataChanged
+
+    def OnSensorChange(self, device, value):
+        """Callback that is called when digital sensor data has changed
+
+        Args:
+            device: The device that has changed data
+            value: The new data value
+        """
+        debug('OnSensorChange: {}, {}'.format(device, value))
+        data = []
+        cayennemqtt.DataChannel.add(data, cayennemqtt.DEV_SENSOR, device['name'], value=value, name=device['description'], type='digital_sensor', unit='d')
+        if self.onDataChanged:
+            self.onDataChanged(data)
+
+    def InitCallbacks(self):
+        """Set callback function for any digital devices that support them"""
+        devices = manager.getDeviceList()
+        for device in devices:
+            sensor = instance.deviceInstance(device['name'])
+            if hasattr(sensor, 'setCallback'):
+                debug('Set callback for {}'.format(sensor))
+                sensor.setCallback(self.OnSensorChange, device)
+
+    def RemoveCallbacks(self):
+        """Remove callback function for all digital devices"""
+        devices = manager.getDeviceList()
+        for device in devices:
+            sensor = instance.deviceInstance(device['name'])
+            if hasattr(sensor, 'removeCallback'):
+                sensor.removeCallback()
 
     def StartMonitoring(self):
         """Start thread monitoring sensor data"""
@@ -62,6 +93,7 @@ class SensorsClient():
 
     def StopMonitoring(self):
         """Stop thread monitoring sensor data"""
+        self.RemoveCallbacks()
         self.exiting.set()
 
     def Monitor(self):
@@ -234,6 +266,7 @@ class SensorsClient():
                 sensorAdd['description'] = description
             with self.sensorMutex:
                 retValue = manager.addDeviceJSON(sensorAdd)
+                self.InitCallbacks()
             info('Add device returned: {}'.format(retValue))
             if retValue[0] == 200:
                 bVal = True
@@ -264,6 +297,7 @@ class SensorsClient():
             sensorEdit['args'] = args
             with self.sensorMutex:
                 retValue = manager.updateDevice(name, sensorEdit)
+                self.InitCallbacks()
             info('Edit device returned: {}'.format(retValue))
             if retValue[0] == 200:
                 bVal = True
@@ -284,6 +318,12 @@ class SensorsClient():
         bVal = False
         try:
             sensorRemove = name
+            try:
+                sensor = instance.deviceInstance(sensorRemove)
+                if hasattr(sensor, 'removeCallback'):
+                    sensor.removeCallback()
+            except: 
+                pass
             with self.sensorMutex:
                 retValue = manager.removeDevice(sensorRemove)
             info('Remove device returned: {}'.format(retValue))

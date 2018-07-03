@@ -12,8 +12,11 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+import errno
 import os
 import mmap
+import select
+from threading import Thread
 from time import sleep
 from myDevices.utils.types import M_JSON
 from myDevices.utils.logger import debug, info, error, exception
@@ -63,6 +66,10 @@ class NativeGPIO(Singleton, GPIOPort):
         self.pinFunctionSet = set()
         self.valueFile = {pin:None for pin in self.pins}
         self.functionFile = {pin:None for pin in self.pins}
+        self.callbacks = {}
+        self.edge_poll = select.epoll()
+        thread = Thread(target=self.pollEdges, daemon=True)
+        thread.start()
         for pin in self.pins:
             # Export the pins here to prevent a delay when accessing the values for the 
             # first time while waiting for the file group to be set
@@ -148,6 +155,7 @@ class NativeGPIO(Singleton, GPIOPort):
             self.setFunction(gpio, g["func"])
             if g["value"] >= 0 and self.getFunction(gpio) == self.OUT:
                 self.__digitalWrite__(gpio, g["value"])
+        self.edge_poll.close()
 
     def checkDigitalChannelExported(self, channel):
         if not channel in self.pins:
@@ -166,6 +174,9 @@ class NativeGPIO(Singleton, GPIOPort):
 
     def __getValueFilePath__(self, channel):
         return "/sys/class/gpio/gpio%s/value" % channel
+
+    def __getEdgeFilePath__(self, channel):
+        return "/sys/class/gpio/gpio%s/edge" % channel
 
     def __checkFilesystemExport__(self, channel):
         #debug("checkExport for channel %d" % channel)
@@ -320,6 +331,45 @@ class NativeGPIO(Singleton, GPIOPort):
                     self.__digitalWrite__(i, (value >> i) & 1)
         else:
             raise Exception("Please limit exported GPIO to write integers")
+
+    def setCallback(self, channel, callback, data=None):
+        debug('Set callback for GPIO pin {}'.format(channel))
+        self.__checkFilesystemValue__(channel)
+        with open(self.__getEdgeFilePath__(channel), 'w') as f:
+            f.write('both')
+        self.callbacks[channel] = {'function':callback, 'data':data}
+        self.edge_poll.register(self.valueFile[channel], (select.EPOLLPRI | select.EPOLLET))
+             
+    def removeCallback(self, channel):
+        info('removeCallback: {}'.format(channel))
+        self.__checkFilesystemValue__(channel)
+        with open(self.__getEdgeFilePath__(channel), 'w') as f:
+            f.write('none')
+        del self.callbacks[channel]
+        self.edge_poll.unregister(self.valueFile[channel])
+
+    def pollEdges(self):
+        while True:
+            try:
+                events = self.edge_poll.poll(1)
+            except IOError as e:
+                if e.errno != errno.EINTR:
+                    error(e)    
+            if len(events) > 0:
+                self.onEdgeEvent(events)
+
+    def onEdgeEvent(self, events):
+        debug('onEdgeEvent: {}'.format(events))
+        for fd, event in events:
+            if not (event & (select.EPOLLPRI | select.EPOLLET)):
+                continue
+            for channel, valueFile in self.valueFile.items():
+                if valueFile and valueFile.fileno() == fd:
+                    value = valueFile.read()
+                    valueFile.seek(0)
+                    callback = self.callbacks[channel]
+                    debug('onEdgeEvent: channel {}, value {}'.format(channel, value))
+                    callback['function'](callback['data'], int(value))
 
     #@request("GET", "*")
     @response(contentType=M_JSON)
