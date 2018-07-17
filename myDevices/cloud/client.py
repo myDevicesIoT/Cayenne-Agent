@@ -574,8 +574,8 @@ class CloudServerClient:
 
     def EnqueueCommandResponse(self, message, error):
         """Send response after processing a command message"""
-        if not hasattr(message, 'cmdId'):
-            # If there is no command idea we assume this is a scheduled command and don't send a response message.
+        if not 'cmdId' in message:
+            # If there is no command id we assume this is a scheduled command and don't send a response message.
             return
         debug('EnqueueCommandResponse error: {}'.format(error))
         if error:
