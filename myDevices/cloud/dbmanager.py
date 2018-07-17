@@ -112,6 +112,6 @@ try:
     cursor = connection.cursor()
 except Exception as ex:
     error('DbManager failed to initialize: ' + str(ex))
-DbManager.CreateTable('scheduled_settings', "id TEXT PRIMARY KEY, data TEXT", ['id', 'data'])
+# DbManager.CreateTable('scheduled_events', "id TEXT PRIMARY KEY, data TEXT", ['id', 'data'])
 DbManager.CreateTable('disabled_sensors', "id TEXT PRIMARY KEY", ['id'])
 DbManager.CreateTable('historical_averages', "id INTEGER PRIMARY KEY, data TEXT, count INTEGER, start TIMESTAMP, end TIMESTAMP, interval TEXT, send TEXT, count_sensor TEXT", ['id', 'data', 'count', 'start', 'end', 'interval', 'send', 'count_sensor'])

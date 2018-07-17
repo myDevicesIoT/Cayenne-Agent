@@ -13,7 +13,7 @@ from myDevices.utils.config import Config
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from myDevices.sensors import sensors
 from myDevices.system.hardware import Hardware
-# from myDevices.cloud.scheduler import SchedulerEngine
+from myDevices.cloud.scheduler import SchedulerEngine
 from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
 from myDevices.system.systemconfig import SystemConfig
@@ -115,7 +115,7 @@ class WriterThread(Thread):
                 if topic or message:
                     got_packet = True
                 try:
-                    if message:
+                    if message or topic == cayennemqtt.JOBS_TOPIC:
                         # debug('WriterThread, topic: {} {}'.format(topic, message))
                         if not isinstance(message, str):
                             message = dumps(message)
@@ -195,7 +195,7 @@ class CloudServerClient:
             if not self.Connect():
                 error('Error starting agent')
                 return
-            # self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
+            self.schedulerEngine = SchedulerEngine(self, 'client_scheduler')
             self.sensorsClient = sensors.SensorsClient()
             self.readQueue = Queue()
             self.writeQueue = Queue()
@@ -214,6 +214,8 @@ class CloudServerClient:
             TimerThread(self.SendSystemState, 30, 5)
             self.updater = Updater(self.config)
             self.updater.start()
+            events = self.schedulerEngine.get_scheduled_events()
+            self.EnqueuePacket(events, cayennemqtt.JOBS_TOPIC)
             # self.sentHistoryData = {}
             # self.historySendFails = 0
             # self.historyThread = Thread(target=self.SendHistoryData)
@@ -367,8 +369,12 @@ class CloudServerClient:
 
     def RunAction(self, action):
         """Run a specified action"""
-        debug('RunAction')
-        self.ExecuteMessage(action)
+        debug('RunAction: {}'.format(action))
+        result = True
+        command = action.copy()
+        self.mqttClient.transform_command(command)
+        result = self.ExecuteMessage(command)
+        return result
 
     def ProcessMessage(self):
         """Process a message from the server"""
@@ -381,28 +387,36 @@ class CloudServerClient:
         self.ExecuteMessage(messageObject)
 
     def ExecuteMessage(self, message):
-        """Execute an action described in a message object"""
+        """Execute an action described in a message object
+        
+        Returns: True if action was executed, False otherwise."""
+        result = False
         if not message:
-            return
+            return result
         channel = message['channel']
         info('ExecuteMessage: {}'.format(message))
         if channel in (cayennemqtt.SYS_POWER_RESET, cayennemqtt.SYS_POWER_HALT):
-            self.ProcessPowerCommand(message)
+            result = self.ProcessPowerCommand(message)
         elif channel.startswith(cayennemqtt.DEV_SENSOR):
-            self.ProcessSensorCommand(message)
+            result = self.ProcessSensorCommand(message)
         elif channel.startswith(cayennemqtt.SYS_GPIO):
-            self.ProcessGpioCommand(message)
+            result = self.ProcessGpioCommand(message)
         elif channel == cayennemqtt.AGENT_DEVICES:
-            self.ProcessDeviceCommand(message)
+            result = self.ProcessDeviceCommand(message)
         elif channel in (cayennemqtt.SYS_I2C, cayennemqtt.SYS_SPI, cayennemqtt.SYS_UART, cayennemqtt.SYS_ONEWIRE):
-            self.ProcessConfigCommand(message)
+            result = self.ProcessConfigCommand(message)
         elif channel == cayennemqtt.AGENT_MANAGE:
-            self.ProcessAgentCommand(message)
+            result = self.ProcessAgentCommand(message)
+        elif channel == cayennemqtt.AGENT_SCHEDULER:
+            result = self.ProcessSchedulerCommand(message)
         else:
             info('Unknown message')
+        return result
 
     def ProcessPowerCommand(self, message):
-        """Process command to reboot/shutdown the system"""
+        """Process command to reboot/shutdown the system
+        
+        Returns: True if command was processed, False otherwise."""
         error_message = None
         try:
             self.EnqueueCommandResponse(message, error_message)
@@ -425,9 +439,13 @@ class CloudServerClient:
             data = []
             cayennemqtt.DataChannel.add(data, message['channel'], value=0)
             self.EnqueuePacket(data)
+            raise ExecuteMessageError(error_message)
+        return error_message == None
 
     def ProcessAgentCommand(self, message):
-        """Process command to manage the agent state"""
+        """Process command to manage the agent state
+        
+        Returns: True if command was processed, False otherwise."""
         error = None
         try:
             if message['suffix'] == 'uninstall':
@@ -448,9 +466,14 @@ class CloudServerClient:
         except Exception as ex:
             error = '{}: {}'.format(type(ex).__name__, ex)
         self.EnqueueCommandResponse(message, error)
+        if error:
+            raise ExecuteMessageError(error)
+        return error == None
 
     def ProcessConfigCommand(self, message):
-        """Process system configuration command"""
+        """Process system configuration command
+        
+        Returns: True if command was processed, False otherwise."""
         error = None
         try:
             value = 1 - int(message['payload']) #Invert the value since the config script uses 0 for enable and 1 for disable
@@ -462,9 +485,12 @@ class CloudServerClient:
         except Exception as ex:
             error = '{}: {}'.format(type(ex).__name__, ex)
         self.EnqueueCommandResponse(message, error)
-    
+        return error == None
+
     def ProcessGpioCommand(self, message):
-        """Process GPIO command"""
+        """Process GPIO command
+        
+        Returns: True if command was processed, False otherwise."""
         error = None
         try:
             channel = int(message['channel'].replace(cayennemqtt.SYS_GPIO + ':', ''))
@@ -475,9 +501,12 @@ class CloudServerClient:
         except Exception as ex:
             error = '{}: {}'.format(type(ex).__name__, ex)
         self.EnqueueCommandResponse(message, error)
+        return error == None
 
     def ProcessSensorCommand(self, message):
-        """Process sensor command"""
+        """Process sensor command
+        
+        Returns: True if command was processed, False otherwise."""
         error = None
         try:
             sensor_info = message['channel'].replace(cayennemqtt.DEV_SENSOR + ':', '').split(':')
@@ -492,9 +521,12 @@ class CloudServerClient:
         except Exception as ex:
             error = '{}: {}'.format(type(ex).__name__, ex)
         self.EnqueueCommandResponse(message, error)
+        return error == None
 
     def ProcessDeviceCommand(self, message):
-        """Process a device command to add/edit/remove a sensor"""
+        """Process a device command to add/edit/remove a sensor
+        
+        Returns: True if command was processed, False otherwise."""
         error = None
         try:
             payload = message['payload']
@@ -513,9 +545,38 @@ class CloudServerClient:
         except Exception as ex:
             error = '{}: {}'.format(type(ex).__name__, ex)
         self.EnqueueCommandResponse(message, error)
+        return error == None
+
+    def ProcessSchedulerCommand(self, message):
+        """Process command to add/edit/remove a scheduled action
+        
+        Returns: True if command was processed, False otherwise."""
+        error = None
+        try:
+            if message['suffix'] == 'add':
+                result = self.schedulerEngine.add_scheduled_event(message['payload'], True)
+            elif message['suffix'] == 'edit':
+                result = self.schedulerEngine.update_scheduled_event(message['payload'])
+            elif message['suffix'] == 'delete':
+                result = self.schedulerEngine.remove_scheduled_event(message['payload'])
+            elif message['suffix'] == 'get':
+                events = self.schedulerEngine.get_scheduled_events()
+                self.EnqueuePacket(events, cayennemqtt.JOBS_TOPIC)
+            else:
+                error = 'Unknown schedule command: {}'.format(message['suffix'])
+            debug('ProcessSchedulerCommand result: {}'.format(result))
+            if result is False:
+                error = 'Schedule command failed'
+        except Exception as ex:
+            error = '{}: {}'.format(type(ex).__name__, ex)
+        self.EnqueueCommandResponse(message, error)
+        return error == None
 
     def EnqueueCommandResponse(self, message, error):
         """Send response after processing a command message"""
+        if not hasattr(message, 'cmdId'):
+            # If there is no command idea we assume this is a scheduled command and don't send a response message.
+            return
         debug('EnqueueCommandResponse error: {}'.format(error))
         if error:
             response = 'error,{}={}'.format(message['cmdId'], error)

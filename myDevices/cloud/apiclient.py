@@ -1,11 +1,15 @@
-from myDevices.requests_futures.sessions import FuturesSession
-from concurrent.futures import ThreadPoolExecutor
 import json
-from myDevices.utils.logger import error, exception
-from myDevices.system.hardware import Hardware
-from myDevices.system.systeminfo import SystemInfo
+from concurrent.futures import ThreadPoolExecutor
+
+from myDevices import __version__
 from myDevices.cloud import cayennemqtt
 from myDevices.devices.digital.gpio import NativeGPIO
+from myDevices.requests_futures.sessions import FuturesSession
+from myDevices.system.hardware import Hardware
+from myDevices.system.systeminfo import SystemInfo
+from myDevices.utils.config import Config, APP_SETTINGS
+from myDevices.utils.logger import error, exception
+
 
 class CayenneApiClient:
     def __init__(self, host):
@@ -56,6 +60,8 @@ class CayenneApiClient:
             system_data = []
             cayennemqtt.DataChannel.add(system_data, cayennemqtt.SYS_HARDWARE_MAKE, value=hardware.getManufacturer(), type='string', unit='utf8')
             cayennemqtt.DataChannel.add(system_data, cayennemqtt.SYS_HARDWARE_MODEL, value=hardware.getModel(), type='string', unit='utf8')
+            config = Config(APP_SETTINGS)
+            cayennemqtt.DataChannel.add(system_data, cayennemqtt.AGENT_VERSION, value=config.get('Agent', 'Version', __version__))
             system_info = SystemInfo()
             capacity_data = system_info.getMemoryInfo((cayennemqtt.CAPACITY,))
             capacity_data += system_info.getDiskInfo((cayennemqtt.CAPACITY,))

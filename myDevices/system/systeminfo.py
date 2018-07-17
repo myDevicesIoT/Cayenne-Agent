@@ -7,7 +7,7 @@ import netifaces
 from myDevices.utils.logger import exception
 from myDevices.system.cpu import CpuInfo
 from myDevices.cloud import cayennemqtt
-from myDevices.wifi import WifiManager
+
 
 class SystemInfo():
     """Class to get system CPU, memory, uptime, storage and network info"""
@@ -135,20 +135,11 @@ class SystemInfo():
             [{
                 'channel': 'sys:net;ip',
                 'value': '192.168.0.2'
-            }, {
-                'channel': 'sys:net;ssid',
-                'value': 'myWifi'
             }]
         """
         network_info = []
         try:
-            wifi_manager = WifiManager.WifiManager()
-            wifi_status = wifi_manager.GetStatus()
             default_interface = netifaces.gateways()['default'][netifaces.AF_INET][1]
-            try:
-                cayennemqtt.DataChannel.add(network_info, cayennemqtt.SYS_NET, suffix=cayennemqtt.SSID, value=wifi_status[default_interface]['ssid'])
-            except:
-                pass
             addresses = netifaces.ifaddresses(default_interface)
             addr = addresses[netifaces.AF_INET][0]['addr']
             cayennemqtt.DataChannel.add(network_info, cayennemqtt.SYS_NET, suffix=cayennemqtt.IP, value=addr)
