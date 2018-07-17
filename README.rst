@@ -22,15 +22,10 @@ Requirements
 
     sudo apt-get install python3-setuptools
 
-* libiw-dev - Wireless tools development file package. Via `apt-get` this can be installed with:
-  ::
-
-    sudo apt-get install libiw-dev
-
 All of the above packages can be installed at once via `apt-get` by running:
 ::
 
-  sudo apt-get install python3-pip python3-dev python3-setuptools libiw-dev
+  sudo apt-get install python3-pip python3-dev python3-setuptools
 
 ***************
 Getting Started
