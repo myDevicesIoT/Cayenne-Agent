@@ -139,6 +139,10 @@ class Hardware:
         """Return True if device is a Raspberry Pi"""
         return 'Raspberry Pi' in self.model
 
+    def isRaspberryPi3(self):
+        """Return True if device is a Raspberry Pi 3"""
+        return 'Raspberry Pi 3' in self.model
+
     def isTinkerBoard(self):
         """Return True if device is a Tinker Board"""
         return 'Tinker Board' == self.model
