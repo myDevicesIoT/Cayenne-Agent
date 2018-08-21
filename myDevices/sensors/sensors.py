@@ -22,7 +22,7 @@ from myDevices.utils.threadpool import ThreadPool
 from myDevices.utils.types import M_JSON
 
 REFRESH_FREQUENCY = 15 #seconds
-
+DIGITAL_FREQUENCY = 60/55 #Seconds/messages, this is done to keep messages under the rate limit
 
 class SensorsClient():
     """Class for interfacing with sensors and actuators"""
@@ -30,10 +30,13 @@ class SensorsClient():
     def __init__(self):
         """Initialize the bus and sensor info and start monitoring sensor states"""
         self.sensorMutex = RLock()
+        self.digitalMutex = RLock()
         self.exiting = Event()
         self.onDataChanged = None
         self.systemData = []
         self.currentSystemState = []
+        self.currentDigitalData = {}                                
+        self.queuedDigitalData = {}
         self.disabledSensors = {}
         self.disabledSensorTable = "disabled_sensors"
         checkAllBus()
@@ -46,6 +49,7 @@ class SensorsClient():
         if results:
             for row in results:
                 self.disabledSensors[row[0]] = 1
+        self.digitalMonitorRunning = False
         self.InitCallbacks()
         self.StartMonitoring()
 
@@ -65,10 +69,11 @@ class SensorsClient():
             value: The new data value
         """
         debug('OnSensorChange: {}, {}'.format(device, value))
-        data = []
-        cayennemqtt.DataChannel.add(data, cayennemqtt.DEV_SENSOR, device['name'], value=value, name=device['description'], type='digital_sensor', unit='d')
-        if self.onDataChanged:
-            self.onDataChanged(data)
+        with self.digitalMutex:
+            if device['name'] not in self.currentDigitalData:
+                self.currentDigitalData[device['name']] = {'device': device, 'value': value}
+            else:
+                self.queuedDigitalData[device['name']] = {'device': device, 'value': value}
 
     def InitCallbacks(self):
         """Set callback function for any digital devices that support them"""
@@ -78,6 +83,8 @@ class SensorsClient():
             if 'DigitalSensor' in device['type'] and hasattr(sensor, 'setCallback'):
                 debug('Set callback for {}'.format(sensor))
                 sensor.setCallback(self.OnSensorChange, device)
+                if not self.digitalMonitorRunning:
+                    ThreadPool.Submit(self.DigitalMonitor)
 
     def RemoveCallbacks(self):
         """Remove callback function for all digital devices"""
@@ -125,6 +132,34 @@ class SensorsClient():
             except:
                 exception('Monitoring sensors and os resources failed')
         debug('Monitoring sensors and os resources finished')
+
+    def DigitalMonitor(self):
+        """Monitor digital state changes and report changed data via callbacks"""
+        self.digitalMonitorRunning = True
+        info('Monitoring digital sensor changes')
+        nextTime = datetime.now()
+        while not self.exiting.is_set():
+            try:
+                if not self.exiting.wait(0.5):
+                    if datetime.now() > nextTime:
+                        nextTime = datetime.now() + timedelta(seconds=DIGITAL_FREQUENCY)
+                        data = []
+                        with self.digitalMutex:
+                            if self.currentDigitalData:
+                                output_data = {key:self.currentDigitalData[key]['value'] for key in self.currentDigitalData}
+                                info('self.currentDigitalData: {}'.format(output_data))
+                                for name, item in self.currentDigitalData.items():
+                                    cayennemqtt.DataChannel.add_unique(data, cayennemqtt.DEV_SENSOR, name, value=item['value'], name=item['device']['description'], type='digital_sensor', unit='d')
+                                    if name in self.queuedDigitalData and self.queuedDigitalData[name]['value'] == item['value']:
+                                        del self.queuedDigitalData[name]
+                                self.currentDigitalData = self.queuedDigitalData
+                                self.queuedDigitalData = {}
+                        if data:
+                            self.onDataChanged(data)
+            except:
+                exception('Monitoring digital sensor changes failed')
+        debug('Monitoring digital sensor changes finished')
+        self.digitalMonitorRunning = False
 
     def MonitorSensors(self):
         """Check sensor states for changes"""
