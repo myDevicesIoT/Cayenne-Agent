@@ -305,7 +305,7 @@ class SensorsClient():
             info('Add device returned: {}'.format(retValue))
             if retValue[0] == 200:
                 bVal = True
-        except Exception as e:
+        except Exception:
             exception('Error adding sensor')
             bVal = False
         return bVal
@@ -390,7 +390,7 @@ class SensorsClient():
                 if enable == 0:
                     #add item to the list
                     if sensor not in self.disabledSensors:
-                        rowId = DbManager.Insert(self.disabledSensorTable, sensor)
+                        DbManager.Insert(self.disabledSensorTable, sensor)
                         self.disabledSensors[sensor] = 1
                 else:
                     #remove item from the list
@@ -401,7 +401,6 @@ class SensorsClient():
         except Exception as ex:
             error('EnableSensor Failed with exception: '  + str(ex))
             return False
-        self.AddRefresh()
         return True
 
     def GpioCommand(self, command, channel, value):
