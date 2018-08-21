@@ -146,10 +146,12 @@ class SensorsClient():
                         data = []
                         with self.digitalMutex:
                             if self.currentDigitalData:
-                                output_data = {key:self.currentDigitalData[key]['value'] for key in self.currentDigitalData}
-                                info('self.currentDigitalData: {}'.format(output_data))
                                 for name, item in self.currentDigitalData.items():
                                     cayennemqtt.DataChannel.add_unique(data, cayennemqtt.DEV_SENSOR, name, value=item['value'], name=item['device']['description'], type='digital_sensor', unit='d')
+                                    try:
+                                        cayennemqtt.DataChannel.add_unique(data, cayennemqtt.SYS_GPIO, item['device']['args']['channel'], cayennemqtt.VALUE, item['value'])
+                                    except:
+                                        pass
                                     if name in self.queuedDigitalData and self.queuedDigitalData[name]['value'] == item['value']:
                                         del self.queuedDigitalData[name]
                                 self.currentDigitalData = self.queuedDigitalData
