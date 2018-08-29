@@ -19,6 +19,7 @@ from myDevices.devices import instance
 from myDevices.utils.types import M_JSON
 from myDevices.system.systeminfo import SystemInfo
 from myDevices.cloud import cayennemqtt
+from myDevices.plugins.manager import PluginManager
 
 REFRESH_FREQUENCY = 5 #seconds
 # SENSOR_INFO_SLEEP = 0.05
@@ -44,6 +45,7 @@ class SensorsClient():
         if results:
             for row in results:
                 self.disabledSensors[row[0]] = 1
+        self.pluginManager = PluginManager()
         self.StartMonitoring()
 
     def SetDataChanged(self, onDataChanged=None, onSystemInfo=None):
@@ -73,6 +75,7 @@ class SensorsClient():
                     self.currentSystemState = []
                     self.MonitorSystemInformation()
                     self.MonitorSensors()
+                    self.MonitorPlugins()
                     self.MonitorBus()
                     if self.currentSystemState != self.systemData:
                         changedSystemData = self.currentSystemState
@@ -90,6 +93,12 @@ class SensorsClient():
         if self.exiting.is_set():
             return
         self.currentSystemState += self.SensorsInfo()
+
+    def MonitorPlugins(self):
+        """Check plugin states for changes"""
+        if self.exiting.is_set():
+            return
+        self.currentSystemState += self.pluginManager.get_plugin_readings()
 
     def MonitorBus(self):
         """Check bus states for changes"""
@@ -353,6 +362,8 @@ class SensorsClient():
         result = False
         info('SensorCommand: {}, sensor {}, channel {}, value {}'.format(command, sensorId, channel, value))
         try:
+            if self.pluginManager.is_plugin(sensorId, channel):
+                return self.pluginManager.write_value(sensorId, channel, value)
             commands = {'integer': {'function': 'write', 'value_type': int},
                         'value': {'function': 'write', 'value_type': int},
                         'function': {'function': 'setFunctionString', 'value_type': str},
