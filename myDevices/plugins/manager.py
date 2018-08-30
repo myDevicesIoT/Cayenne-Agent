@@ -105,7 +105,7 @@ class PluginManager():
         info('Write value {} to {}'.format(value, actuator))
         if actuator in self.plugins.keys():
             try:
-                self.plugins[actuator]['write'](value)
+                self.plugins[actuator]['write'](float(value))
             except:
                 return False
         else:
