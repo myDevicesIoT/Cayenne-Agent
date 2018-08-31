@@ -69,7 +69,8 @@ class PluginManager():
             try:
                 value = plugin['read']()
                 value_dict = self.convert_to_dict(value)
-                cayennemqtt.DataChannel.add(readings, cayennemqtt.DEV_SENSOR, key, name=plugin['name'], **value_dict)
+                if value_dict:
+                    cayennemqtt.DataChannel.add(readings, cayennemqtt.DEV_SENSOR, key, name=plugin['name'], **value_dict)
             except KeyError as e:
                 debug('Missing key {} in plugin \'{}\''.format(e, plugin['name']))
             except:
@@ -80,6 +81,8 @@ class PluginManager():
         """Convert a tuple value to a dict containing value, type and unit"""
         value_dict = {}
         try:
+            if value is None or value[0] is None:
+                return value_dict
             value_dict['value'] = value[0]
             value_dict['type'] = value[1]
             value_dict['unit'] = value[2]
