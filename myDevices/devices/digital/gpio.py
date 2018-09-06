@@ -179,7 +179,10 @@ class NativeGPIO(Singleton, GPIOPort):
                     f.write("%s" % channel)
             except PermissionError:
                 command = 'sudo python3 -m myDevices.devices.writevalue -f /sys/class/gpio/export -t {}'.format(channel)
-                executeCommand(command)               
+                executeCommand(command)
+            except OSError as ex:
+                debug(ex)
+                return False
             except Exception as ex:
                 error('Failed on __checkFilesystemExport__: ' + str(channel) + ' ' + str(ex))
                 return False
@@ -203,7 +206,6 @@ class NativeGPIO(Singleton, GPIOPort):
                     # Try again since the file group might not have been set to the gpio group
                     # since there is a delay when the gpio channel is first exported
                     sleep(0.01)
-
 
     def __checkFilesystemValue__(self, channel):
         if not self.valueFile[channel]:
@@ -286,9 +288,11 @@ class NativeGPIO(Singleton, GPIOPort):
                 return self.OUT
             else:
                 return self.IN
+        except AttributeError:
+            debug('AttributeError in __getFunction__: '+  str(channel) + ' ' + str(ex))                
         except Exception as ex:
             error('Failed on __getFunction__: '+  str(channel) + ' ' + str(ex))
-            return -1
+        return -1
 
     def __setFunction__(self, channel, value):
         self.__checkFilesystemFunction__(channel)
