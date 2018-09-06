@@ -98,7 +98,10 @@ class PluginManager():
 
     def is_plugin(self, plugin, channel):
         """Returns True if the specified plugin:channel is a valid plugin"""
-        return plugin + ':' + channel in self.plugins.keys()
+        try:
+            return plugin + ':' + channel in self.plugins.keys()
+        except:
+            return False
 
     def write_value(self, plugin, channel, value):
         """Write a value to a plugin actuator.
