@@ -280,6 +280,8 @@ class SensorsClient():
         """
         bVal = False
         try:
+            if self.pluginManager.is_plugin(name):
+                return self.pluginManager.disable(name)
             sensorRemove = name
             with self.sensorMutex:
                 retValue = manager.removeDevice(sensorRemove)

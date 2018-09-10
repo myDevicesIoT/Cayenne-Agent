@@ -10,6 +10,9 @@ import sys
 import myDevices.cloud.cayennemqtt as cayennemqtt
 from myDevices.utils.config import Config
 from myDevices.utils.logger import debug, error, exception, info
+from myDevices.utils.subprocess import executeCommand
+
+PLUGIN_FOLDER = '/etc/myDevices/plugins'
 
 
 class PluginManager():
@@ -17,7 +20,7 @@ class PluginManager():
 
     def __init__(self):
         """Initializes the plugin manager and loads the plugin list"""
-        self.plugin_folder = '/etc/myDevices/plugins'
+        self.plugin_folder = PLUGIN_FOLDER
         self.plugins = {}
         self.load_plugins()
     
@@ -33,6 +36,8 @@ class PluginManager():
                 enabled = config.get(section, 'enabled', 'true').lower() == 'true'
                 if enabled:
                     plugin = {
+                        'filename': filename,
+                        'section': section,
                         'channel': config.get(section, 'channel'),
                         'name': config.get(section, 'name', section),
                         'module': config.get(section, 'module'),
@@ -96,10 +101,13 @@ class PluginManager():
                     value_dict['unit'] = 'null'
         return value_dict
 
-    def is_plugin(self, plugin, channel):
-        """Returns True if the specified plugin:channel is a valid plugin"""
+    def is_plugin(self, plugin, channel=None):
+        """Returns True if the specified plugin or plugin:channel are valid plugins"""
         try:
-            return plugin + ':' + channel in self.plugins.keys()
+            key = plugin
+            if channel is not None:
+                key = plugin + ':' + channel
+            return key in self.plugins.keys()
         except:
             return False
 
@@ -117,3 +125,19 @@ class PluginManager():
         else:
             return False
         return True
+
+    def disable(self, plugin):
+        """Disable the specified plugin"""
+        disabled = False
+        try:
+            output, result = executeCommand('sudo python3 -m myDevices.plugins.disable "{}" "{}"'.format(self.plugins[plugin]['filename'], self.plugins[plugin]['section']))
+            if result == 0:
+                disabled = True
+                info('Plugin \'{}\' disabled'.format(plugin))
+            else:
+                info('Plugin \'{}\' not disabled'.format(plugin))
+            del self.plugins[plugin]
+        except Exception as e:
+            info(e)
+            pass
+        return disabled
