@@ -57,7 +57,7 @@ class PluginManager():
                         if 'init_args' not in plugin:
                             plugin['init_args'] = '{}'
                         self.override_plugin_value(config, section, 'init_args', plugin)
-                        if not inherit_items or inherit_items['class'] is not plugin['class'] or inherit_items['init_args'] is not plugin['init_args']:
+                        if not inherit_items or [key for key in ('module', 'class', 'init_args') if inherit_items[key] is not plugin[key]]:
                             info('Creating instance of {} for {}'.format(plugin['class'], plugin['name']))
                             folder = os.path.dirname(filename)
                             if folder not in sys.path:
