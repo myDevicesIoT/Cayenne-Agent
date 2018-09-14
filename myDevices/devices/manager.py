@@ -8,7 +8,7 @@ from myDevices.utils import types
 from myDevices.utils.config import Config
 from myDevices.devices import serial, digital, analog, sensor, shield
 from myDevices.devices.instance import DEVICES
-from myDevices.devices.onewire import detectOneWireDevices
+from myDevices.devices.onewire import detectOneWireDevices, deviceExists, FAMILIES
 
 PACKAGES = [serial, digital, analog, sensor, shield]
 DYNAMIC_DEVICES  = {}
@@ -135,6 +135,9 @@ def addDevice(name, device, description, args, origin):
             logger.error("Device <%s> already exists" % name)
             return -1
         logger.debug('addDevice: ' + str(name) + ' ' + str(device))
+        if device in FAMILIES.values() and ('slave' not in args or not deviceExists(args['slave'])):
+            logger.info('1-wire device does not exist: {}, {}'.format(device, args['slave']))
+            return -1
     #    if '/' in device:
     #        deviceClass = device.split('/')[0]
     #    else:
