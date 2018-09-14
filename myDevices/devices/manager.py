@@ -16,6 +16,12 @@ DEVICES_JSON_FILE = "/etc/myDevices/devices.json"
 
 mutex = RLock()
 
+def missingOneWireDevice(device):
+    if device['class'] in FAMILIES.values() and ('slave' not in device['args'] or not deviceExists(device['args']['slave'])):
+        logger.info('1-wire device does not exist: {}, {}'.format(device['class'], device['args']['slave']))
+        return True
+    return False
+
 def deviceDetector():
     logger.debug('deviceDetector')
     try:
@@ -30,6 +36,9 @@ def deviceDetector():
             if not found:
                 if addDevice(dev['name'], dev['device'], dev['description'], dev['args'], "auto") > 0:
                     saveDevice(dev['name'], int(time()))
+        missing = [key for key, value in DEVICES.items() if missingOneWireDevice(value)]
+        for dev in missing:
+            removeDevice(dev)
     except Exception as e:
         logger.error("Device detector: %s" % e)
 
@@ -68,7 +77,7 @@ def removeDevice(name):
         if name in DEVICES:
             if name in DYNAMIC_DEVICES:
                 if hasattr(DEVICES[name]["device"], 'close'):
-                        DEVICES[name]["device"].close()
+                    DEVICES[name]["device"].close()
                 del DEVICES[name]
                 del DYNAMIC_DEVICES[name]
                 json_devices = getJSON(DYNAMIC_DEVICES)
@@ -135,8 +144,7 @@ def addDevice(name, device, description, args, origin):
             logger.error("Device <%s> already exists" % name)
             return -1
         logger.debug('addDevice: ' + str(name) + ' ' + str(device))
-        if device in FAMILIES.values() and ('slave' not in args or not deviceExists(args['slave'])):
-            logger.info('1-wire device does not exist: {}, {}'.format(device, args['slave']))
+        if missingOneWireDevice({'class': device, 'args': args}):
             return -1
     #    if '/' in device:
     #        deviceClass = device.split('/')[0]
