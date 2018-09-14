@@ -33,30 +33,47 @@ class PluginManager():
             plugin_name = os.path.splitext(os.path.basename(filename))[0]
             info('Sections: {}'.format(config.sections()))
             for section in config.sections():
-                enabled = config.get(section, 'enabled', 'true').lower() == 'true'
-                if enabled:
-                    plugin = {
-                        'filename': filename,
-                        'section': section,
-                        'channel': config.get(section, 'channel'),
-                        'name': config.get(section, 'name', section),
-                        'module': config.get(section, 'module'),
-                        'class': config.get(section, 'class'),
-                        'init_args': json.loads(config.get(section, 'init_args', '{}'))
-                    }
-                    folder = os.path.dirname(filename)
-                    if folder not in sys.path:
-                        sys.path.append(folder)
-                    imported_module = importlib.import_module(plugin['module'])
-                    device_class = getattr(imported_module, plugin['class'])
-                    plugin['instance'] = device_class(**plugin['init_args'])
-                    plugin['read'] = getattr(plugin['instance'], config.get(section, 'read'))
-                    try:
-                        plugin['write'] = getattr(plugin['instance'], config.get(section, 'write'))
-                    except:
-                        pass
-                    self.plugins[plugin_name + ':' + plugin['channel']] = plugin
-                    loaded.append(section)
+                try:
+                    enabled = config.get(section, 'enabled', 'true').lower() == 'true'
+                    inherit = config.get(section, 'inherit', None)
+                    if enabled:
+                        plugin = {
+                            'filename': filename,
+                            'section': section,
+                            'channel': config.get(section, 'channel'),
+                            'name': config.get(section, 'name', section)
+                        }
+                        inherit_items = {}
+                        if inherit in config.sections():
+                            if inherit == section:
+                                raise ValueError('Section \'{}\' cannot inherit from itself'.format(section))
+                            inherit_from = self.get_plugin(filename, inherit)
+                            inherit_items = {key:value for key, value in inherit_from.items() if key not in plugin.keys()}
+                            plugin.update(inherit_items)
+                        elif inherit:
+                            raise ValueError('Section \'{}\' cannot inherit from \'{}\'. Check spelling and section ordering.'.format(section, inherit))
+                        self.override_plugin_value(config, section, 'module', plugin)
+                        self.override_plugin_value(config, section, 'class', plugin)
+                        if 'init_args' not in plugin:
+                            plugin['init_args'] = '{}'
+                        self.override_plugin_value(config, section, 'init_args', plugin)
+                        if not inherit_items or inherit_items['class'] is not plugin['class'] or inherit_items['init_args'] is not plugin['init_args']:
+                            info('Creating instance of {} for {}'.format(plugin['class'], plugin['name']))
+                            folder = os.path.dirname(filename)
+                            if folder not in sys.path:
+                                sys.path.append(folder)
+                            imported_module = importlib.import_module(plugin['module'])
+                            device_class = getattr(imported_module, plugin['class'])
+                            plugin['instance'] = device_class(**json.loads(plugin['init_args']))
+                        self.override_plugin_value(config, section, 'read', plugin)
+                        try:
+                            self.override_plugin_value(config, section, 'write', plugin)
+                        except:
+                            pass
+                        self.plugins[plugin_name + ':' + plugin['channel']] = plugin
+                        loaded.append(section)
+                except Exception as e:
+                    error(e)
         except Exception as e:
             error(e)
         info('Loaded sections: {}'.format(loaded))
@@ -67,12 +84,23 @@ class PluginManager():
             for filename in fnmatch.filter(filenames, '*.plugin'):
                 self.load_plugin_from_file(os.path.join(root, filename))
 
+    def get_plugin(self, filename, section):
+        """Return the plugin for the corresponding filename and section"""
+        return next(plugin for plugin in self.plugins.values() if plugin['filename'] == filename and plugin['section'] == section)
+
+    def override_plugin_value(self, config, section, key, plugin):
+        """Override the plugin value for the specified key if it exists in the config file"""
+        if key not in plugin:
+            plugin[key] = config.get(section, key)
+        else:
+            plugin[key] = config.get(section, key, plugin[key])
+
     def get_plugin_readings(self):
         """Return a list with current readings for all plugins"""
         readings = []
         for key, plugin in self.plugins.items():
             try:
-                value = plugin['read']()
+                value = getattr(plugin['instance'], plugin['read'])()
                 value_dict = self.convert_to_dict(value)
                 if value_dict:
                     cayennemqtt.DataChannel.add(readings, cayennemqtt.DEV_SENSOR, key, name=plugin['name'], **value_dict)
@@ -119,7 +147,8 @@ class PluginManager():
         info('Write value {} to {}'.format(value, actuator))
         if actuator in self.plugins.keys():
             try:
-                self.plugins[actuator]['write'](float(value))
+                write_function = getattr(self.plugins[actuator]['instance'], self.plugins[actuator]['write'])
+                write_function(float(value))
             except:
                 return False
         else:
