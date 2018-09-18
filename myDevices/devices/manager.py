@@ -68,7 +68,7 @@ def removeDevice(name):
         if name in DEVICES:
             if name in DYNAMIC_DEVICES:
                 if hasattr(DEVICES[name]["device"], 'close'):
-                        DEVICES[name]["device"].close()
+                    DEVICES[name]["device"].close()
                 del DEVICES[name]
                 del DYNAMIC_DEVICES[name]
                 json_devices = getJSON(DYNAMIC_DEVICES)

@@ -16,16 +16,17 @@ PLUGIN_FOLDER = '/etc/myDevices/plugins'
 
 
 class PluginManager():
-    """Loads plugins and reads/writes plugin data"""
+    """Loads plugins and reads/writes plugin data."""
 
-    def __init__(self):
-        """Initializes the plugin manager and loads the plugin list"""
+    def __init__(self, callback=None):
+        """Initializes the plugin manager and loads the plugin list."""
         self.plugin_folder = PLUGIN_FOLDER
+        self.callback = callback
         self.plugins = {}
         self.load_plugins()
     
     def load_plugin_from_file(self, filename):
-        """Loads a plugin from a specified plugin config file and adds it to the plugin list"""
+        """Loads a plugin from a specified plugin config file and adds it to the plugin list."""
         try:
             info('Loading plugin: {}'.format(filename))
             loaded = []
@@ -41,8 +42,9 @@ class PluginManager():
                             'filename': filename,
                             'section': section,
                             'channel': config.get(section, 'channel'),
-                            'name': config.get(section, 'name', section)
+                            'name': config.get(section, 'name', section),
                         }
+                        plugin['id'] = plugin_name + ':' + plugin['channel']
                         inherit_items = {}
                         if inherit in config.sections():
                             if inherit == section:
@@ -70,7 +72,16 @@ class PluginManager():
                             self.override_plugin_value(config, section, 'write', plugin)
                         except:
                             pass
-                        self.plugins[plugin_name + ':' + plugin['channel']] = plugin
+                        try:
+                            self.override_plugin_value(config, section, 'register_callback', plugin)
+                            getattr(plugin['instance'], plugin['register_callback'])(lambda x: self.data_changed(x, plugin))
+                        except:
+                            pass
+                        try:
+                            self.override_plugin_value(config, section, 'unregister_callback', plugin)
+                        except:
+                            pass                                                    
+                        self.plugins[plugin['id']] = plugin
                         loaded.append(section)
                 except Exception as e:
                     error(e)
@@ -79,13 +90,13 @@ class PluginManager():
         info('Loaded sections: {}'.format(loaded))
 
     def load_plugins(self):
-        """Loads plugins from any plugin config files found in the plugin folder"""
+        """Loads plugins from any plugin config files found in the plugin folder."""
         for root, dirnames, filenames in os.walk(self.plugin_folder):
             for filename in fnmatch.filter(filenames, '*.plugin'):
                 self.load_plugin_from_file(os.path.join(root, filename))
 
     def get_plugin(self, filename, section):
-        """Return the plugin for the corresponding filename and section"""
+        """Return the plugin for the corresponding filename and section."""
         return next(plugin for plugin in self.plugins.values() if plugin['filename'] == filename and plugin['section'] == section)
 
     def override_plugin_value(self, config, section, key, plugin):
@@ -96,7 +107,7 @@ class PluginManager():
             plugin[key] = config.get(section, key, plugin[key])
 
     def get_plugin_readings(self):
-        """Return a list with current readings for all plugins"""
+        """Return a list with current readings for all plugins."""
         readings = []
         for key, plugin in self.plugins.items():
             try:
@@ -111,7 +122,7 @@ class PluginManager():
         return readings
 
     def convert_to_dict(self, value):
-        """Convert a tuple value to a dict containing value, type and unit"""
+        """Convert a tuple value to a dict containing value, type and unit."""
         value_dict = {}
         try:
             if value is None or value[0] is None:
@@ -123,18 +134,19 @@ class PluginManager():
             if not value_dict:
                 value_dict['value'] = value
             if 'type' in value_dict and 'unit' not in value_dict:
-                if value_dict['type'] == 'digital_actuator':
+                if value_dict['type'] in ('digital_sensor', 'digital_actuator'):
                     value_dict['unit'] = 'd'
-                elif value_dict['type'] == 'analog_actuator':
+                elif value_dict['type'] in ('analog_sensor', 'analog_actuator'):
                     value_dict['unit'] = 'null'
         return value_dict
 
     def is_plugin(self, plugin, channel=None):
-        """Returns True if the specified plugin or plugin:channel are valid plugins"""
+        """Returns True if the specified plugin or plugin:channel are valid plugins."""
         try:
             key = plugin
             if channel is not None:
                 key = plugin + ':' + channel
+            info('Checking for {} in {}'.format(key, self.plugins.keys()))
             return key in self.plugins.keys()
         except:
             return False
@@ -155,18 +167,37 @@ class PluginManager():
             return False
         return True
 
-    def disable(self, plugin):
-        """Disable the specified plugin"""
+    def disable(self, plugin_id):
+        """Disable the specified plugin."""
         disabled = False
         try:
-            output, result = executeCommand('sudo python3 -m myDevices.plugins.disable "{}" "{}"'.format(self.plugins[plugin]['filename'], self.plugins[plugin]['section']))
+            plugin = self.plugins[plugin_id]
+            output, result = executeCommand('sudo python3 -m myDevices.plugins.disable "{}" "{}"'.format(plugin['filename'], plugin['section']))
             if result == 0:
                 disabled = True
-                info('Plugin \'{}\' disabled'.format(plugin))
+                info('Plugin \'{}\' disabled'.format(plugin_id))
             else:
-                info('Plugin \'{}\' not disabled'.format(plugin))
-            del self.plugins[plugin]
+                info('Plugin \'{}\' not disabled'.format(plugin_id))
+            if 'unregister_callback' in plugin:
+                getattr(plugin['instance'], plugin['unregister_callback'])()
+            del self.plugins[plugin_id]
         except Exception as e:
             info(e)
             pass
         return disabled
+
+    def register_callback(self, callback):
+        """Register the callback to use when plugin data has changed."""
+        self.callback = callback
+
+    def unregister_callback(self):
+        """Unregister the callback to use when plugin data has changed."""
+        self.callback = None
+
+    def data_changed(self, value, plugin):
+        """Callback that is called when data has changed."""
+        if self.callback:
+            data = self.convert_to_dict(value)
+            data['name'] = plugin['name']
+            data['id'] = plugin['id']
+            self.callback(data)
