@@ -33,12 +33,18 @@ class PluginManager():
             config = Config(filename)
             plugin_name = os.path.splitext(os.path.basename(filename))[0]
             info('Sections: {}'.format(config.sections()))
+            inherited_from = set()
+            for section in config.sections():
+                inherit = config.get(section, 'inherit', None)
+                if inherit:
+                    inherited_from.add(inherit)
             for section in config.sections():
                 try:
                     enabled = config.get(section, 'enabled', 'true').lower() == 'true'
                     inherit = config.get(section, 'inherit', None)
-                    if enabled:
+                    if enabled or section in inherited_from:
                         plugin = {
+                            'enabled': enabled,
                             'filename': filename,
                             'section': section,
                             'channel': config.get(section, 'channel'),
@@ -94,6 +100,8 @@ class PluginManager():
         for root, dirnames, filenames in os.walk(self.plugin_folder):
             for filename in fnmatch.filter(filenames, '*.plugin'):
                 self.load_plugin_from_file(os.path.join(root, filename))
+            #Remove any disabled plugins that were only loaded because they are inherited from.
+            self.plugins = {key:value for key, value in self.plugins.items() if value['enabled']}
 
     def get_plugin(self, filename, section):
         """Return the plugin for the corresponding filename and section."""
