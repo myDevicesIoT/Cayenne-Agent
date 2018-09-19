@@ -98,3 +98,7 @@ class CayenneApiClient:
         if response and response.status_code == 200:
             return self.getCredentials(response.content)
         return None
+
+    def getDataTypes(self):
+        url = '/ui/datatypes'
+        return self.sendRequest('GET', url)
