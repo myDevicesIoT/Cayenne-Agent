@@ -368,13 +368,16 @@ class SensorsClient():
                     info('Sensor not found')
                     return result
                 if command in commands:
-                    info('Sensor found: {}'.format(instance.DEVICES[sensorId]))
+                    device = instance.DEVICES[sensorId]
+                    info('Sensor found: {}'.format(device))
                     func = getattr(sensor, commands[command]['function'])
                     value = commands[command]['value_type'](value)
                     if channel:
                         result = self.CallDeviceFunction(func, int(channel), value)
                     else:
                         result = self.CallDeviceFunction(func, value)
+                    if 'DigitalActuator' in device['type']:
+                        manager.updateDeviceState(sensorId, value)
                     return result
                 warn('Command not implemented: {}'.format(command))
                 return result
