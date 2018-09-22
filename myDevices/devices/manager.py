@@ -136,8 +136,10 @@ def updateDeviceState(name, value):
             if not name in DEVICES:
                 return
             device = DEVICES[name]
-            device['args'].update({'last_state': value})
-            saveDevice(name)
+            if 'last_state' not in device['args'] or device['args']['last_state'] != value:
+                logger.info('Saving state {} for device {}'.format(value, name))
+                device['args'].update({'last_state': value})
+                saveDevice(name)
         except:
             pass
 

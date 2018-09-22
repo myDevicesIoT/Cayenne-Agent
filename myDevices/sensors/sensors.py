@@ -181,7 +181,10 @@ class SensorsClient():
                                 channel = '{}:{}'.format(device['name'], device_type.lower())
                             else:
                                 channel = device['name']
-                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=self.CallDeviceFunction(func), name=display_name, **sensor_type['data_args'])
+                            value = self.CallDeviceFunction(func)
+                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=value, name=display_name, **sensor_type['data_args'])
+                            if 'DigitalActuator' == device_type and value in (0, 1):
+                                manager.updateDeviceState(device['name'], value)
                         except:
                             exception('Failed to get sensor data: {} {}'.format(device_type, device['name']))
                     else:
