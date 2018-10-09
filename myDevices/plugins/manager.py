@@ -80,7 +80,7 @@ class PluginManager():
                             pass
                         try:
                             self.override_plugin_value(config, section, 'register_callback', plugin)
-                            getattr(plugin['instance'], plugin['register_callback'])(lambda x: self.data_changed(x, plugin))
+                            getattr(plugin['instance'], plugin['register_callback'])(lambda value, plugin=plugin: self.data_changed(value, plugin))
                         except:
                             pass
                         try:
@@ -102,6 +102,7 @@ class PluginManager():
                 self.load_plugin_from_file(os.path.join(root, filename))
             #Remove any disabled plugins that were only loaded because they are inherited from.
             self.plugins = {key:value for key, value in self.plugins.items() if value['enabled']}
+        info('Enabled plugins: {}'.format(self.plugins.keys()))
 
     def get_plugin(self, filename, section):
         """Return the plugin for the corresponding filename and section."""
