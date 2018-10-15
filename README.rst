@@ -17,7 +17,7 @@ Requirements
 
     sudo apt-get install python3-dev
 
-* python3-setuptools - Python 3 setuptools package. This should already be available in Python 3.4+ and above. If it isn't in can be installed using the system package manager. Via `apt-get` this would be:
+* python3-setuptools - Python 3 setuptools package. This should already be available in Python 3.4+ and above. If not it can be installed using the system package manager. Via `apt-get` this would be:
   ::
 
     sudo apt-get install python3-setuptools
