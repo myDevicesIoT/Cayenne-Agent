@@ -9,12 +9,11 @@ from threading import Thread, Event
 from time import strftime, localtime, tzset, time, sleep
 from queue import Queue, Empty
 from myDevices import __version__
-from myDevices.utils.config import Config
+from myDevices.utils.config import Config, APP_SETTINGS, NETWORK_SETTINGS
 from myDevices.utils.logger import exception, info, warn, error, debug, logJson
 from myDevices.sensors import sensors
 from myDevices.system.hardware import Hardware
 from myDevices.cloud.scheduler import SchedulerEngine
-from myDevices.cloud.download_speed import DownloadSpeed
 from myDevices.cloud.updater import Updater
 from myDevices.system.systemconfig import SystemConfig
 from myDevices.utils.daemon import Daemon
@@ -25,9 +24,8 @@ from myDevices.utils.subprocess import executeCommand
 from myDevices.cloud.apiclient import CayenneApiClient
 import myDevices.cloud.cayennemqtt as cayennemqtt
 
-NETWORK_SETTINGS = '/etc/myDevices/Network.ini'
-APP_SETTINGS = '/etc/myDevices/AppSettings.ini'
 GENERAL_SLEEP_THREAD = 0.20
+
 
 def GetTime():
     """Return string with the current time"""
@@ -203,15 +201,14 @@ class CloudServerClient:
             self.oSInfo = OSInfo()
             self.count = 10000
             self.buff = bytearray(self.count)
-            self.downloadSpeed = DownloadSpeed(self.config)
-            self.downloadSpeed.getDownloadSpeed()
             self.sensorsClient.SetDataChanged(self.OnDataChanged)
             self.writerThread = WriterThread('writer', self)
             self.writerThread.start()
             self.processorThread = ProcessorThread('processor', self)
             self.processorThread.start()
+            self.systemInfo = []
             TimerThread(self.SendSystemInfo, 300)
-            TimerThread(self.SendSystemState, 30, 5)
+            # TimerThread(self.SendSystemState, 30, 5)
             self.updater = Updater(self.config)
             self.updater.start()
             events = self.schedulerEngine.get_scheduled_events()
@@ -244,50 +241,63 @@ class CloudServerClient:
 
     def OnDataChanged(self, data):
         """Enqueue a packet containing changed system data to send to the server"""
-        info('Send changed data: {}'.format([{item['channel']:item['value']} for item in data]))
+        try:
+            if len(data) > 15:
+                items = [{item['channel']:item['value']} for item in data if not item['channel'].startswith(cayennemqtt.SYS_GPIO)]
+                info('Send changed data: {} + {}'.format(items, cayennemqtt.SYS_GPIO))
+            else:
+                info('Send changed data: {}'.format([{item['channel']:item['value']} for item in data]))
+            # items = {}
+            # gpio_items = {}
+            # for item in data:
+            #     if not item['channel'].startswith(cayennemqtt.SYS_GPIO):
+            #         items[item['channel']] = item['value']
+            #     else:
+            #         channel = item['channel'].replace(cayennemqtt.SYS_GPIO + ':', '').split(';')
+            #         if not channel[0] in gpio_items:
+            #             gpio_items[channel[0]] = str(item['value'])
+            #         else:
+            #             gpio_items[channel[0]] += ',' + str(item['value'])
+            # info('Send changed data: {}, {}: {}'.format(items, cayennemqtt.SYS_GPIO, gpio_items))
+        except:
+            info('Send changed data')
+            pass
         self.EnqueuePacket(data)
 
     def SendSystemInfo(self):
         """Enqueue a packet containing system info to send to the server"""
         try:
-            data = []
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
-            cayennemqtt.DataChannel.add(data, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent', 'Version', __version__))
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_POWER_RESET, value=0)
-            cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_POWER_HALT, value=0)
+            currentSystemInfo = []
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.SYS_OS_NAME, value=self.oSInfo.ID)
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.SYS_OS_VERSION, value=self.oSInfo.VERSION_ID)
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.AGENT_VERSION, value=self.config.get('Agent', 'Version', __version__))
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.SYS_POWER_RESET, value=0)
+            cayennemqtt.DataChannel.add(currentSystemInfo, cayennemqtt.SYS_POWER_HALT, value=0)
             config = SystemConfig.getConfig()
             if config:
                 channel_map = {'I2C': cayennemqtt.SYS_I2C, 'SPI': cayennemqtt.SYS_SPI, 'Serial': cayennemqtt.SYS_UART,
                                 'OneWire': cayennemqtt.SYS_ONEWIRE, 'DeviceTree': cayennemqtt.SYS_DEVICETREE}
                 for key, channel in channel_map.items():
                     try:
-                        cayennemqtt.DataChannel.add(data, channel, value=config[key])
+                        cayennemqtt.DataChannel.add(currentSystemInfo, channel, value=config[key])
                     except:
                         pass
-            info('Send system info: {}'.format([{item['channel']:item['value']} for item in data]))
-            self.EnqueuePacket(data)
+            if currentSystemInfo != self.systemInfo:
+                data = currentSystemInfo
+                if self.systemInfo:
+                    data = [x for x in data if x not in self.systemInfo]
+                if data:
+                    self.systemInfo = currentSystemInfo
+                    info('Send system info: {}'.format([{item['channel']:item['value']} for item in data]))
+                    self.EnqueuePacket(data)
         except Exception:
             exception('SendSystemInfo unexpected error')
-
-    def SendSystemState(self):
-        """Enqueue a packet containing system information to send to the server"""
-        try:
-            data = []
-            download_speed = self.downloadSpeed.getDownloadSpeed()
-            if download_speed:
-                cayennemqtt.DataChannel.add(data, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed, type='bw', unit='mbps')
-            data += self.sensorsClient.systemData
-            info('Send system state: {} items'.format(len(data)))
-            self.EnqueuePacket(data)
-        except Exception as e:
-            exception('ThreadSystemInfo unexpected error: ' + str(e))
 
     def CheckSubscription(self):
         """Check that an invite code is valid"""
         inviteCode = self.config.get('Agent', 'InviteCode', fallback=None)
         if not inviteCode:
-            error('No invite code found in {}'.format(APP_SETTINGS))
+            error('No invite code found in {}'.format(self.config.path))
             print('Please input an invite code. This can be retrieved from the Cayenne dashboard by adding a new Raspberry Pi device.\n'
                 'The invite code will be part of the script name shown there: rpi_[invitecode].sh.')
             inviteCode = input('Invite code: ')

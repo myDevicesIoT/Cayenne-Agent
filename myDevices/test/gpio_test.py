@@ -1,6 +1,8 @@
+import time
 import unittest
 from myDevices.utils.logger import exception, setDebug, info, debug, error, logToFile, setInfo
 from myDevices.devices.digital.gpio import NativeGPIO
+
 
 class GpioTest(unittest.TestCase):
     def setUp(self):
@@ -31,6 +33,21 @@ class GpioTest(unittest.TestCase):
             if key in self.gpio.pins:
                 self.assertGreaterEqual(value['value'], 0)
                 self.assertLessEqual(value['value'], 1)
+
+    def edgeCallback(self, data, value):
+        info('edgeCallback data {}, value {}'.format(data, value))
+        self.callback_data = data
+
+    def testEdgeCallback(self):
+        self.callback_data = 0
+        pin = 27
+        self.gpio.setFunctionString(pin, 'IN')
+        self.gpio.setCallback(pin, self.edgeCallback, pin)
+        for x in range(15):
+            if self.callback_data != 0:
+                break
+            time.sleep(1)
+        self.assertEqual(pin, self.callback_data)
 
 
 if __name__ == '__main__':
