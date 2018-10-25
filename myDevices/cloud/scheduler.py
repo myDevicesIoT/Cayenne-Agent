@@ -1,318 +1,317 @@
-from threading import Thread, RLock
-from myDevices.utils.logger import exception, info, warn, error, debug, setDebug, logJson
-import myDevices.schedule as schedule
-from time import sleep
-from json import dumps, loads, JSONEncoder
-from myDevices.cloud.dbmanager import DbManager
 from datetime import datetime
-from jsonpickle import encode
+from json import dumps, loads
+from sqlite3 import connect
+from threading import RLock, Thread
+from time import sleep
 
-def ToJson(object):
-    returnValue = "{}"
-    try:
+import myDevices.schedule as schedule
+from myDevices.requests_futures.sessions import FuturesSession
+from myDevices.utils.logger import debug, error, exception, info, logJson, setDebug, warn
 
-        returnValue = encode(object, unpicklable=False, make_refs=False)
-    except:
-        exception('ToJson Failed')
-    return returnValue
-#{
-#   "id":"some_unique_id",
-#   "type":"date/interval",
-#   "unit":"minute/hour/day/week/month/year",
-#   "interval":1,
-#   "weekday":"monday/tuesday/...",
-#   "start_date":"date and hour",
-#   "end_date":"date and hour",
-#   "title":"sometext",
-#   "notify":"yes/no",
-#   "actions":
-#   [
-#   ]
-#} 
-
-#AccountId = None
-
-class ScheduleItemEncoder(JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, schedule.Job):
-            return None
-        if isinstance(obj, ScheduleItem):
-            return {key: value for key, value in obj.__dict__.items() if value is not None and not isinstance(value, schedule.Job)}
-        # Let the base class default method raise the TypeError
-        return JSONEncoder.default(self, obj)
-class ScheduleItem():#handlers.BaseHandler
-    def __init__(self, jsonData):
-        debug('SheduleItem::__init__: ' + str(jsonData) )
-        self.type = jsonData['type']
-        self.job = None
-        self.actions = []
-        self.start_date = None
-        self.end_date = None
-        self.last_run = None
-        if 'start_date' in jsonData:
-            self.start_date = jsonData['start_date']
-        if 'end_date' in jsonData:
-            self.end_date = jsonData['end_date']
-        if 'last_run' in jsonData:
-            self.last_run = jsonData['last_run']
-        #if 'AccountId' in jsonData:
-        #    AccountId = jsonData['AccountId']
-        self.notify = jsonData['notify']
-        self.title = jsonData['title']
-        self.interval = None
-        self.unit = None    
-        self.weekday = None
-        self.id = None
-        if 'id' in jsonData:
-            self.id = jsonData['id']
-        if self.type == 'interval':
-            self.interval = 1
-            if 'interval' in jsonData:
-                self.interval = jsonData['interval']
-            self.unit = jsonData['unit']    
-            #self.weekday = jsonData['weekday']
-        if 'actions' in jsonData:
-            for action in jsonData['actions']:
-                self.actions.append(action)    
-        #def __reduce__(self):
-        #    return ScheduleItem, self._get_args()
-    def __repr__(self):    
-        return self.title
-    def to_JSON(self):
-        return dumps(self, cls=ScheduleItemEncoder)
-    def to_dict(self):
-        return {key: value for key, value in vars(self).items() if not isinstance(value, schedule.Job)}
 
 class SchedulerEngine(Thread):
+    """Class that creates the scheduler and launches scheduled actions"""
+
     def __init__(self, client, name):
+        """Initialize the scheduler and start the scheduler thread
+        
+        client: the client running the scheduler
+        name: name to use for the scheduler thread"""
+        self.connection = connect('/etc/myDevices/agent.db', check_same_thread = False)
+        self.cursor = self.connection.cursor()
+        self.cursor.execute('CREATE TABLE IF NOT EXISTS scheduled_events (id TEXT PRIMARY KEY, event TEXT)')
         Thread.__init__(self, name=name)
         self.mutex = RLock()
-        #failover cases: keep last run and next run times 
-        #if the scheduler is not running at a specific time it should be checked
-        self.schedules={}
-        self.testIndex = 0
+        self.schedule_items = {}
         self.client = client
-        self.Continue = False
-        self.tablename = 'scheduled_settings'
-        #at the end load data
-        self.LoadData()
+        self.running = False
+        self.load_schedule()
         self.start()
-        #handlers.register(ScheduleItem, handlers.SimpleReduceHandler)
-    def LoadData(self):
-        with self.mutex:
-            results = DbManager.Select(self.tablename)
-            if results:
-                for row in results:
-                    #info('Row: ' + str(row))
-                    #for each item already present in db add call AddScheduledItem with insert false
-                    self.AddScheduledItem(loads(row[1]), False)
-        return True
-    def AddScheduledItem(self, jsonData, insert = False):
-        #add schedule to both memory and db
-        debug('')
-        retVal = False
+
+    def __del__(self):
+        """Delete scheduler object"""
         try:
-            scheduleItem = ScheduleItem(jsonData)
-            if scheduleItem.id is None:
-                raise ValueError('No id specified for scheduled item: {}'.format(jsonData))
+            self.connection.close()
+        except:
+            exception('Error deleting SchedulerEngine')
+
+    def load_schedule(self):
+        """Load saved scheduler events from the database"""
+        with self.mutex:
+            self.cursor.execute('SELECT * FROM scheduled_events')
+            results = self.cursor.fetchall()
+            for row in results:
+                self.add_scheduled_event(loads(row[1]), False)
+        return True
+
+    def add_scheduled_event(self, event, insert = False):
+        """Add a scheduled event to run via the scheduler
+        
+        event: the scheduled event to add
+        insert: if True add the event to the database, otherwise just add it to the running scheduler"""
+        debug('Add scheduled event')
+        result = False
+        try:
+            if event['id'] is None:
+                raise ValueError('No id specified for scheduled event: {}'.format(event))
+            schedule_item = {'event': event, 'job': None}
             with self.mutex:    
                 try:
-                    if scheduleItem.id not in self.schedules:                   
+                    if event['id'] not in self.schedule_items:                   
                         if insert == True:
-                            self.AddDbItem(scheduleItem.id, ToJson(jsonData))
-                        info('Setup item: ' + str(scheduleItem.to_dict()))
-                        retVal = self.Setup(scheduleItem)                        
-                        if retVal == True:
-                            self.schedules[scheduleItem.id] = scheduleItem
+                            self.add_database_record(event['id'], event)
+                        result = self.create_job(schedule_item)                        
+                        if result == True:
+                            self.schedule_items[event['id']] = schedule_item
                     else:
-                        retVal = self.UpdateScheduledItem(jsonData)
+                        result = self.update_scheduled_event(event)
                 except:
-                    exception('Error adding scheduled item')
+                    exception('Error adding scheduled event')
         except:
-            exception('AddScheduledItem Failed')
-        return retVal
-    def UpdateScheduledItem(self, jsonData):
-        debug('')
-        retVal = False
+            exception('Failed to add scheduled event')
+        return result
+
+    def update_scheduled_event(self, event):
+        """Update an existing scheduled event
+        
+        event: the scheduled event to update"""
+        debug('Update scheduled event')
+        result = False
         try:
-            scheduleItemNew = ScheduleItem(jsonData)
+            schedule_item = {'event': event, 'job': None}
             with self.mutex:
                 try:
-                    scheduleItemOld = self.schedules[scheduleItemNew.id]
-                    schedule.cancel_job(scheduleItemOld.job)
+                    old_item = self.schedule_items[event['id']]
+                    schedule.cancel_job(old_item['job'])
+                    result = self.create_job(schedule_item)
+                    debug('Update scheduled event result: {}'.format(result))
+                    if result == True:
+                        self.update_database_record(event['id'], event)
+                        self.schedule_items[event['id']] = schedule_item
                 except KeyError:
-                    debug('Old schedule with id = {} not found'.format(scheduleItemNew.id))
-                retVal = self.Setup(scheduleItemNew)
-                if retVal == True:
-                    self.UpdateDbItem(ToJson(jsonData), scheduleItemNew.id)
-                    self.schedules[scheduleItemNew.id] = scheduleItemNew
+                    debug('Old schedule with id = {} not found'.format(event['id']))
         except:
-            exception('UpdateScheduledItem Failed')
-        return retVal
-    def Setup(self,scheduleItem):
+            exception('Failed to update scheduled event')
+        return result
+
+    def remove_scheduled_event(self, event):
+        """Remove an event that has been scheduled
+        
+        event: the event to remove"""
+        debug('Remove scheduled event')
+        return self.remove_scheduled_item_by_id(event['id'])
+
+    def update_scheduled_events(self, events):
+        """Update all scheduled events
+        
+        events: list of all the new events to schedule"""
+        logJson('Update schedules:  {}'.format(events))
+        debug('Updating schedules')
         try:
             with self.mutex:
-                if scheduleItem.type == 'date':
-                    scheduleItem.job = schedule.once().at(str(scheduleItem.start_date))
-                if scheduleItem.type == 'interval':
-                    if scheduleItem.unit == 'hour':
-                        scheduleItem.job = schedule.every(int(scheduleItem.interval), scheduleItem.start_date).hours
-                    if scheduleItem.unit == 'minute':
-                        scheduleItem.job = schedule.every(int(scheduleItem.interval), scheduleItem.start_date).minutes
-                    if scheduleItem.unit == 'day':
-                        scheduleItem.job = schedule.every(scheduleItem.interval, scheduleItem.start_date).days.at(scheduleItem.start_date)
-                    if scheduleItem.unit == 'week':
-                        scheduleItem.job = schedule.every(scheduleItem.interval, scheduleItem.start_date).weeks.at(scheduleItem.start_date)
-                    if scheduleItem.unit == 'month':
-                        scheduleItem.job = schedule.every(scheduleItem.interval, scheduleItem.start_date).months.at(scheduleItem.start_date)
-                    if scheduleItem.unit == 'year':
-                        scheduleItem.job = schedule.every(scheduleItem.interval, scheduleItem.start_date).years.at(scheduleItem.start_date)
-                scheduleItem.job.set_last_run(scheduleItem.last_run)
-                scheduleItem.job.do(self.ProcessAction, scheduleItem)
+                self.remove_scheduled_events()
+                for event in events:
+                    self.add_scheduled_event(event, True)
+        except:
+            exception('Failed to update scheduled events')
+            result = False
+        return True
+
+    def get_scheduled_events(self):
+        """Return a list of all scheduled events"""
+        events = []
+        try:
+            with self.mutex:
+                events = [schedule_item['event'] for schedule_item in self.schedule_items.values()]
+                for event in events:
+                    try:
+                        # Don't include last run value that is only used locally.
+                        del event['last_run']
+                    except:
+                        pass
+        except:
+            exception('Failed to get scheduled events')
+        return events
+
+    def remove_scheduled_events(self):
+        """Remove all scheduled events from the scheduler"""
+        try:
+            with self.mutex:
+                schedule.clear()
+                self.schedule_items.clear()
+                self.remove_all_database_records()
+        except:
+            exception('Failed to remove scheduled events')
+            return False
+        return True
+
+    def remove_scheduled_item_by_id(self, remove_id):
+        """Remove a scheduled item with the specified id
+        
+        id: id specifying the item to remove"""
+        with self.mutex:
+            if remove_id in self.schedule_items:
+                try:
+                    schedule_item = self.schedule_items[remove_id]
+                    schedule.cancel_job(schedule_item['job'])
+                    del self.schedule_items[remove_id]
+                    self.remove_database_record(remove_id)
+                    return True
+                except KeyError:
+                    warn('Key error removing scheduled item: {}'.format(remove_id))
+        error('Remove id not found: {}'.format(remove_id))
+        return False
+        
+    def create_job(self, schedule_item):
+        """Create a job to run a scheduled item
+        
+        schedule_item: the item containing the event to be run at the scheduled time"""
+        debug('Create job: {}'.format(schedule_item))
+        try:
+            with self.mutex:
+                config = schedule_item['event']['config']
+                if config['type'] == 'date':
+                    schedule_item['job'] = schedule.once().at(config['start_date'])
+                if config['type'] == 'interval':
+                    if config['unit'] == 'hour':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).hours
+                    if config['unit'] == 'minute':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).minutes
+                    if config['unit'] == 'day':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).days.at(config['start_date'])
+                    if config['unit'] == 'week':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).weeks.at(config['start_date'])
+                    if config['unit'] == 'month':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).months.at(config['start_date'])
+                    if config['unit'] == 'year':
+                        schedule_item['job'] = schedule.every(config['interval'], config['start_date']).years.at(config['start_date'])
+                if 'last_run' in schedule_item['event']:
+                    schedule_item['job'].set_last_run(schedule_item['event']['last_run'])
+                schedule_item['job'].do(self.run_scheduled_item, schedule_item)
         except:
             exception('Failed setting up scheduler')
             return False
         return True
-    def ProcessAction(self, scheduleItem):
-        debug('')
-        if scheduleItem is None:
-            error('ProcessAction with empty schedule')
+
+    def run_scheduled_item(self, schedule_item):
+        """Run an item that has been scheduled
+        
+        schedule_item: the item containing the event to run"""
+        debug('Process action')
+        if not schedule_item:
+            error('No scheduled item to run')
             return
-        # if scheduleItem.job.should_run() == False:
-        #     return
-        statusSuccess = True
-        scheduleItem.last_run = datetime.strftime(datetime.utcnow(), '%Y-%m-%d %H:%M')
+        result = True
+        event = schedule_item['event']
+        config = event['config']
+        event['last_run'] = datetime.strftime(datetime.utcnow(), '%Y-%m-%d %H:%M')
         with self.mutex:
-            self.UpdateDbItem(scheduleItem.to_JSON(), scheduleItem.id)
-        #TODO
-        #all this scheduler notification should be put in a db and if it was not possible to submit add a checker for sending notifications to cloud
-        #right now is a workaround in order to submit
-        debug('Notification: ' + str(scheduleItem.notify))
-        if scheduleItem.notify:
-            body = 'Scheduler ' + scheduleItem.title + ' ran with success: ' + str(statusSuccess) + ' at UTC ' + str(datetime.utcnow())
-            subject = scheduleItem.title 
-            #build an array of device names
-            #if this fails to be sent, save it in the DB and resubmit it
-            runStatus = False #self.client.SendNotification(scheduleItem.notify, subject, body)
-            sleep(1)
-            if runStatus == False:
-                error('Notification ' + str(scheduleItem.notify) + ' was not sent')
-        for action in scheduleItem.actions:
-            #call cloudserver 
-            runStatus = self.client.RunAction(action)
-            info('Schedule executing action: ' + str(action))
-            if runStatus == False:
-                error('Action: ' + str(action) + ' failed')
-                statusSuccess = False
-        if scheduleItem.type == 'date' and statusSuccess == True:
+            self.update_database_record(event['id'], event)
+        action_executed = False
+        for action in event['actions']:
+            info('Executing scheduled action: {}'.format(action))
+            result = self.client.RunAction(action)           
+            if result == False:
+                error('Failed to execute action: {}'.format(action))
+            else:
+                action_executed = True
+        if config['type'] == 'date' and result == True:
             with self.mutex:
-                schedule.cancel_job(scheduleItem.job)
-    #remove schedule from both memory and db
-    def RemoveScheduledItem(self, removeItem):
-        debug('')
-        return self.RemoveScheduledItemById(removeItem['id'])
-    #remove schedule with specified id from both memory and db
-    def RemoveScheduledItemById(self, id):
+                schedule.cancel_job(schedule_item['job'])
+        if action_executed and 'http_push' in event:
+            info('Scheduler making HTTP request')
+            http_push = event['http_push']
+            try:
+                future = None
+                session = FuturesSession(max_workers=1)
+                session.headers = http_push['headers']
+                if http_push['method'] == 'GET':
+                    future = session.get(http_push['url'])
+                if http_push['method'] == 'POST':
+                    future = session.post(http_push['url'], dumps(http_push['payload']))
+                if http_push['method'] == 'PUT':
+                    future = session.put(http_push['url'], dumps(http_push['payload']))
+                if http_push['method'] == 'DELETE':
+                    future = session.delete(http_push['url'])
+            except Exception as ex:
+                error('Scheduler HTTP request exception: {}'.format(ex))
+                return None
+            try:
+                response = future.result(30)
+                info('Scheduler HTTP response: {}'.format(response))
+            except:
+                pass
+
+    def add_database_record(self, id, event):
+        """Add a scheduled event to the database
+        
+        id: id of the scheduled event
+        event: the scheduled event"""
+        debug('Add database record')
+        result = False
         with self.mutex:
-            if id in self.schedules:
-                try:
-                    scheduleItem = self.schedules[id]
-                    schedule.cancel_job(scheduleItem.job)
-                    del self.schedules[id]
-                    self.RemoveDbItem(scheduleItem.id)
-                    return True
-                except KeyError:
-                    warn('RemoveScheduledItem key error: ' + str(Id))
-        error('RemoveScheduledItem id not found: ' + str(id))
-        return False
-    #remove all scheduled items
-    def RemoveSchedules(self):
+            self.cursor.execute('INSERT INTO scheduled_events VALUES (?,?)', (id, dumps(event)))
+            self.connection.commit()
+            result = self.cursor.lastrowid
+        debug('Add database record result: {}'.format(result))
+        return result
+        
+    def update_database_record(self, id, event):
+        """Update the database with the scheduled event
+        
+        id: id of the scheduled event
+        event: the scheduled event"""
+        debug('Update database record')
+        result = True
         try:
             with self.mutex:
-                schedule.clear()
-                self.schedules.clear()
-                self.RemoveAllDbItems()
+                self.cursor.execute('UPDATE scheduled_events SET event = ? WHERE id = ?', (dumps(event), id))
+                self.connection.commit()
         except:
-            exception('RemoveSchedules failed')
-            return False
-        return True
-    #retrieve schedules from memory
-    def GetSchedules(self):
-        jsonSchedules = []
+            exception('Error updating database')
+            result = False
+        debug('Update database record result: {}'.format(result))
+        return result
+
+    def remove_database_record(self, id):
+        """Remove a scheduled event from the database
+        
+        id: id of the scheduled event"""
+        debug('Remove database record')
+        result = True
         try:
             with self.mutex:
-                for scheduleItem in self.schedules:
-                    jsonSchedules.append(self.schedules[scheduleItem].to_dict())
+                self.cursor.execute('DELETE FROM scheduled_events WHERE id = ?', (id,))
+                self.connection.commit()
         except:
-            exception('GetSchedules Failed')
-        return jsonSchedules
-    #update all schedules
-    def UpdateSchedules(self, jsonData):
-        retValue = True
-        logJson('UpdateSchedules' + str(jsonData), 'schedules')
-        info('Schedules updated from cloud...')
+            result = False
+        debug('Remove database record result: {}'.format(result))
+        return result
+
+    def remove_all_database_records(self):
+        """Remove all scheduled events from the database"""        
+        result = True
+        debug('Remove all database records')
         try:
             with self.mutex:
-                jsonSchedules = jsonData['Schedules']
-                self.RemoveSchedules()
-                for item in jsonSchedules:
-                    self.AddScheduledItem(item['Schedule'], True)
+                self.cursor.execute('DELETE FROM scheduled_events')
+                self.connection.commit()
         except:
-            exception('UpdateSchedules Failed')
-            retValue = False
-        return retValue
-    #db items
-    def UpdateDbItem(self, jsonData, id):
-        debug('')
-        bVal = True
-        try:
-            setClause =  'data = ?'
-            whereClause = 'id = ?'
-            with self.mutex:
-                DbManager.Update(self.tablename, setClause, jsonData, whereClause, id)
-        except:
-            bVal = False
-        return bVal
-    def AddDbItem(self, id, jsonData):
-        debug('')
-        bVal = False
-        with self.mutex:
-            bVal= DbManager.Insert(self.tablename, id, jsonData)
-        return bVal
-    def RemoveDbItem(self, id):
-        bVal = True
-        try:
-            with self.mutex:
-                DbManager.Delete(self.tablename, id)
-        except:
-            bVal = False
-        return bVal
-    def RemoveAllDbItems(self):
-        bVal = True
-        try:
-            with self.mutex:
-                DbManager.DeleteAll(self.tablename)
-        except:
-            bVal = False
-        return bVal
-    def stop(self):
-        #debug('Scheduler stop')
-        self.Continue = False
+            result = False
+        debug('Remove all database records result: {}'.format(result))
+        return result
+
     def run(self):
-        self.Continue = True
-        #debug('Scheduler running')
-        while self.Continue:
+        """Start the scheduler thread"""
+        self.running = True
+        while self.running:
             try:
                 with self.mutex:
                     schedule.run_pending()
             except:
-                exception("SchedulerEngine run, Unexpected error")
+                exception("SchedulerEngine run, unexpected error")
             sleep(1)
 
-class TestClient():
-    def __init__(self):
-        print('test client init')
-    def RunAction(self, action):
-        print('RunAction: ' + action)
-    def SendNotification(self, notification):
-        print('SendNotification: ' + notification)
+    def stop(self):
+        """Stop the scheduler"""
+        self.running = False

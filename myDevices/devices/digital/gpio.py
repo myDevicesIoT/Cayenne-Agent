@@ -40,6 +40,8 @@ BLOCK_SIZE = (4*1024)
 class NativeGPIO(Singleton, GPIOPort):
     IN = 0
     OUT = 1
+    OUT_LOW = 2
+    OUT_HIGH = 3
 
     ASUS_GPIO = 44
 
@@ -76,7 +78,10 @@ class NativeGPIO(Singleton, GPIOPort):
             self.__checkFilesystemExport__(pin)
         if gpio_library:
             gpio_library.setmode(gpio_library.ASUS)
-        else:
+        elif not Hardware().isRaspberryPi3():
+            # On the Pi 3 the memory mapped /dev/gpiomem file seems to give strange, inconsistent readings, like duplicated
+            # 4 byte sequences and "oipg" ASCII values. This might be some issue with the way Python mmap works since it didn't
+            # seem to happen with the wiringPi C library using uint32_t pointers. For now we just avoid using /dev/gpiomem on Pi 3.
             try:
                 with open('/dev/gpiomem', 'rb') as gpiomem:
                     self.gpio_map = mmap.mmap(gpiomem.fileno(), BLOCK_SIZE, prot=mmap.PROT_READ)
@@ -303,11 +308,9 @@ class NativeGPIO(Singleton, GPIOPort):
         self.checkDigitalChannelExported(channel)
         self.checkPostingFunctionAllowed()
         try:
-            if value == self.IN:
-                value = 'in'
-            else:
-                value = 'out'
-            try:               
+            value_dict = {self.IN: 'in', self.OUT: 'out', self.OUT_LOW: 'low', self.OUT_HIGH: 'high'}
+            value = value_dict[value]
+            try:
                 self.functionFile[channel].write(value)
                 self.functionFile[channel].seek(0)
             except:
@@ -404,31 +407,31 @@ class NativeGPIO(Singleton, GPIOPort):
         return self.__getFunction__(channel)
     
     def getFunctionString(self, channel):
-        f = self.getFunction(channel)
+        f = -1
         function_string = 'UNKNOWN'
         functions = {0:'IN', 1:'OUT', 2:'ALT5', 3:'ALT4', 4:'ALT0', 5:'ALT1', 6:'ALT2', 7:'ALT3', 8:'PWM',
                     40:'SERIAL', 41:'SPI', 42:'I2C', 43:'PWM', 44:'GPIO', 45:'TS_XXXX', 46:'RESERVED', 47:'I2S'}
-        if f >= 0:
-            try:
-                function_string = functions[f]
-            except:
-                pass
-            try:
-                # On Raspberry Pis using the spi_bcm2835 driver SPI chip select is done via software rather than hardware
-                # so the pin function is OUT instead of ALT0. Here we override that (and the I2C to be safe) so the GPIO map
-                # in the UI will display the appropriate pin info.
-                if channel in self.spi_pins and self.system_config['SPI'] == 1:
-                    function_string = functions[4]
-                if channel in self.i2c_pins and self.system_config['I2C'] == 1:
-                    function_string = functions[4]
-            except:
-                pass
-            try:
-                # If 1-Wire is enabled specify the pin function as a device tree overlay.
-                if channel in self.overlay_pins:
-                    function_string = 'OVERLAY'
-            except:
-                pass
+        try:
+            f = self.getFunction(channel)
+            function_string = functions[f]
+        except:
+            pass
+        try:
+            # On Raspberry Pis using the spi_bcm2835 driver SPI chip select is done via software rather than hardware
+            # so the pin function is OUT instead of ALT0. Here we override that (and the I2C to be safe) so the GPIO map
+            # in the UI will display the appropriate pin info.
+            if channel in self.spi_pins and self.system_config['SPI'] == 1:
+                function_string = functions[4]
+            if channel in self.i2c_pins and self.system_config['I2C'] == 1:
+                function_string = functions[4]
+        except:
+            pass
+        try:
+            # If 1-Wire is enabled specify the pin function as a device tree overlay.
+            if channel in self.overlay_pins:
+                function_string = 'OVERLAY'
+        except:
+            pass
         return function_string
 
     def setPinMapping(self):

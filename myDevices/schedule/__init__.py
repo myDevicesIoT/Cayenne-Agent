@@ -287,7 +287,10 @@ class Job(object):
         
     def make_date(self, datetime_str):
         """Make datetime from string."""
-        date = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M')
+        try:
+            date = datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+        except ValueError:
+            date = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M')
         assert 0 <= date.hour <= 23
         assert 0 <= date.minute <= 59
         assert 1 <= date.day <= 31
@@ -333,7 +336,7 @@ class Job(object):
 
     def run(self):
         """Run the job and immediately reschedule it."""
-        debug('')
+        debug('Run job')
         if self.unit == 'date':
             if self.last_run is not None:
                 info('date job can run only once. Last run: ' + str(self.last_run))
@@ -344,7 +347,7 @@ class Job(object):
                 info('Job scheduled time has passed, job will not be run: ' + str(self.at_time) + ' current time: ' + str(now))
                 return CancelJob
 
-        info('Running job ' + str(self))
+        debug('Running job: {}'.format(self))
 
         if self.end_date is not None:
             if datetime.utcnow() > self.end_date:
@@ -401,7 +404,11 @@ class Job(object):
         #todo: no 'minutes' implementation
         if self.unit in ('hours'):
             if self.start_date != None:
-                self.next_run = datetime.strptime(self.start_date, "%Y-%m-%d %H:%M")
+                try:
+                    date = datetime.strptime(self.start_date, '%Y-%m-%dT%H:%M:%S.%fZ')
+                except ValueError:
+                    date = datetime.strptime(self.start_date, '%Y-%m-%d %H:%M')
+                self.next_run = date
                 #'2016-11-30 17:52'
                 now = datetime.utcnow()
                 if self.next_run < now:
