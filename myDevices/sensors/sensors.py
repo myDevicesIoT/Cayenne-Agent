@@ -181,7 +181,10 @@ class SensorsClient():
                                 channel = '{}:{}'.format(device['name'], device_type.lower())
                             else:
                                 channel = device['name']
-                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=self.CallDeviceFunction(func), name=display_name, **sensor_type['data_args'])
+                            value = self.CallDeviceFunction(func)
+                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=value, name=display_name, **sensor_type['data_args'])
+                            if 'DigitalActuator' == device_type and value in (0, 1):
+                                manager.updateDeviceState(device['name'], value)
                         except:
                             exception('Failed to get sensor data: {} {}'.format(device_type, device['name']))
                     # else:
@@ -368,13 +371,16 @@ class SensorsClient():
                     info('Sensor not found')
                     return result
                 if command in commands:
-                    info('Sensor found: {}'.format(instance.DEVICES[sensorId]))
+                    device = instance.DEVICES[sensorId]
+                    info('Sensor found: {}'.format(device))
                     func = getattr(sensor, commands[command]['function'])
                     value = commands[command]['value_type'](value)
                     if channel:
                         result = self.CallDeviceFunction(func, int(channel), value)
                     else:
                         result = self.CallDeviceFunction(func, value)
+                    if 'DigitalActuator' in device['type']:
+                        manager.updateDeviceState(sensorId, value)
                     return result
                 warn('Command not implemented: {}'.format(command))
                 return result

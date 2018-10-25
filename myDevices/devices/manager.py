@@ -58,7 +58,7 @@ def findDeviceClass(name):
                     return getattr(module, name)
     return None
 
-def saveDevice(name, install_date):
+def saveDevice(name, install_date=None):
     with mutex:
         logger.debug('saveDevice: ' + str(name))
         if name not in DEVICES:
@@ -67,7 +67,8 @@ def saveDevice(name, install_date):
         if DEVICES[name]['origin'] == 'manual':
             return
         DYNAMIC_DEVICES[name] = DEVICES[name]
-        DEVICES[name]['install_date'] = install_date
+        if install_date:
+            DEVICES[name]['install_date'] = install_date
         json_devices = getJSON(DYNAMIC_DEVICES)
         with open(DEVICES_JSON_FILE, 'w') as outfile:
             outfile.write(json_devices)
@@ -137,6 +138,19 @@ def updateDevice(name, json):
             (c, d, t) = addDeviceJSON(json)
         
         return (c, d, t)
+
+def updateDeviceState(name, value):
+    with mutex:
+        try:
+            if not name in DEVICES:
+                return
+            device = DEVICES[name]
+            if 'last_state' not in device['args'] or device['args']['last_state'] != value:
+                logger.info('Saving state {} for device {}'.format(value, name))
+                device['args'].update({'last_state': value})
+                saveDevice(name)
+        except:
+            pass
 
 def addDevice(name, device, description, args, origin):
     with mutex:
