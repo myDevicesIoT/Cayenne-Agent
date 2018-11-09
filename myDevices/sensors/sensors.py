@@ -52,6 +52,7 @@ class SensorsClient():
                 self.disabledSensors[row[0]] = 1
         self.realTimeMonitorRunning = False
         self.pluginManager = PluginManager(self.OnPluginChange)
+        self.pluginManager.load_plugins()
         self.InitCallbacks()
         self.StartMonitoring()
 

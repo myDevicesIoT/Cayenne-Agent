@@ -10,12 +10,13 @@ import sys
 import myDevices.cloud.cayennemqtt as cayennemqtt
 from myDevices.utils.config import Config
 from myDevices.utils.logger import debug, error, exception, info
+from myDevices.utils.singleton import Singleton
 from myDevices.utils.subprocess import executeCommand
 
 PLUGIN_FOLDER = '/etc/myDevices/plugins'
 
 
-class PluginManager():
+class PluginManager(Singleton):
     """Loads plugins and reads/writes plugin data."""
 
     def __init__(self, callback=None):
@@ -23,7 +24,7 @@ class PluginManager():
         self.plugin_folder = PLUGIN_FOLDER
         self.callback = callback
         self.plugins = {}
-        self.load_plugins()
+        self.extensions = {}
     
     def load_plugin_from_file(self, filename):
         """Loads a plugin from a specified plugin config file and adds it to the plugin list."""
@@ -42,15 +43,19 @@ class PluginManager():
                 try:
                     enabled = config.get(section, 'enabled', 'true').lower() == 'true'
                     inherit = config.get(section, 'inherit', None)
+                    extension = config.get(section, 'extension', 'false').lower() == 'true'
                     if enabled or section in inherited_from:
                         plugin = {
                             'enabled': enabled,
                             'filename': filename,
                             'section': section,
-                            'channel': config.get(section, 'channel'),
                             'name': config.get(section, 'name', section),
                         }
-                        plugin['id'] = plugin_name + ':' + plugin['channel']
+                        if not extension:
+                            plugin['channel'] = config.get(section, 'channel')
+                            plugin['id'] = plugin_name + ':' + plugin['channel']
+                        else:
+                            plugin['id'] = plugin_name + ':' + section
                         inherit_items = {}
                         if inherit in config.sections():
                             if inherit == section:
@@ -86,8 +91,11 @@ class PluginManager():
                         try:
                             self.override_plugin_value(config, section, 'unregister_callback', plugin)
                         except:
-                            pass                                                    
-                        self.plugins[plugin['id']] = plugin
+                            pass
+                        if not extension:                                                
+                            self.plugins[plugin['id']] = plugin
+                        else:
+                            self.extensions[plugin['id']] = plugin
                         loaded.append(section)
                 except Exception as e:
                     error(e)
@@ -103,10 +111,20 @@ class PluginManager():
             #Remove any disabled plugins that were only loaded because they are inherited from.
             self.plugins = {key:value for key, value in self.plugins.items() if value['enabled']}
         info('Enabled plugins: {}'.format(self.plugins.keys()))
+        info('Enabled extensions: {}'.format(self.extensions.keys()))
 
     def get_plugin(self, filename, section):
         """Return the plugin for the corresponding filename and section."""
         return next(plugin for plugin in self.plugins.values() if plugin['filename'] == filename and plugin['section'] == section)
+
+    def get_extension(self, id):
+        """Return the extension with the corresponding id."""
+        extension = None
+        try:
+            extension = self.extensions[id]
+        except:
+            pass
+        return extension
 
     def override_plugin_value(self, config, section, key, plugin):
         """Override the plugin value for the specified key if it exists in the config file"""
