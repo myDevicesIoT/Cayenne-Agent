@@ -6,6 +6,7 @@ import importlib
 import json
 import os
 import sys
+from configparser import NoOptionError
 
 import myDevices.cloud.cayennemqtt as cayennemqtt
 from myDevices.utils.config import Config
@@ -24,7 +25,6 @@ class PluginManager(Singleton):
         self.plugin_folder = PLUGIN_FOLDER
         self.callback = callback
         self.plugins = {}
-        self.extensions = {}
     
     def load_plugin_from_file(self, filename):
         """Loads a plugin from a specified plugin config file and adds it to the plugin list."""
@@ -43,7 +43,6 @@ class PluginManager(Singleton):
                 try:
                     enabled = config.get(section, 'enabled', 'true').lower() == 'true'
                     inherit = config.get(section, 'inherit', None)
-                    extension = config.get(section, 'extension', 'false').lower() == 'true'
                     if enabled or section in inherited_from:
                         plugin = {
                             'enabled': enabled,
@@ -51,10 +50,10 @@ class PluginManager(Singleton):
                             'section': section,
                             'name': config.get(section, 'name', section),
                         }
-                        if not extension:
+                        try:
                             plugin['channel'] = config.get(section, 'channel')
                             plugin['id'] = plugin_name + ':' + plugin['channel']
-                        else:
+                        except NoOptionError:
                             plugin['id'] = plugin_name + ':' + section
                         inherit_items = {}
                         if inherit in config.sections():
@@ -79,6 +78,9 @@ class PluginManager(Singleton):
                             device_class = getattr(imported_module, plugin['class'])
                             plugin['instance'] = device_class(**json.loads(plugin['init_args']))
                         self.override_plugin_value(config, section, 'read', plugin)
+                        if 'read_args' not in plugin:
+                            plugin['read_args'] = '{}'
+                        self.override_plugin_value(config, section, 'read_args', plugin)
                         try:
                             self.override_plugin_value(config, section, 'write', plugin)
                         except:
@@ -92,10 +94,7 @@ class PluginManager(Singleton):
                             self.override_plugin_value(config, section, 'unregister_callback', plugin)
                         except:
                             pass
-                        if not extension:                                                
-                            self.plugins[plugin['id']] = plugin
-                        else:
-                            self.extensions[plugin['id']] = plugin
+                        self.plugins[plugin['id']] = plugin
                         loaded.append(section)
                 except Exception as e:
                     error(e)
@@ -111,20 +110,19 @@ class PluginManager(Singleton):
             #Remove any disabled plugins that were only loaded because they are inherited from.
             self.plugins = {key:value for key, value in self.plugins.items() if value['enabled']}
         info('Enabled plugins: {}'.format(self.plugins.keys()))
-        info('Enabled extensions: {}'.format(self.extensions.keys()))
 
     def get_plugin(self, filename, section):
         """Return the plugin for the corresponding filename and section."""
         return next(plugin for plugin in self.plugins.values() if plugin['filename'] == filename and plugin['section'] == section)
 
-    def get_extension(self, id):
-        """Return the extension with the corresponding id."""
-        extension = None
+    def get_plugin_by_id(self, id):
+        """Return the plugin with the corresponding id."""
+        plugin = None
         try:
-            extension = self.extensions[id]
+            plugin = self.plugins[id]
         except:
             pass
-        return extension
+        return plugin
 
     def override_plugin_value(self, config, section, key, plugin):
         """Override the plugin value for the specified key if it exists in the config file"""
@@ -138,10 +136,11 @@ class PluginManager(Singleton):
         readings = []
         for key, plugin in self.plugins.items():
             try:
-                value = getattr(plugin['instance'], plugin['read'])()
-                value_dict = self.convert_to_dict(value)
-                if value_dict:
-                    cayennemqtt.DataChannel.add(readings, cayennemqtt.DEV_SENSOR, key, name=plugin['name'], **value_dict)
+                if 'channel' in plugin:
+                    value = getattr(plugin['instance'], plugin['read'])(**json.loads(plugin['read_args']))
+                    value_dict = self.convert_to_dict(value)
+                    if value_dict:
+                        cayennemqtt.DataChannel.add(readings, cayennemqtt.DEV_SENSOR, key, name=plugin['name'], **value_dict)
             except KeyError as e:
                 debug('Missing key {} in plugin \'{}\''.format(e, plugin['name']))
             except:

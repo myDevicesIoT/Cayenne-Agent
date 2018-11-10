@@ -36,7 +36,7 @@ class AnalogSensor():
         if not self.adc:
             self.adc = instance.deviceInstance(self.adcname)
             if not self.adc:
-                self.adc = self.pluginManager.get_extension(self.adcname)
+                self.adc = self.pluginManager.get_plugin_by_id(self.adcname)
 
     @response("%d")
     def read(self):
