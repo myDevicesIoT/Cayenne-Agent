@@ -8,13 +8,19 @@ from myDevices.utils import types
 from myDevices.utils.config import Config
 from myDevices.devices import serial, digital, analog, sensor, shield
 from myDevices.devices.instance import DEVICES
-from myDevices.devices.onewire import detectOneWireDevices
+from myDevices.devices.onewire import detectOneWireDevices, deviceExists, FAMILIES
 
 PACKAGES = [serial, digital, analog, sensor, shield]
 DYNAMIC_DEVICES  = {}
 DEVICES_JSON_FILE = "/etc/myDevices/devices.json"
 
 mutex = RLock()
+
+def missingOneWireDevice(device):
+    if device['class'] in FAMILIES.values() and ('slave' not in device['args'] or not deviceExists(device['args']['slave'])):
+        logger.info('1-wire device does not exist: {}, {}'.format(device['class'], device['args']['slave']))
+        return True
+    return False
 
 def deviceDetector():
     logger.debug('deviceDetector')
@@ -30,6 +36,9 @@ def deviceDetector():
             if not found:
                 if addDevice(dev['name'], dev['device'], dev['description'], dev['args'], "auto") > 0:
                     saveDevice(dev['name'], int(time()))
+        missing = [key for key, value in DEVICES.items() if missingOneWireDevice(value)]
+        for dev in missing:
+            removeDevice(dev)
     except Exception as e:
         logger.error("Device detector: %s" % e)
 
@@ -49,7 +58,7 @@ def findDeviceClass(name):
                     return getattr(module, name)
     return None
 
-def saveDevice(name, install_date):
+def saveDevice(name, install_date=None):
     with mutex:
         logger.debug('saveDevice: ' + str(name))
         if name not in DEVICES:
@@ -58,7 +67,8 @@ def saveDevice(name, install_date):
         if DEVICES[name]['origin'] == 'manual':
             return
         DYNAMIC_DEVICES[name] = DEVICES[name]
-        DEVICES[name]['install_date'] = install_date
+        if install_date:
+            DEVICES[name]['install_date'] = install_date
         json_devices = getJSON(DYNAMIC_DEVICES)
         with open(DEVICES_JSON_FILE, 'w') as outfile:
             outfile.write(json_devices)
@@ -68,7 +78,7 @@ def removeDevice(name):
         if name in DEVICES:
             if name in DYNAMIC_DEVICES:
                 if hasattr(DEVICES[name]["device"], 'close'):
-                        DEVICES[name]["device"].close()
+                    DEVICES[name]["device"].close()
                 del DEVICES[name]
                 del DYNAMIC_DEVICES[name]
                 json_devices = getJSON(DYNAMIC_DEVICES)
@@ -129,12 +139,27 @@ def updateDevice(name, json):
         
         return (c, d, t)
 
+def updateDeviceState(name, value):
+    with mutex:
+        try:
+            if not name in DEVICES:
+                return
+            device = DEVICES[name]
+            if 'last_state' not in device['args'] or device['args']['last_state'] != value:
+                logger.info('Saving state {} for device {}'.format(value, name))
+                device['args'].update({'last_state': value})
+                saveDevice(name)
+        except:
+            pass
+
 def addDevice(name, device, description, args, origin):
     with mutex:
         if name in DEVICES:
             logger.error("Device <%s> already exists" % name)
             return -1
         logger.debug('addDevice: ' + str(name) + ' ' + str(device))
+        if missingOneWireDevice({'class': device, 'args': args}):
+            return -1
     #    if '/' in device:
     #        deviceClass = device.split('/')[0]
     #    else:

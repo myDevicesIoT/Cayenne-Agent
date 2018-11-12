@@ -1,6 +1,5 @@
 from myDevices.cloud.updater import Updater
-from myDevices.utils.config import Config
-from myDevices.cloud.client import APP_SETTINGS
+from myDevices.utils.config import Config, APP_SETTINGS
 from myDevices.utils.logger import setInfo
 
 if __name__ == '__main__':

@@ -2,26 +2,27 @@
 This module provides a class for interfacing with sensors and actuators. It can add, edit and remove
 sensors and actuators as well as monitor their states and execute commands.
 """
-from myDevices.utils.logger import exception, info, warn, error, debug, logJson
-from time import sleep, time
-from json import loads, dumps
-from threading import RLock, Event
-from myDevices.system import services
 from datetime import datetime, timedelta
-from os import path, getpid
-from myDevices.utils.daemon import Daemon
-from myDevices.cloud.dbmanager import DbManager
-from myDevices.utils.threadpool import ThreadPool
-from myDevices.devices.bus import checkAllBus, BUSLIST
-from myDevices.devices.digital.gpio import NativeGPIO as GPIO
-from myDevices.devices import manager
-from myDevices.devices import instance
-from myDevices.utils.types import M_JSON
-from myDevices.system.systeminfo import SystemInfo
-from myDevices.cloud import cayennemqtt
+from json import dumps, loads
+from os import getpid, path
+from threading import Event, RLock
 
-REFRESH_FREQUENCY = 5 #seconds
-# SENSOR_INFO_SLEEP = 0.05
+from myDevices.cloud import cayennemqtt
+from myDevices.cloud.dbmanager import DbManager
+from myDevices.cloud.download_speed import DownloadSpeed
+from myDevices.devices import instance, manager
+from myDevices.devices.bus import BUSLIST, checkAllBus
+from myDevices.devices.digital.gpio import NativeGPIO as GPIO
+from myDevices.system import services
+from myDevices.system.systeminfo import SystemInfo
+from myDevices.utils.config import Config, APP_SETTINGS
+from myDevices.utils.daemon import Daemon
+from myDevices.utils.logger import debug, error, exception, info, logJson, warn
+from myDevices.utils.threadpool import ThreadPool
+from myDevices.utils.types import M_JSON
+
+REFRESH_FREQUENCY = 15 #seconds
+DIGITAL_FREQUENCY = 60/55 #Seconds/messages, this is done to keep messages under the rate limit
 
 class SensorsClient():
     """Class for interfacing with sensors and actuators"""
@@ -29,32 +30,69 @@ class SensorsClient():
     def __init__(self):
         """Initialize the bus and sensor info and start monitoring sensor states"""
         self.sensorMutex = RLock()
+        self.digitalMutex = RLock()
         self.exiting = Event()
         self.onDataChanged = None
-        self.onSystemInfo = None
         self.systemData = []
         self.currentSystemState = []
+        self.currentDigitalData = {}                                
+        self.queuedDigitalData = {}
         self.disabledSensors = {}
         self.disabledSensorTable = "disabled_sensors"
         checkAllBus()
         self.gpio = GPIO()
+        self.downloadSpeed = DownloadSpeed(Config(APP_SETTINGS))
+        self.downloadSpeed.getDownloadSpeed()
         manager.addDeviceInstance("GPIO", "GPIO", "GPIO", self.gpio, [], "system")
         manager.loadJsonDevices("rest")
         results = DbManager.Select(self.disabledSensorTable)
         if results:
             for row in results:
                 self.disabledSensors[row[0]] = 1
+        self.digitalMonitorRunning = False
+        self.InitCallbacks()
         self.StartMonitoring()
 
-    def SetDataChanged(self, onDataChanged=None, onSystemInfo=None):
-        """Set callbacks to call when data has changed
+    def SetDataChanged(self, onDataChanged=None):
+        """Set callback to call when data has changed
         
         Args:
             onDataChanged: Function to call when sensor data changes
-            onSystemInfo: Function to call when system info changes
         """
         self.onDataChanged = onDataChanged
-        self.onSystemInfo = onSystemInfo
+
+    def OnSensorChange(self, device, value):
+        """Callback that is called when digital sensor data has changed
+
+        Args:
+            device: The device that has changed data
+            value: The new data value
+        """
+        debug('OnSensorChange: {}, {}'.format(device, value))
+        with self.digitalMutex:
+            if device['name'] not in self.currentDigitalData:
+                self.currentDigitalData[device['name']] = {'device': device, 'value': value}
+            else:
+                self.queuedDigitalData[device['name']] = {'device': device, 'value': value}
+
+    def InitCallbacks(self):
+        """Set callback function for any digital devices that support them"""
+        devices = manager.getDeviceList()
+        for device in devices:
+            sensor = instance.deviceInstance(device['name'])
+            if 'DigitalSensor' in device['type'] and hasattr(sensor, 'setCallback'):
+                debug('Set callback for {}'.format(sensor))
+                sensor.setCallback(self.OnSensorChange, device)
+                if not self.digitalMonitorRunning:
+                    ThreadPool.Submit(self.DigitalMonitor)
+
+    def RemoveCallbacks(self):
+        """Remove callback function for all digital devices"""
+        devices = manager.getDeviceList()
+        for device in devices:
+            sensor = instance.deviceInstance(device['name'])
+            if 'DigitalSensor' in device['type'] and hasattr(sensor, 'removeCallback'):
+                sensor.removeCallback()
 
     def StartMonitoring(self):
         """Start thread monitoring sensor data"""
@@ -62,28 +100,68 @@ class SensorsClient():
 
     def StopMonitoring(self):
         """Stop thread monitoring sensor data"""
+        self.RemoveCallbacks()
         self.exiting.set()
 
     def Monitor(self):
         """Monitor bus/sensor states and system info and report changed data via callbacks"""
         debug('Monitoring sensors and os resources started')
+        sendAllDataCount = 0
+        nextTime = datetime.now()
         while not self.exiting.is_set():
             try:
-                if not self.exiting.wait(REFRESH_FREQUENCY):
+                difference = nextTime - datetime.now()
+                delay = min(REFRESH_FREQUENCY, difference.total_seconds())
+                delay = max(0, delay)
+                if not self.exiting.wait(delay):
+                    nextTime = datetime.now() + timedelta(seconds=REFRESH_FREQUENCY)
                     self.currentSystemState = []
                     self.MonitorSystemInformation()
                     self.MonitorSensors()
                     self.MonitorBus()
                     if self.currentSystemState != self.systemData:
-                        changedSystemData = self.currentSystemState
-                        if self.systemData:
-                            changedSystemData = [x for x in self.currentSystemState if x not in self.systemData]
-                        if self.onDataChanged and changedSystemData:
-                            self.onDataChanged(changedSystemData)
+                        data = self.currentSystemState
+                        if self.systemData and not sendAllDataCount == 0:
+                            data = [x for x in self.currentSystemState if x not in self.systemData]
+                        if self.onDataChanged and data:
+                            self.onDataChanged(data)
+                    sendAllDataCount += 1
+                    if sendAllDataCount >= 4:
+                        sendAllDataCount = 0
                     self.systemData = self.currentSystemState
             except:
                 exception('Monitoring sensors and os resources failed')
         debug('Monitoring sensors and os resources finished')
+
+    def DigitalMonitor(self):
+        """Monitor digital state changes and report changed data via callbacks"""
+        self.digitalMonitorRunning = True
+        info('Monitoring digital sensor changes')
+        nextTime = datetime.now()
+        while not self.exiting.is_set():
+            try:
+                if not self.exiting.wait(0.5):
+                    if datetime.now() > nextTime:
+                        nextTime = datetime.now() + timedelta(seconds=DIGITAL_FREQUENCY)
+                        data = []
+                        with self.digitalMutex:
+                            if self.currentDigitalData:
+                                for name, item in self.currentDigitalData.items():
+                                    cayennemqtt.DataChannel.add_unique(data, cayennemqtt.DEV_SENSOR, name, value=item['value'], name=item['device']['description'], type='digital_sensor', unit='d')
+                                    try:
+                                        cayennemqtt.DataChannel.add_unique(data, cayennemqtt.SYS_GPIO, item['device']['args']['channel'], cayennemqtt.VALUE, item['value'])
+                                    except:
+                                        pass
+                                    if name in self.queuedDigitalData and self.queuedDigitalData[name]['value'] == item['value']:
+                                        del self.queuedDigitalData[name]
+                                self.currentDigitalData = self.queuedDigitalData
+                                self.queuedDigitalData = {}
+                        if data:
+                            self.onDataChanged(data)
+            except:
+                exception('Monitoring digital sensor changes failed')
+        debug('Monitoring digital sensor changes finished')
+        self.digitalMonitorRunning = False
 
     def MonitorSensors(self):
         """Check sensor states for changes"""
@@ -109,6 +187,9 @@ class SensorsClient():
         try:
             systemInfo = SystemInfo()
             newSystemInfo = systemInfo.getSystemInformation()
+            download_speed = self.downloadSpeed.getDownloadSpeed()
+            if download_speed:
+                cayennemqtt.DataChannel.add(newSystemInfo, cayennemqtt.SYS_NET, suffix=cayennemqtt.SPEEDTEST, value=download_speed, type='bw', unit='mbps')
         except Exception:
             exception('SystemInformation failed')
         return newSystemInfo
@@ -164,10 +245,10 @@ class SensorsClient():
                                 'DigitalActuator': {'function': 'read', 'data_args': {'type': 'digital_actuator', 'unit': 'd'}},
                                 'AnalogSensor': {'function': 'readFloat', 'data_args': {'type': 'analog_sensor'}},
                                 'AnalogActuator': {'function': 'readFloat', 'data_args': {'type': 'analog_actuator'}}}
-                extension_types = {'ADC': {'function': 'analogReadAllFloat'},
-                                    'DAC': {'function': 'analogReadAllFloat'},
-                                    'PWM': {'function': 'pwmWildcard'},
-                                    'GPIOPort': {'function': 'wildcard'}}
+                # extension_types = {'ADC': {'function': 'analogReadAllFloat'},
+                #                     'DAC': {'function': 'analogReadAllFloat'},
+                #                     'PWM': {'function': 'pwmWildcard'},
+                #                     'GPIOPort': {'function': 'wildcard'}}
                 for device_type in device['type']:
                     try:
                         display_name = device['description']
@@ -181,19 +262,22 @@ class SensorsClient():
                                 channel = '{}:{}'.format(device['name'], device_type.lower())
                             else:
                                 channel = device['name']
-                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=self.CallDeviceFunction(func), name=display_name, **sensor_type['data_args'])
+                            value = self.CallDeviceFunction(func)
+                            cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, channel, value=value, name=display_name, **sensor_type['data_args'])
+                            if 'DigitalActuator' == device_type and value in (0, 1):
+                                manager.updateDeviceState(device['name'], value)
                         except:
                             exception('Failed to get sensor data: {} {}'.format(device_type, device['name']))
-                    else:
-                        try:
-                            extension_type = extension_types[device_type]
-                            func = getattr(sensor, extension_type['function'])
-                            values = self.CallDeviceFunction(func)
-                            for pin, value in values.items():
-                                cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['name'] + ':' + str(pin), cayennemqtt.VALUE, value, name=display_name)
-                        except:
-                            exception('Failed to get extension data: {} {}'.format(device_type, device['name']))
-        logJson('Sensors info: {}'.format(sensors_info))
+                    # else:
+                    #     try:
+                    #         extension_type = extension_types[device_type]
+                    #         func = getattr(sensor, extension_type['function'])
+                    #         values = self.CallDeviceFunction(func)
+                    #         for pin, value in values.items():
+                    #             cayennemqtt.DataChannel.add(sensors_info, cayennemqtt.DEV_SENSOR, device['name'] + ':' + str(pin), cayennemqtt.VALUE, value, name=display_name)
+                    #     except:
+                    #         exception('Failed to get extension data: {} {}'.format(device_type, device['name']))
+        info('Sensors info: {}'.format(sensors_info))
         return sensors_info
 
     def AddSensor(self, name, description, device, args):
@@ -222,10 +306,12 @@ class SensorsClient():
                 sensorAdd['description'] = description
             with self.sensorMutex:
                 retValue = manager.addDeviceJSON(sensorAdd)
+                self.InitCallbacks()
             info('Add device returned: {}'.format(retValue))
             if retValue[0] == 200:
                 bVal = True
-        except:
+        except Exception:
+            exception('Error adding sensor')
             bVal = False
         return bVal
 
@@ -252,6 +338,7 @@ class SensorsClient():
             sensorEdit['args'] = args
             with self.sensorMutex:
                 retValue = manager.updateDevice(name, sensorEdit)
+                self.InitCallbacks()
             info('Edit device returned: {}'.format(retValue))
             if retValue[0] == 200:
                 bVal = True
@@ -272,6 +359,12 @@ class SensorsClient():
         bVal = False
         try:
             sensorRemove = name
+            try:
+                sensor = instance.deviceInstance(sensorRemove)
+                if hasattr(sensor, 'removeCallback'):
+                    sensor.removeCallback()
+            except: 
+                pass
             with self.sensorMutex:
                 retValue = manager.removeDevice(sensorRemove)
             info('Remove device returned: {}'.format(retValue))
@@ -302,7 +395,7 @@ class SensorsClient():
                 if enable == 0:
                     #add item to the list
                     if sensor not in self.disabledSensors:
-                        rowId = DbManager.Insert(self.disabledSensorTable, sensor)
+                        DbManager.Insert(self.disabledSensorTable, sensor)
                         self.disabledSensors[sensor] = 1
                 else:
                     #remove item from the list
@@ -313,7 +406,6 @@ class SensorsClient():
         except Exception as ex:
             error('EnableSensor Failed with exception: '  + str(ex))
             return False
-        self.AddRefresh()
         return True
 
     def GpioCommand(self, command, channel, value):
@@ -368,17 +460,19 @@ class SensorsClient():
                     info('Sensor not found')
                     return result
                 if command in commands:
-                    info('Sensor found: {}'.format(instance.DEVICES[sensorId]))
+                    device = instance.DEVICES[sensorId]
+                    info('Sensor found: {}'.format(device))
                     func = getattr(sensor, commands[command]['function'])
                     value = commands[command]['value_type'](value)
                     if channel:
                         result = self.CallDeviceFunction(func, int(channel), value)
                     else:
                         result = self.CallDeviceFunction(func, value)
+                    if 'DigitalActuator' in device['type']:
+                        manager.updateDeviceState(sensorId, value)
                     return result
                 warn('Command not implemented: {}'.format(command))
                 return result
         except Exception:
             exception('SensorCommand failed')
         return result
-

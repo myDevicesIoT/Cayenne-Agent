@@ -65,7 +65,28 @@ class DataChannel:
         if name is not None:
             data['name'] = name
         data_list.append(data)
-        
+
+    @staticmethod
+    def add_unique(data_list, prefix, channel=None, suffix=None, value=None, type=None, unit=None, name=None):
+        """Create data channel dict and append it to a list if the channel doesn't already exist in the list"""
+        data_channel = prefix
+        if channel is not None:
+            data_channel += ':' + str(channel)
+        if suffix is not None:
+            data_channel += ';' + str(suffix)
+        item = next((item for item in data_list if item['channel'] == data_channel), None)
+        if not item:            
+            data = {}
+            data['channel'] = data_channel
+            data['value'] = value
+            if type is not None:
+                data['type'] = type
+            if unit is not None:
+                data['unit'] = unit
+            if name is not None:
+                data['name'] = name
+            data_list.append(data)
+            
 
 class CayenneMQTTClient:
     """Cayenne MQTT Client class.
