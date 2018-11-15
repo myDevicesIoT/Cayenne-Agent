@@ -83,6 +83,13 @@ class PluginManager(Singleton):
                         self.override_plugin_value(config, section, 'read_args', plugin)
                         try:
                             self.override_plugin_value(config, section, 'write', plugin)
+                            if 'write_args' not in plugin:
+                                plugin['write_args'] = '{}'
+                            self.override_plugin_value(config, section, 'write_args', plugin)
+                        except:
+                            pass
+                        try:
+                            self.override_plugin_value(config, section, 'set_function', plugin)
                         except:
                             pass
                         try:
@@ -125,11 +132,18 @@ class PluginManager(Singleton):
         return plugin
 
     def override_plugin_value(self, config, section, key, plugin):
-        """Override the plugin value for the specified key if it exists in the config file"""
+        """Override the plugin value for the specified key if it exists in the config file."""
         if key not in plugin:
             plugin[key] = config.get(section, key)
         else:
             plugin[key] = config.get(section, key, plugin[key])
+
+    def get_args(self, plugin, key):
+        """Returns the specified args attribute as a dict."""
+        args = plugin[key]
+        if 'channel' in plugin:
+            args = args.replace('$channel', plugin['channel'])
+        return json.loads(args)
 
     def get_plugin_readings(self):
         """Return a list with current readings for all plugins."""
@@ -137,7 +151,8 @@ class PluginManager(Singleton):
         for key, plugin in self.plugins.items():
             try:
                 if 'channel' in plugin:
-                    value = getattr(plugin['instance'], plugin['read'])(**json.loads(plugin['read_args']))
+                    read_args = self.get_args(plugin, 'read_args')
+                    value = getattr(plugin['instance'], plugin['read'])(**read_args)
                     value_dict = self.convert_to_dict(value)
                     if value_dict:
                         cayennemqtt.DataChannel.add(readings, cayennemqtt.DEV_SENSOR, key, name=plugin['name'], **value_dict)
@@ -186,7 +201,8 @@ class PluginManager(Singleton):
         if actuator in self.plugins.keys():
             try:
                 write_function = getattr(self.plugins[actuator]['instance'], self.plugins[actuator]['write'])
-                write_function(float(value))
+                write_args = self.get_args(self.plugins[actuator], 'write_args')
+                write_function(float(value), **write_args)
             except:
                 return False
         else:

@@ -1,7 +1,6 @@
 """
 This module provides classes for interfacing with analog plugins.
 """
-import json
 from myDevices.plugins.manager import PluginManager
 from myDevices.utils.logger import info, debug
 
@@ -18,14 +17,14 @@ class AnalogInput():
         self.adc_name = adc
         self.adc = None
         self.read_args = {}
-        self.pluginManager = PluginManager()
+        self.plugin_manager = PluginManager()
         self.set_adc()
     
     def set_adc(self):
         """Sets the ADC plugin."""
         if not self.adc:
-            self.adc = self.pluginManager.get_plugin_by_id(self.adc_name)
-            self.read_args = json.loads(self.adc['read_args'])
+            self.adc = self.plugin_manager.get_plugin_by_id(self.adc_name)
+            self.read_args = self.plugin_manager.get_args(self.adc, 'read_args')
 
     def read_value(self, channel, data_type=None):
         """Read the data value on the specified channel."""
