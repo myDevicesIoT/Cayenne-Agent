@@ -32,8 +32,6 @@ class GPIOPort():
         if not (value == 0 or value == 1):
             raise ValueError("Value %d not in {0, 1}")
     
-
-    #@request("GET", "count")
     @response("%d")
     def digitalCount(self):
         return self.digitalChannelCount
@@ -63,7 +61,6 @@ class GPIOPort():
         self.checkDigitalChannel(channel)
         return self.__getFunction__(channel)  
 
-    #@request("GET", "%(channel)d/function")
     def getFunctionString(self, channel):
         func = self.getFunction(channel)
         if func == self.IN:
@@ -80,7 +77,6 @@ class GPIOPort():
         self.__setFunction__(channel, value)
         return self.__getFunction__(channel)
 
-    #@request("POST", "%(channel)d/function/%(value)s")
     def setFunctionString(self, channel, value):
         value = value.lower()
         if value == "in":
@@ -93,13 +89,11 @@ class GPIOPort():
             raise ValueError("Bad Function")
         return self.getFunctionString(channel)
 
-    #@request("GET", "%(channel)d/value")
     @response("%d")
     def digitalRead(self, channel):
         self.checkDigitalChannel(channel)
         return self.__digitalRead__(channel)
 
-    #@request("GET", "*")
     @response(contentType=M_JSON)
     def wildcard(self, compact=False):
         if compact:
@@ -118,12 +112,10 @@ class GPIOPort():
             values[i] = {f: func, v: int(self.digitalRead(i))}
         return values
 
-    #@request("GET", "*/integer")
     @response("%d")
     def portRead(self):
         return self.__portRead__()
     
-    #@request("POST", "%(channel)d/value/%(value)d")
     @response("%d")
     def digitalWrite(self, channel, value):
         self.checkDigitalChannel(channel)
@@ -131,14 +123,13 @@ class GPIOPort():
         self.__digitalWrite__(channel, value)
         return self.digitalRead(channel)  
 
-    #@request("POST", "*/integer/%(value)d")
     @response("%d")
     def portWrite(self, value):
         self.__portWrite__(value)
         return self.portRead()
 
+
 DRIVERS = {}
 DRIVERS["helper"] = ["DigitalSensor", "DigitalActuator", "LightSwitch", "MotorSwitch", "RelaySwitch", "ValveSwitch", "MotionSensor"]
-DRIVERS["mcp23XXX"] = ["MCP23008", "MCP23009", "MCP23017", "MCP23018", "MCP23S08", "MCP23S09", "MCP23S17", "MCP23S18"]
 DRIVERS["pcf8574" ] = ["PCF8574", "PCF8574A"]
 DRIVERS["ds2408" ] = ["DS2408"]
