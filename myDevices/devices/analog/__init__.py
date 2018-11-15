@@ -283,7 +283,6 @@ class PWM():
 DRIVERS = {}
 DRIVERS["helper"]  = ["AnalogSensor", "AnalogActuator", "ServoMotor", "Thermistor", "Photoresistor", "LoadSensor", "DistanceSensor", "LightDimmer"]
 DRIVERS["ads1x1x"] = ["ADS1014", "ADS1015", "ADS1114", "ADS1115"]
-DRIVERS["mcp3x0x"] = ["MCP3002", "MCP3004", "MCP3008", "MCP3204", "MCP3208"]
 DRIVERS["mcp4725"] = ["MCP4725"]
 DRIVERS["mcp48XX"] = ["MCP4802", "MCP4812", "MCP4822"]
 DRIVERS["mcp492X"] = ["MCP4921", "MCP4922"]
