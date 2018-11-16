@@ -91,10 +91,9 @@ class ADC():
             values[i] = float("%.2f" % self.analogReadVolt(i))
         return values
 
-    def read(self, channel, data_type=None, diff=False):
-        read_functions = {'float': self.analogReadFloat, 'f': self.analogReadFloat,
-            'volt': self.analogReadVolt, 'v': self.analogReadVolt}
-        read_function = read_functions.get(data_type, self.analogRead)
+    def read(self, channel, value_type=None, diff=False):
+        read_functions = {'float': self.analogReadFloat, 'volt': self.analogReadVolt}
+        read_function = read_functions.get(value_type, self.analogRead)
         return read_function(channel, diff)
     
     def readFloat(self, channel, diff=False):
@@ -131,8 +130,10 @@ class DAC(ADC):
         self.analogWriteFloat(channel, value /self._analogRef)
         return self.analogReadVolt(channel)
     
-    def write(self, channel, value):
-        return self.analogWrite(channel, value)
+    def write(self, channel, value, value_type=None):
+        write_functions = {'float': self.analogWriteFloat, 'volt': self.analogWriteVolt}
+        write_function = write_functions.get(value_type, self.analogWrite)        
+        return write_function(channel, value)
 
     def writeFloat(self, channel, value):
         return self.analogWriteFloat(channel, value)
@@ -206,17 +207,17 @@ class PWM():
         self.pwmWrite(channel, int(value * self._pwmMax))
         return self.pwmReadFloat(channel)
 
-    def read(self, channel, data_type=None):
+    def read(self, channel, value_type=None):
         read_functions = {'float': self.pwmReadFloat, 'angle': self.pwmReadAngle}
-        read_function = read_functions.get(data_type, self.pwmRead)
+        read_function = read_functions.get(value_type, self.pwmRead)
         return read_function(channel)        
 
     def readFloat(self, channel):
         return self.pwmReadFloat(channel)
 
-    def write(self, channel, value, data_type=None):
+    def write(self, channel, value, value_type=None):
         write_functions = {'float': self.pwmWriteFloat, 'angle': self.pwmWriteAngle}
-        write_function = write_functions.get(data_type, self.pwmWrite)        
+        write_function = write_functions.get(value_type, self.pwmWrite)
         return write_function(channel, value)
 
     def writeFloat(self, channel, value):
@@ -291,5 +292,4 @@ DRIVERS["ads1x1x"] = ["ADS1014", "ADS1015", "ADS1114", "ADS1115"]
 DRIVERS["mcp4725"] = ["MCP4725"]
 DRIVERS["mcp48XX"] = ["MCP4802", "MCP4812", "MCP4822"]
 DRIVERS["mcp492X"] = ["MCP4921", "MCP4922"]
-DRIVERS["pca9685"] = ["PCA9685"]
 DRIVERS["pcf8591"] = ["PCF8591"]

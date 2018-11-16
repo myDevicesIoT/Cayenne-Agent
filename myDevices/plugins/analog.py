@@ -14,7 +14,7 @@ class AnalogInput(InputOutput):
         Arguments:
             plugin_id: Plugin ID in the format 'plugin_name:section', e.g. 'cayenne-pca9685:PCA9685'
         """        
-        InputOutput.__init__(self, plugin_id, 'analog', 'in')
+        InputOutput.__init__(self, plugin_id, 'in', 'analog_sensor')
        
     def read_float(self, channel):
         """Read the float value on the specified channel."""
@@ -29,18 +29,17 @@ class AnalogInput(InputOutput):
         return self.read_value(channel, 'angle')
 
 
-class AnalogIO(AnalogInput):
+class AnalogOutput(AnalogInput):
     """Reads/writes data from an analog or PWM plugin input/output."""
 
-    def __init__(self, plugin_id, function):
+    def __init__(self, plugin_id):
         """Initializes the plugin input/output.
         
         Arguments:
             plugin_id: Plugin ID in the format 'plugin_name:section', e.g. 'cayenne-pca9685:PCA9685'
-            function: The pin function, 'in' if the pin is an input, 'out' if it is an output 
-        """        
-        InputOutput.__init__(self, plugin_id, 'analog', function)
-       
+        """
+        InputOutput.__init__(self, plugin_id, 'out', 'analog_actuator')
+
     def write_float(self, value, channel):
         """Write the float value on the specified channel."""
         return self.write_value(value, channel, 'float')
@@ -51,17 +50,4 @@ class AnalogIO(AnalogInput):
 
     def write_angle(self, value, channel):
         """Write the angle on the specified channel."""
-        return self.write_value(value, channel, 'angle')
-
-
-class AnalogOutput(AnalogIO):
-    """Reads/writes data from an analog or PWM plugin input/output."""
-
-    def __init__(self, plugin_id):
-        """Initializes the plugin input/output.
-        
-        Arguments:
-            plugin_id: Plugin ID in the format 'plugin_name:section', e.g. 'cayenne-pca9685:PCA9685'
-        """        
-        AnalogIO.__init__(self, plugin_id, 'out')
-  
+        return self.write_value(value, channel, 'angle')  

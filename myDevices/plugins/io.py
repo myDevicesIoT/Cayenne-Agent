@@ -6,21 +6,19 @@ from myDevices.utils.logger import debug, info, exception
 
 
 class InputOutput():
-    """Reads/writes data from a digital, analog or PWM input/output plugin."""
-    DATA_TYPES = {'digital': {'in': 'digital_sensor', 'out':'digital_actuator'},
-        'analog': {'in': 'analog_sensor', 'out': 'analog_actuator'}}
+    """Reads data from and writes data to an input/output plugin."""
 
-    def __init__(self, plugin_id, io_type, function):
-        """Initializes the analog input/output.
+    def __init__(self, plugin_id, function, data_type):
+        """Initializes the input/output.
         
         Arguments:
             plugin_id: Extension plugin ID in the format 'plugin_name:section', e.g. 'cayenne-pca9685:PCA9685'
-            io_type: The type of IO, 'analog' or 'digital'
-            function: The pin function, 'in' if the pin is an input, 'out' if it is an output
+            function: The IO function, 'in' or 'out'
+            data_type: The Cayenne data type, e.g. 'digital_sensor'
         """
         self.plugin_id = plugin_id
         self.plugin = None
-        self.io_type = io_type.lower()
+        self.data_type = data_type.lower()
         self.function = function.lower()
         self.current_functions = {}        
         self.read_args = {}
@@ -54,40 +52,42 @@ class InputOutput():
         except:
             debug('Error setting function')
 
-    def to_tuple(self, value):
-        """Converts value to tuple with the appropriate data type."""
-        try:
-            return (value, InputOutput.DATA_TYPES[self.io_type][self.function])
-        except:
-            return value
+    def value_to_tuple(self, value):
+        """Converts value to tuple with the appropriate Cayenne data type."""
+        return (value, self.data_type)
 
-    def read(self, channel, data_type=None):
+    def read(self, channel, value_type=None):
         """Gets the data value for the channel as a tuple with the type."""
-        return self.to_tuple(self.read_value(channel, data_type))                
+        return self.value_to_tuple(self.read_value(channel, value_type))                
 
-    def read_value(self, channel, data_type=None):
+    def read_value(self, channel, value_type=None):
         """Read the data value on the specified channel."""
         self.set_plugin()
         self.set_function(channel)
         result = None
         try:
-            result = getattr(self.plugin['instance'], self.plugin['read'])(channel, data_type=data_type, **self.read_args)
+            read_args = self.read_args
+            if value_type:
+                read_args['value_type'] = value_type
+            result = getattr(self.plugin['instance'], self.plugin['read'])(channel, **read_args)
         except:
-            info('Error reading value from plugin {}, channel {}, {}'.format(self.plugin_id, channel, self.plugin))
+            exception('Error reading value from plugin {}, channel {}, {}'.format(self.plugin_id, channel, self.plugin))
         return result
 
-    def write(self, value, channel, data_type=None):
+    def write(self, value, channel, value_type=None):
         """Write the digital value for the channel."""
-        info('IO write, value {}, channel {}'.format(value, channel))
-        return self.write_value(value, channel, data_type)
+        return self.write_value(value, channel, value_type)
 
-    def write_value(self, value, channel, data_type=None):
+    def write_value(self, value, channel, value_type=None):
         """Write the data value on the specified channel."""
         self.set_plugin()
         self.set_function(channel)
         result = None
         try:
-            result = getattr(self.plugin['instance'], self.plugin['write'])(channel, value, data_type=data_type, **self.write_args)
+            write_args = self.write_args
+            if value_type:
+                write_args['value_type'] = value_type            
+            result = getattr(self.plugin['instance'], self.plugin['write'])(channel, value, **write_args)
         except ValueError as e:
             debug(e)
         return result
@@ -104,4 +104,4 @@ class InputOutput():
     def data_changed(self, channel, value):
         """Callback that is called when data has changed."""
         if self.callback:
-            self.callback(self.to_tuple(value))
+            self.callback(self.value_to_tuple(value))
