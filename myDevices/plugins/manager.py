@@ -203,7 +203,11 @@ class PluginManager(Singleton):
                 write_function = getattr(self.plugins[actuator]['instance'], self.plugins[actuator]['write'])
                 write_args = self.get_args(self.plugins[actuator], 'write_args')
                 write_function(float(value), **write_args)
-            except:
+            except KeyError as e:
+                error('Error writing value, missing key: {}'.format(e))
+                return False    
+            except Exception as e:
+                error('Error writing value: {}'.format(e))
                 return False
         else:
             return False

@@ -15,6 +15,7 @@
 from myDevices.decorators.rest import request, response
 from myDevices.utils.types import toint, M_JSON
 from myDevices.devices import instance
+from myDevices.utils.logger import info
 
 
 class ADC():
@@ -91,8 +92,8 @@ class ADC():
         return values
 
     def read(self, channel, data_type=None, diff=False):
-        read_functions = {'float': self.analogReadFloat,'f': self.analogReadFloat,
-            'volt': self.analogReadVolt,'v': self.analogReadVolt}
+        read_functions = {'float': self.analogReadFloat, 'f': self.analogReadFloat,
+            'volt': self.analogReadVolt, 'v': self.analogReadVolt}
         read_function = read_functions.get(data_type, self.analogRead)
         return read_function(channel, diff)
     
@@ -205,14 +206,18 @@ class PWM():
         self.pwmWrite(channel, int(value * self._pwmMax))
         return self.pwmReadFloat(channel)
 
-    def read(self, channel):
-        return self.pwmRead(channel)
+    def read(self, channel, data_type=None):
+        read_functions = {'float': self.pwmReadFloat, 'angle': self.pwmReadAngle}
+        read_function = read_functions.get(data_type, self.pwmRead)
+        return read_function(channel)        
 
     def readFloat(self, channel):
         return self.pwmReadFloat(channel)
 
-    def write(self, channel, value):
-        return self.pwmWrite(channel, value)
+    def write(self, channel, value, data_type=None):
+        write_functions = {'float': self.pwmWriteFloat, 'angle': self.pwmWriteAngle}
+        write_function = write_functions.get(data_type, self.pwmWrite)        
+        return write_function(channel, value)
 
     def writeFloat(self, channel, value):
         return self.pwmWriteFloat(channel, value)

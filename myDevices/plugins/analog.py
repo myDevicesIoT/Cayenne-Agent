@@ -1,40 +1,20 @@
 """
-This module provides classes for interfacing with analog plugins.
+This module provides classes for interfacing with analog and PWM plugins.
 """
-from myDevices.plugins.manager import PluginManager
+from myDevices.plugins.io import InputOutput
 from myDevices.utils.logger import info, debug
 
 
-class AnalogInput():
-    """Reads data from an analog input."""
+class AnalogInput(InputOutput):
+    """Reads data from an analog or PWM plugin input."""
 
-    def __init__(self, adc):
-        """Initializes the analog input.
+    def __init__(self, plugin_id):
+        """Initializes the plugin input.
         
         Arguments:
-            adc: Analog-to-digital converter plugin ID in the format 'plugin_name:section', e.g. 'cayenne-mcp3xxx:MCP'
-        """
-        self.adc_name = adc
-        self.adc = None
-        self.read_args = {}
-        self.plugin_manager = PluginManager()
-        self.set_adc()
-    
-    def set_adc(self):
-        """Sets the ADC plugin."""
-        if not self.adc:
-            self.adc = self.plugin_manager.get_plugin_by_id(self.adc_name)
-            self.read_args = self.plugin_manager.get_args(self.adc, 'read_args')
-
-    def read_value(self, channel, data_type=None):
-        """Read the data value on the specified channel."""
-        self.set_adc()
-        try:
-            value = getattr(self.adc['instance'], self.adc['read'])(channel, data_type=data_type, **self.read_args)
-        except ValueError as e:
-            debug(e)
-            value = None
-        return value
+            plugin_id: Plugin ID in the format 'plugin_name:section', e.g. 'cayenne-pca9685:PCA9685'
+        """        
+        InputOutput.__init__(self, plugin_id, 'analog', 'in')
        
     def read_float(self, channel):
         """Read the float value on the specified channel."""
@@ -43,3 +23,45 @@ class AnalogInput():
     def read_volt(self, channel):
         """Read the voltage on the specified channel."""
         return self.read_value(channel, 'volt')
+    
+    def read_angle(self, channel):
+        """Read the angle on the specified channel."""
+        return self.read_value(channel, 'angle')
+
+
+class AnalogIO(AnalogInput):
+    """Reads/writes data from an analog or PWM plugin input/output."""
+
+    def __init__(self, plugin_id, function):
+        """Initializes the plugin input/output.
+        
+        Arguments:
+            plugin_id: Plugin ID in the format 'plugin_name:section', e.g. 'cayenne-pca9685:PCA9685'
+            function: The pin function, 'in' if the pin is an input, 'out' if it is an output 
+        """        
+        InputOutput.__init__(self, plugin_id, 'analog', function)
+       
+    def write_float(self, value, channel):
+        """Write the float value on the specified channel."""
+        return self.write_value(value, channel, 'float')
+
+    def write_volt(self, value, channel):
+        """Write the voltage on the specified channel."""
+        return self.write_value(value, channel, 'volt')
+
+    def write_angle(self, value, channel):
+        """Write the angle on the specified channel."""
+        return self.write_value(value, channel, 'angle')
+
+
+class AnalogOutput(AnalogIO):
+    """Reads/writes data from an analog or PWM plugin input/output."""
+
+    def __init__(self, plugin_id):
+        """Initializes the plugin input/output.
+        
+        Arguments:
+            plugin_id: Plugin ID in the format 'plugin_name:section', e.g. 'cayenne-pca9685:PCA9685'
+        """        
+        AnalogIO.__init__(self, plugin_id, 'out')
+  
