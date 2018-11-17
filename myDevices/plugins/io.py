@@ -2,7 +2,7 @@
 This module provides a class for interfacing with digital, analog and PWM plugins.
 """
 from myDevices.plugins.manager import PluginManager
-from myDevices.utils.logger import debug, info, exception
+from myDevices.utils.logger import debug, info, error, exception
 
 
 class InputOutput():
@@ -62,16 +62,19 @@ class InputOutput():
 
     def read_value(self, channel, value_type=None):
         """Read the data value on the specified channel."""
-        self.set_plugin()
-        self.set_function(channel)
         result = None
+        self.set_plugin()
+        if not self.plugin:
+            error('Plugin {} is not loaded'.format(self.plugin_id))
+            return result
+        self.set_function(channel)
         try:
             read_args = self.read_args
             if value_type:
                 read_args['value_type'] = value_type
-            result = getattr(self.plugin['instance'], self.plugin['read'])(channel, **read_args)
+            result = getattr(self.plugin['instance'], self.plugin['read'])(channel, **read_args)           
         except:
-            exception('Error reading value from plugin {}, channel {}, {}'.format(self.plugin_id, channel, self.plugin))
+            error('Error reading value from plugin {}, channel {}'.format(self.plugin_id, channel))
         return result
 
     def write(self, value, channel, value_type=None):
@@ -80,16 +83,19 @@ class InputOutput():
 
     def write_value(self, value, channel, value_type=None):
         """Write the data value on the specified channel."""
-        self.set_plugin()
-        self.set_function(channel)
         result = None
+        self.set_plugin()
+        if not self.plugin:
+            error('Plugin {} not loaded'.format(self.plugin_id))
+            return result
+        self.set_function(channel)
         try:
             write_args = self.write_args
             if value_type:
                 write_args['value_type'] = value_type            
             result = getattr(self.plugin['instance'], self.plugin['write'])(channel, value, **write_args)
-        except ValueError as e:
-            debug(e)
+        except:
+            error('Error writing value to plugin {}, channel {}'.format(self.plugin_id, channel))
         return result
 
     def register_callback(self, callback):
