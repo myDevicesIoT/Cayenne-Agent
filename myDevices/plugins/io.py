@@ -73,8 +73,8 @@ class InputOutput():
             if value_type:
                 read_args['value_type'] = value_type
             result = getattr(self.plugin['instance'], self.plugin['read'])(channel, **read_args)           
-        except:
-            error('Error reading value from plugin {}, channel {}'.format(self.plugin_id, channel))
+        except Exception as e:
+            error('Error reading value from plugin {}, channel {}: {}'.format(self.plugin_id, channel, e))
         return result
 
     def write(self, value, channel, value_type=None):
@@ -86,7 +86,7 @@ class InputOutput():
         result = None
         self.set_plugin()
         if not self.plugin:
-            error('Plugin {} not loaded'.format(self.plugin_id))
+            error('Plugin {} is not loaded'.format(self.plugin_id))
             return result
         self.set_function(channel)
         try:
@@ -94,8 +94,8 @@ class InputOutput():
             if value_type:
                 write_args['value_type'] = value_type            
             result = getattr(self.plugin['instance'], self.plugin['write'])(channel, value, **write_args)
-        except:
-            error('Error writing value to plugin {}, channel {}'.format(self.plugin_id, channel))
+        except Exception as e:
+            error('Error writing value to plugin {}, channel {}: {}'.format(self.plugin_id, channel, e))
         return result
 
     def register_callback(self, callback):

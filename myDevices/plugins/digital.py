@@ -18,7 +18,10 @@ class DigitalInput(InputOutput):
 
     def value_to_tuple(self, value):
         """Converts value to tuple with the appropriate Cayenne data type."""
-        return (int(value), self.data_type)
+        try:
+            return (int(value), self.data_type)
+        except:
+            return InputOutput.value_to_tuple(self, value)
 
 
 class DigitalOutput(DigitalInput):
