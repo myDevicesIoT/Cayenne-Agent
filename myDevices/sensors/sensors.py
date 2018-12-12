@@ -15,6 +15,7 @@ from myDevices.devices.bus import BUSLIST, checkAllBus
 from myDevices.devices.digital.gpio import NativeGPIO as GPIO
 from myDevices.system import services
 from myDevices.system.systeminfo import SystemInfo
+from myDevices.plugins.manager import PluginManager
 from myDevices.utils.config import Config, APP_SETTINGS
 from myDevices.utils.daemon import Daemon
 from myDevices.utils.logger import debug, error, exception, info, logJson, warn
@@ -22,7 +23,7 @@ from myDevices.utils.threadpool import ThreadPool
 from myDevices.utils.types import M_JSON
 
 REFRESH_FREQUENCY = 15 #seconds
-DIGITAL_FREQUENCY = 60/55 #Seconds/messages, this is done to keep messages under the rate limit
+REAL_TIME_FREQUENCY = 60/55 #Seconds/messages, this is done to keep messages under the rate limit
 
 class SensorsClient():
     """Class for interfacing with sensors and actuators"""
@@ -30,13 +31,13 @@ class SensorsClient():
     def __init__(self):
         """Initialize the bus and sensor info and start monitoring sensor states"""
         self.sensorMutex = RLock()
-        self.digitalMutex = RLock()
+        self.realTimeMutex = RLock()
         self.exiting = Event()
         self.onDataChanged = None
         self.systemData = []
         self.currentSystemState = []
-        self.currentDigitalData = {}                                
-        self.queuedDigitalData = {}
+        self.currentRealTimeData = {}                                
+        self.queuedRealTimeData = {}
         self.disabledSensors = {}
         self.disabledSensorTable = "disabled_sensors"
         checkAllBus()
@@ -49,7 +50,9 @@ class SensorsClient():
         if results:
             for row in results:
                 self.disabledSensors[row[0]] = 1
-        self.digitalMonitorRunning = False
+        self.realTimeMonitorRunning = False
+        self.pluginManager = PluginManager(self.OnPluginChange)
+        self.pluginManager.load_plugins()
         self.InitCallbacks()
         self.StartMonitoring()
 
@@ -61,6 +64,19 @@ class SensorsClient():
         """
         self.onDataChanged = onDataChanged
 
+    def QueueRealTimeData(self, name, data):
+        """Add real-time data to queue to be sent on thread
+
+        Args:
+            name: The name to use for the data
+            data: The data to send
+        """
+        with self.realTimeMutex:
+            if name not in self.currentRealTimeData:
+                self.currentRealTimeData[name] = data
+            else:
+                self.queuedRealTimeData[name] = data
+
     def OnSensorChange(self, device, value):
         """Callback that is called when digital sensor data has changed
 
@@ -69,11 +85,38 @@ class SensorsClient():
             value: The new data value
         """
         debug('OnSensorChange: {}, {}'.format(device, value))
-        with self.digitalMutex:
-            if device['name'] not in self.currentDigitalData:
-                self.currentDigitalData[device['name']] = {'device': device, 'value': value}
-            else:
-                self.queuedDigitalData[device['name']] = {'device': device, 'value': value}
+        with self.realTimeMutex:
+            data = {'name': device['description'], 'value': value, 'type': 'digital_sensor', 'unit': 'd'}
+            if 'args' in device:
+                data['args'] = device['args']
+            self.QueueRealTimeData(device['name'], data)
+
+    def OnPluginChange(self, data):
+        """Callback that is called when digital sensor data has changed
+
+        Args:
+            data: The new data value
+        """
+        debug('OnPluginChange: {}'.format(data))
+        self.QueueRealTimeData(data['id'], data)
+        with self.realTimeMutex:
+            if not self.realTimeMonitorRunning:
+                ThreadPool.Submit(self.RealTimeMonitor)
+
+    def OnGpioStateChange(self, channel, value):
+        """Send updated pin state when it has changed
+
+        Args:
+            channel: The pin number
+            value: The new value for the pin
+        """
+        debug('OnGpioStateChange: channel {}, value {}'.format(channel, value))
+        data = []
+        cayennemqtt.DataChannel.add_unique(data, cayennemqtt.SYS_GPIO, channel, cayennemqtt.VALUE, value)
+        if not self.realTimeMonitorRunning:
+            self.onDataChanged(data)
+        else:
+            self.QueueRealTimeData(data[0]['channel'], data[0])
 
     def InitCallbacks(self):
         """Set callback function for any digital devices that support them"""
@@ -83,8 +126,8 @@ class SensorsClient():
             if 'DigitalSensor' in device['type'] and hasattr(sensor, 'setCallback'):
                 debug('Set callback for {}'.format(sensor))
                 sensor.setCallback(self.OnSensorChange, device)
-                if not self.digitalMonitorRunning:
-                    ThreadPool.Submit(self.DigitalMonitor)
+                if not self.realTimeMonitorRunning:
+                    ThreadPool.Submit(self.RealTimeMonitor)
 
     def RemoveCallbacks(self):
         """Remove callback function for all digital devices"""
@@ -118,6 +161,7 @@ class SensorsClient():
                     self.currentSystemState = []
                     self.MonitorSystemInformation()
                     self.MonitorSensors()
+                    self.MonitorPlugins()
                     self.MonitorBus()
                     if self.currentSystemState != self.systemData:
                         data = self.currentSystemState
@@ -133,41 +177,54 @@ class SensorsClient():
                 exception('Monitoring sensors and os resources failed')
         debug('Monitoring sensors and os resources finished')
 
-    def DigitalMonitor(self):
-        """Monitor digital state changes and report changed data via callbacks"""
-        self.digitalMonitorRunning = True
-        info('Monitoring digital sensor changes')
+    def RealTimeMonitor(self):
+        """Monitor real-time state changes and report changed data via callbacks"""
+        self.realTimeMonitorRunning = True
+        info('Monitoring real-time state changes')
         nextTime = datetime.now()
         while not self.exiting.is_set():
             try:
                 if not self.exiting.wait(0.5):
                     if datetime.now() > nextTime:
-                        nextTime = datetime.now() + timedelta(seconds=DIGITAL_FREQUENCY)
-                        data = []
-                        with self.digitalMutex:
-                            if self.currentDigitalData:
-                                for name, item in self.currentDigitalData.items():
-                                    cayennemqtt.DataChannel.add_unique(data, cayennemqtt.DEV_SENSOR, name, value=item['value'], name=item['device']['description'], type='digital_sensor', unit='d')
-                                    try:
-                                        cayennemqtt.DataChannel.add_unique(data, cayennemqtt.SYS_GPIO, item['device']['args']['channel'], cayennemqtt.VALUE, item['value'])
-                                    except:
-                                        pass
-                                    if name in self.queuedDigitalData and self.queuedDigitalData[name]['value'] == item['value']:
-                                        del self.queuedDigitalData[name]
-                                self.currentDigitalData = self.queuedDigitalData
-                                self.queuedDigitalData = {}
-                        if data:
-                            self.onDataChanged(data)
+                        nextTime = datetime.now() + timedelta(seconds=REAL_TIME_FREQUENCY)
+                        self.SendRealTimeData()
             except:
-                exception('Monitoring digital sensor changes failed')
-        debug('Monitoring digital sensor changes finished')
-        self.digitalMonitorRunning = False
+                exception('Monitoring real-time changes failed')
+        debug('Monitoring real-time changes finished')
+        self.realTimeMonitorRunning = False
+
+    def SendRealTimeData(self):
+        """Send real-time data via callback"""
+        data = []
+        with self.realTimeMutex:
+            if self.currentRealTimeData:
+                for name, item in self.currentRealTimeData.items():
+                    if cayennemqtt.SYS_GPIO in name:
+                        data.append(item)
+                    else: 
+                        cayennemqtt.DataChannel.add_unique(data, cayennemqtt.DEV_SENSOR, name, value=item['value'], name=item['name'], type=item['type'], unit=item['unit'])
+                        try:
+                            cayennemqtt.DataChannel.add_unique(data, cayennemqtt.SYS_GPIO, item['args']['channel'], cayennemqtt.VALUE, item['value'])
+                        except:
+                            pass
+                        if name in self.queuedRealTimeData and self.queuedRealTimeData[name]['value'] == item['value']:
+                            del self.queuedRealTimeData[name]
+                self.currentRealTimeData = self.queuedRealTimeData
+                self.queuedRealTimeData = {}
+        if data:
+            self.onDataChanged(data)
 
     def MonitorSensors(self):
         """Check sensor states for changes"""
         if self.exiting.is_set():
             return
         self.currentSystemState += self.SensorsInfo()
+
+    def MonitorPlugins(self):
+        """Check plugin states for changes"""
+        if self.exiting.is_set():
+            return
+        self.currentSystemState += self.pluginManager.get_plugin_readings()
 
     def MonitorBus(self):
         """Check bus states for changes"""
@@ -358,6 +415,8 @@ class SensorsClient():
         """
         bVal = False
         try:
+            if self.pluginManager.is_plugin(name):
+                return self.pluginManager.disable(name)
             sensorRemove = name
             try:
                 sensor = instance.deviceInstance(sensorRemove)
@@ -420,15 +479,20 @@ class SensorsClient():
             String containing command specific return value on success, or 'failure' on failure
         """
         info('GpioCommand {}, channel {}, value {}'.format(command, channel, value))
+        result = 'failure'
         if command == 'function':
+            old_state = self.gpio.digitalRead(channel)
             if value.lower() in ('in', 'input'):
-                return str(self.gpio.setFunctionString(channel, 'in'))
+                result = str(self.gpio.setFunctionString(channel, 'in'))
             elif value.lower() in ('out', 'output'):
-                return str(self.gpio.setFunctionString(channel, 'out'))
+                result = str(self.gpio.setFunctionString(channel, 'out'))
+            new_state = self.gpio.digitalRead(channel)
+            if new_state != old_state:
+                self.OnGpioStateChange(channel, new_state)
         elif command in ('value', ''):
             return self.gpio.digitalWrite(channel, int(value))
         debug('GPIO command failed')
-        return 'failure'
+        return result
 
     def SensorCommand(self, command, sensorId, channel, value):
         """Execute sensor/actuator command
@@ -445,6 +509,8 @@ class SensorsClient():
         result = False
         info('SensorCommand: {}, sensor {}, channel {}, value {}'.format(command, sensorId, channel, value))
         try:
+            if self.pluginManager.is_plugin(sensorId, channel):
+                return self.pluginManager.write_value(sensorId, channel, value)
             commands = {'integer': {'function': 'write', 'value_type': int},
                         'value': {'function': 'write', 'value_type': int},
                         'function': {'function': 'setFunctionString', 'value_type': str},

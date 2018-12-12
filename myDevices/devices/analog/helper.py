@@ -16,12 +16,14 @@ from myDevices.decorators.rest import request, response
 from myDevices.utils.types import toint
 from myDevices.devices import instance
 from myDevices.utils.logger import info
+from myDevices.plugins.manager import PluginManager
 
 class AnalogSensor():
     def __init__(self, adc, channel):
         self.adcname = adc
         self.channel = toint(channel)
         self.adc = None
+        self.pluginManager = PluginManager()
         self.setADCInstance()
 
     def __str__(self):
@@ -33,24 +35,36 @@ class AnalogSensor():
     def setADCInstance(self):
         if not self.adc:
             self.adc = instance.deviceInstance(self.adcname)
+            if not self.adc:
+                self.adc = self.pluginManager.get_plugin_by_id(self.adcname)
 
-    #@request("GET", "integer")
     @response("%d")
     def read(self):
         self.setADCInstance()
-        return self.adc.analogRead(self.channel)
+        try:
+            value = self.adc.analogRead(self.channel)
+        except:
+            value = getattr(self.adc['instance'], self.adc['read'])(self.channel)
+        return value
     
-    #@request("GET", "float")
     @response("%.2f")
     def readFloat(self):
         self.setADCInstance()
-        return self.adc.analogReadFloat(self.channel)
+        try:
+            value = self.adc.analogReadFloat(self.channel)
+        except:
+            value = getattr(self.adc['instance'], self.adc['read'])(self.channel, 'float')
+        return value
     
-    #@request("GET", "volt")
     @response("%.2f")
     def readVolt(self):
         self.setADCInstance()
-        return self.adc.analogReadVolt(self.channel)
+        try:
+            value = self.adc.analogReadVolt(self.channel)
+        except:
+            value = getattr(self.adc['instance'], self.adc['read'])(self.channel, 'volt')
+        return value
+
 
 class Photoresistor(AnalogSensor):
     def __init__(self, adc, channel):
@@ -58,7 +72,7 @@ class Photoresistor(AnalogSensor):
 
     def __str__(self):
         return "Photoresistor"
-    
+            
 class Thermistor(AnalogSensor):
     def __init__(self, adc, channel):
         AnalogSensor.__init__(self, adc, channel)

@@ -6,11 +6,11 @@ from threading import RLock
 from myDevices.utils import logger
 from myDevices.utils import types
 from myDevices.utils.config import Config
-from myDevices.devices import serial, digital, analog, sensor, shield
+from myDevices.devices import serial, digital, analog, sensor
 from myDevices.devices.instance import DEVICES
 from myDevices.devices.onewire import detectOneWireDevices, deviceExists, FAMILIES
 
-PACKAGES = [serial, digital, analog, sensor, shield]
+PACKAGES = [serial, digital, analog, sensor]
 DYNAMIC_DEVICES  = {}
 DEVICES_JSON_FILE = "/etc/myDevices/devices.json"
 

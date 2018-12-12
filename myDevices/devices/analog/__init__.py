@@ -15,6 +15,8 @@
 from myDevices.decorators.rest import request, response
 from myDevices.utils.types import toint, M_JSON
 from myDevices.devices import instance
+from myDevices.utils.logger import info
+
 
 class ADC():
     def __init__(self, channelCount, resolution, vref):
@@ -34,22 +36,18 @@ class ADC():
         if not 0 <= value <= self._analogMax:
             raise ValueError("Value %d out of range [%d..%d]" % (value, 0, self._analogMax))
     
-    #@request("GET", "analog/count")
     @response("%d")
     def analogCount(self):
         return self._analogCount
 
-    #@request("GET", "analog/resolution")
     @response("%d")
     def analogResolution(self):
         return self._analogResolution
     
-    #@request("GET", "analog/max")
     @response("%d")
     def analogMaximum(self):
         return int(self._analogMax)
     
-    #@request("GET", "analog/vref")
     @response("%.2f")
     def analogReference(self):
         return self._analogRef
@@ -57,25 +55,21 @@ class ADC():
     def __analogRead__(self, channel, diff):
         raise NotImplementedError
     
-    #@request("GET", "analog/%(channel)d/integer")
     @response("%d")
     def analogRead(self, channel, diff=False):
         self.checkAnalogChannel(channel)
         return self.__analogRead__(channel, diff)
     
-    #@request("GET", "analog/%(channel)d/float")
     @response("%.2f")
     def analogReadFloat(self, channel, diff=False):
         return self.analogRead(channel, diff) / float(self._analogMax)
     
-    #@request("GET", "analog/%(channel)d/volt")
     @response("%.2f")
     def analogReadVolt(self, channel, diff=False):
         if self._analogRef == 0:
             raise NotImplementedError
         return self.analogReadFloat(channel, diff) * self._analogRef
     
-    #@request("GET", "analog/*/integer")
     @response(contentType=M_JSON)
     def analogReadAll(self):
         values = {}
@@ -83,7 +77,6 @@ class ADC():
             values[i] = self.analogRead(i)
         return values
             
-    #@request("GET", "analog/*/float")
     @response(contentType=M_JSON)
     def analogReadAllFloat(self):
         values = {}
@@ -91,7 +84,6 @@ class ADC():
             values[i] = float("%.2f" % self.analogReadFloat(i))
         return values
     
-    #@request("GET", "analog/*/volt")
     @response(contentType=M_JSON)
     def analogReadAllVolt(self):
         values = {}
@@ -99,14 +91,17 @@ class ADC():
             values[i] = float("%.2f" % self.analogReadVolt(i))
         return values
 
-    def read(self, channel, diff=False):
-        return self.analogRead(channel, diff)
+    def read(self, channel, value_type=None, diff=False):
+        read_functions = {'float': self.analogReadFloat, 'volt': self.analogReadVolt}
+        read_function = read_functions.get(value_type, self.analogRead)
+        return read_function(channel, diff)
     
     def readFloat(self, channel, diff=False):
-         return self.analogReadFloat(channel, diff)
+        return self.analogReadFloat(channel, diff)
 
     def readVolt(self, channel, diff=False):
-         return self.analogReadVolt(channel, diff)
+        return self.analogReadVolt(channel, diff)
+
          
 class DAC(ADC):
     def __init__(self, channelCount, resolution, vref):
@@ -118,7 +113,6 @@ class DAC(ADC):
     def __analogWrite__(self, channel, value):
         raise NotImplementedError
     
-    #@request("POST", "analog/%(channel)d/integer/%(value)d")
     @response("%d")    
     def analogWrite(self, channel, value):
         self.checkAnalogChannel(channel)
@@ -126,26 +120,27 @@ class DAC(ADC):
         self.__analogWrite__(channel, value)
         return self.analogRead(channel)
     
-    #@request("POST", "analog/%(channel)d/float/%(value)f")        
     @response("%.2f")    
     def analogWriteFloat(self, channel, value):
         self.analogWrite(channel, int(value * self._analogMax))
         return self.analogReadFloat(channel)
     
-    #@request("POST", "analog/%(channel)d/volt/%(value)f")        
     @response("%.2f")    
     def analogWriteVolt(self, channel, value):
         self.analogWriteFloat(channel, value /self._analogRef)
         return self.analogReadVolt(channel)
     
-    def write(self, channel, value):
-        return self.analogWrite(channel, value)
+    def write(self, channel, value, value_type=None):
+        write_functions = {'float': self.analogWriteFloat, 'volt': self.analogWriteVolt}
+        write_function = write_functions.get(value_type, self.analogWrite)        
+        return write_function(channel, value)
 
     def writeFloat(self, channel, value):
         return self.analogWriteFloat(channel, value)
 
     def writeVolt(self, channel, value):
         return self.analogWriteVolt(channel, value)
+
 
 class PWM():
     def __init__(self, channelCount, resolution, frequency):
@@ -179,33 +174,27 @@ class PWM():
     def __pwmWrite__(self, channel, value):
         raise NotImplementedError
     
-    #@request("GET", "pwm/count")
     @response("%d")
     def pwmCount(self):
         return self._pwmCount
 
-    #@request("GET", "pwm/resolution")
     @response("%d")
     def pwmResolution(self):
         return self._pwmResolution
     
-    #@request("GET", "pwm/max")
     @response("%d")
     def pwmMaximum(self):
         return int(self._pwmMax)
     
-    #@request("GET", "pwm/%(channel)d/integer")
     @response("%d")
     def pwmRead(self, channel):
         self.checkPWMChannel(channel)
         return self.__pwmRead__(channel)
     
-    #@request("GET", "pwm/%(channel)d/float")
     @response("%.2f")
     def pwmReadFloat(self, channel):
         return self.pwmRead(channel) / float(self._pwmMax)
     
-    #@request("POST", "pwm/%(channel)d/integer/%(value)d")
     @response("%d")    
     def pwmWrite(self, channel, value):
         self.checkPWMChannel(channel)
@@ -213,20 +202,23 @@ class PWM():
         self.__pwmWrite__(channel, value)
         return self.pwmRead(channel)
     
-    #@request("POST", "pwm/%(channel)d/float/%(value)f")        
     @response("%.2f")    
     def pwmWriteFloat(self, channel, value):
         self.pwmWrite(channel, int(value * self._pwmMax))
         return self.pwmReadFloat(channel)
 
-    def read(self, channel):
-        return self.pwmRead(channel)
+    def read(self, channel, value_type=None):
+        read_functions = {'float': self.pwmReadFloat, 'angle': self.pwmReadAngle}
+        read_function = read_functions.get(value_type, self.pwmRead)
+        return read_function(channel)        
 
     def readFloat(self, channel):
         return self.pwmReadFloat(channel)
 
-    def write(self, channel, value):
-        return self.pwmWrite(channel, value)
+    def write(self, channel, value, value_type=None):
+        write_functions = {'float': self.pwmWriteFloat, 'angle': self.pwmWriteAngle}
+        write_function = write_functions.get(value_type, self.pwmWrite)
+        return write_function(channel, value)
 
     def writeFloat(self, channel, value):
         return self.pwmWriteFloat(channel, value)
@@ -256,7 +248,6 @@ class PWM():
         f /= self.period
         return f
     
-    #@request("GET", "pwm/%(channel)d/angle")
     @response("%.2f")
     def pwmReadAngle(self, channel):
         f = self.pwmReadFloat(channel)
@@ -267,7 +258,6 @@ class PWM():
             f = f
         return f
         
-    #@request("POST", "pwm/%(channel)d/angle/%(value)f")
     @response("%.2f")
     def pwmWriteAngle(self, channel, value):
         if self.reverse[channel]:
@@ -278,7 +268,6 @@ class PWM():
         self.pwmWriteFloat(channel, f)
         return self.pwmReadAngle(channel)
 
-    #@request("GET", "pwm/*")
     @response(contentType=M_JSON)
     def pwmWildcard(self):
         values = {}
@@ -300,9 +289,7 @@ class PWM():
 DRIVERS = {}
 DRIVERS["helper"]  = ["AnalogSensor", "AnalogActuator", "ServoMotor", "Thermistor", "Photoresistor", "LoadSensor", "DistanceSensor", "LightDimmer"]
 DRIVERS["ads1x1x"] = ["ADS1014", "ADS1015", "ADS1114", "ADS1115"]
-DRIVERS["mcp3x0x"] = ["MCP3002", "MCP3004", "MCP3008", "MCP3204", "MCP3208"]
 DRIVERS["mcp4725"] = ["MCP4725"]
 DRIVERS["mcp48XX"] = ["MCP4802", "MCP4812", "MCP4822"]
 DRIVERS["mcp492X"] = ["MCP4921", "MCP4922"]
-DRIVERS["pca9685"] = ["PCA9685"]
 DRIVERS["pcf8591"] = ["PCF8591"]
