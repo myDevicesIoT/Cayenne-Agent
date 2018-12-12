@@ -40,6 +40,8 @@ BLOCK_SIZE = (4*1024)
 class NativeGPIO(Singleton, GPIOPort):
     IN = 0
     OUT = 1
+    OUT_LOW = 2
+    OUT_HIGH = 3
 
     ASUS_GPIO = 44
 
@@ -310,11 +312,9 @@ class NativeGPIO(Singleton, GPIOPort):
         self.checkDigitalChannelExported(channel)
         self.checkPostingFunctionAllowed()
         try:
-            if value == self.IN:
-                value = 'in'
-            else:
-                value = 'out'
-            try:               
+            value_dict = {self.IN: 'in', self.OUT: 'out', self.OUT_LOW: 'low', self.OUT_HIGH: 'high'}
+            value = value_dict[value]
+            try:
                 self.functionFile[channel].write(value)
                 self.functionFile[channel].seek(0)
             except:

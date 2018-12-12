@@ -105,3 +105,5 @@ def detectOneWireDevices():
         debug('Error detecting 1-wire devices: {}'.format(err))
     return devices
 
+def deviceExists(slave):
+    return os.path.exists("/sys/bus/w1/devices/%s" % slave)

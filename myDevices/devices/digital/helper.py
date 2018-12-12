@@ -71,9 +71,17 @@ class MotionSensor(DigitalSensor):
         return "MotionSensor"
     
 class DigitalActuator(DigitalSensor):
-    def __init__(self, gpio, channel, invert=False):
+    def __init__(self, gpio, channel, invert=False, last_state=None):
         DigitalSensor.__init__(self, gpio, channel, invert)
-        self.gpio.setFunction(self.channel, GPIO.OUT)
+        function = GPIO.OUT
+        if gpio == 'GPIO' and last_state is not None:
+            if self.invert:
+                last_state = int(not last_state)
+            if last_state == 1:
+                function = GPIO.OUT_HIGH
+            elif last_state == 0:
+                function = GPIO.OUT_LOW
+        self.gpio.setFunction(self.channel, function)
     
     def __str__(self):
         return "DigitalActuator"
@@ -90,30 +98,29 @@ class DigitalActuator(DigitalSensor):
         return self.read()
 
 class LightSwitch(DigitalActuator):        
-    def __init__(self, gpio, channel, invert=False):
-        DigitalActuator.__init__(self, gpio, channel, invert)
+    def __init__(self, gpio, channel, invert=False, last_state=None):
+        DigitalActuator.__init__(self, gpio, channel, invert, last_state)
 
     def __str__(self):
         return "LightSwitch"
 
 class MotorSwitch(DigitalActuator):        
-    def __init__(self, gpio, channel, invert=False):
-        DigitalActuator.__init__(self, gpio, channel, invert)
+    def __init__(self, gpio, channel, invert=False, last_state=None):
+        DigitalActuator.__init__(self, gpio, channel, invert, last_state)
         
     def __str__(self):
         return "MotorSwitch"
 
 class RelaySwitch(DigitalActuator):        
-    def __init__(self, gpio, channel, invert=False):
-        DigitalActuator.__init__(self, gpio, channel, invert)
+    def __init__(self, gpio, channel, invert=False, last_state=None):
+        DigitalActuator.__init__(self, gpio, channel, invert, last_state)
         
     def __str__(self):
         return "RelaySwitch"
 
 class ValveSwitch(DigitalActuator):        
-    def __init__(self, gpio, channel, invert=False):
-        DigitalActuator.__init__(self, gpio, channel, invert)
+    def __init__(self, gpio, channel, invert=False, last_state=None):
+        DigitalActuator.__init__(self, gpio, channel, invert, last_state)
         
     def __str__(self):
         return "ValveSwitch"
-
