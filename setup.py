@@ -27,7 +27,7 @@ except KeyError:
     user_id = int(os.environ['SUDO_UID'])
     group_id = int(os.environ['SUDO_GID'])
     username = pwd.getpwuid(user_id).pw_name
-directories = ('/etc/myDevices', '/etc/myDevices/scripts', '/var/log/myDevices', '/var/run/myDevices')
+directories = ('/etc/myDevices', '/etc/myDevices/scripts', '/etc/myDevices/plugins', '/var/log/myDevices', '/var/run/myDevices')
 for directory in directories:
     try:
         os.makedirs(directory)
