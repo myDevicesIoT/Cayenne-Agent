@@ -104,29 +104,16 @@ Currently the agent has code for interfacing with several sensors and actuators 
   
 Supporting Additional Sensors/Actuators
 =======================================
-To add support for additional sensors/actuators you may need to create new modules for the specific sensors/actuators.
+To add support for additional sensors/actuators you may need to create new plugins for the specific sensors/actuators. Information about adding plugins can be found in the `Example Plugin <https://github.com/myDevicesIoT/cayenne-plugin-example>`_ README file. Additional plugin repos you can look at for examples are `here <https://github.com/topics/cayenne-plugin>`_.
 
-Creating a new sensor/actuator module
+Creating a new sensor/actuator plugin
 -------------------------------------
 
-* Create a new module for the sensor/actuator under the appropriate ``myDevices.devices`` subfolder. For instance, a new analog device should be added under ``myDevices.devices.analog``.
-* Add a class for your sensor/actuator inside the new module.
-* Derive the class from appropriate bus type and sensor/device types, if applicable. For example, the BMP085 class in the ``myDevices.devices.sensors.bmp085`` is an I²C temperature and pressure sensor so it is derived from ``myDevices.devices.i2c.I2C``,  ``myDevices.devices.sensor.Temperature``, and ``myDevices.devices.sensor.Pressure``.
-* Override the read/write functions of the parent class that your device needs to support with sensor specific functionality. For example a digital sensor would need to override the ``__digitalRead__`` function. An analog actuator would need to override the ``__analogWrite__`` function.
-* Add the device module and class to the ``DRIVERS`` dict in the appropriate ``myDevices.devices`` subfolder ``__init__.py`` file. For an analog device that would mean adding it to the ``DRIVERS`` dict in ``myDevices.devices.analog.__init__.py``. The dict key is the name of the module, the value is a list of classes within the module.
+1. Create a new Python module with a class to read data from and, if applicable, to write data to the sensor/actuator.
+2. Add a ``.plugin`` file under the ``/etc/myDevices/plugins`` directory or a subfolder within that directory. This file should describe the Python module, class and functions to use for reading/writing data. See the `Example Plugin <https://github.com/myDevicesIoT/cayenne-plugin-example>`_ README file for information about the ``.plugin`` file format.
+3. Restart the agent to load the plugin and start sending data. Temporary widgets for the plugin should now show up in the `Cayenne Dashboard <https://cayenne.mydevices.com>`_. You can make them permanent by clicking the plus sign. If the widgets do not show up try refreshing the Dashboard or restarting the agent again.
 
-Testing that the new sensor/actuator module works
--------------------------------------------------
-To verify that the sensor/actuator works correctly you can test it with the following functions.
-
-* Create a new sensor using ``myDevices.sensors.SensorsClient.AddSensor`` using the appropriate device name and any args required by your device.
-* Get the sensor values using ``myDevices.sensors.SensorsClient.SensorsInfo`` and make sure the sensor data is correct.
-* If the new device is an actuator set the actuator value using ``myDevices.sensors.SensorsClient.SensorCommand``.
-* Delete the sensor using ``myDevices.sensors.SensorsClient.RemoveSensor``.
-
-An example demonstrating these functions is available in ``myDevices.test.sensors_test.py``.
-
-*Note:* For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your sensor/actuator code requires root access consider running just that portion of your code via a separate process that can be launched using sudo. For example, the ``myDevices.devices.digital.ds2408`` module uses this method to write data.
+*Note:* For security reasons the Cayenne agent is designed to be able to run from an account without root privileges. If any of your sensor/actuator code requires root access consider running just that portion of your code via a separate process that can be launched using sudo. For an example see the `Sense HAT Plugin <https://github.com/myDevicesIoT/cayenne-plugin-sensehat>`_ which installs a service to access Sense HAT data.
 
 Supporting Additional Boards
 ============================
