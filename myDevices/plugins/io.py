@@ -96,6 +96,7 @@ class InputOutput():
             result = getattr(self.plugin['instance'], self.plugin['write'])(channel, value, **write_args)
         except Exception as e:
             error('Error writing value to plugin {}, channel {}: {}'.format(self.plugin_id, channel, e))
+            raise e
         return result
 
     def register_callback(self, callback):

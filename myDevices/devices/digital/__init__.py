@@ -131,5 +131,4 @@ class GPIOPort():
 
 DRIVERS = {}
 DRIVERS["helper"] = ["DigitalSensor", "DigitalActuator", "LightSwitch", "MotorSwitch", "RelaySwitch", "ValveSwitch", "MotionSensor"]
-DRIVERS["pcf8574" ] = ["PCF8574", "PCF8574A"]
 DRIVERS["ds2408" ] = ["DS2408"]
