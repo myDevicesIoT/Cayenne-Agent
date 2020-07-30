@@ -166,6 +166,7 @@ class CloudServerClient:
         self.PORT = port
         self.CayenneApiHost = cayenneApiHost
         self.config = Config(APP_SETTINGS)
+        self.sensors_only = self.config.get('Agent', 'SensorsOnly', 'false').lower() == 'true'
         self.networkConfig = Config(NETWORK_SETTINGS)
         self.username = self.config.get('Agent', 'Username', None)
         self.password = self.config.get('Agent', 'Password', None)
@@ -207,12 +208,14 @@ class CloudServerClient:
             self.processorThread = ProcessorThread('processor', self)
             self.processorThread.start()
             self.systemInfo = []
-            TimerThread(self.SendSystemInfo, 300)
+            if not self.sensors_only:
+                TimerThread(self.SendSystemInfo, 300)
+                events = self.schedulerEngine.get_scheduled_events()
+                self.EnqueuePacket(events, cayennemqtt.JOBS_TOPIC)
             # TimerThread(self.SendSystemState, 30, 5)
+            
             self.updater = Updater(self.config)
             self.updater.start()
-            events = self.schedulerEngine.get_scheduled_events()
-            self.EnqueuePacket(events, cayennemqtt.JOBS_TOPIC)
             # self.sentHistoryData = {}
             # self.historySendFails = 0
             # self.historyThread = Thread(target=self.SendHistoryData)

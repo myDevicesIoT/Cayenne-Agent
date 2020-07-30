@@ -1,7 +1,9 @@
 import time
-from json import loads, decoder
+import os
+from json import loads, dumps, decoder
 from ssl import PROTOCOL_TLSv1_2
 import paho.mqtt.client as mqtt
+from myDevices.utils.config import Config, APP_SETTINGS
 from myDevices.utils.logger import debug, error, exception, info, logJson, warn
 
 # Topics
@@ -45,16 +47,52 @@ TEMPERATURE = 'temp'
 VALUE = 'value'
 FUNCTION = 'function'
 
+CHANNELS_JSON_FILE = "/etc/myDevices/channels.json"
+
 
 class DataChannel:
+    channel_conversion = {}
+    config = Config(APP_SETTINGS)
+    sensors_only = config.get('Agent', 'SensorsOnly', 'false').lower() == 'true'
+
     @staticmethod
-    def add(data_list, prefix, channel=None, suffix=None, value=None, type=None, unit=None, name=None):
-        """Create data channel dict and append it to a list"""
+    def init():
+        if not DataChannel.channel_conversion and os.path.isfile(CHANNELS_JSON_FILE):
+            with open(CHANNELS_JSON_FILE, encoding='utf-8') as data_file:
+                DataChannel.channel_conversion = loads(data_file.read())
+
+    @staticmethod
+    def convert_channel(channel):
+        """Convert the channel value to an int"""
+        try:
+            DataChannel.init()
+            return DataChannel.channel_conversion[channel]
+        except:
+            try:
+                channel_number = max(DataChannel.channel_conversion.values()) + 1
+            except ValueError:
+                channel_number = 500
+            DataChannel.channel_conversion[channel] = channel_number
+            with open(CHANNELS_JSON_FILE, 'w') as outfile:
+                outfile.write(dumps(DataChannel.channel_conversion))
+        return DataChannel.channel_conversion[channel]
+
+    @staticmethod
+    def get_channel(prefix, channel=None, suffix=None, type=None, unit=None):
+        """Get the channel value"""
         data_channel = prefix
         if channel is not None:
             data_channel += ':' + str(channel)
         if suffix is not None:
             data_channel += ';' + str(suffix)
+        if DataChannel.sensors_only:
+            return DataChannel.convert_channel(data_channel)
+        return data_channel
+
+    @staticmethod
+    def add(data_list, prefix, channel=None, suffix=None, value=None, type=None, unit=None, name=None):
+        """Create data channel dict and append it to a list"""
+        data_channel = DataChannel.get_channel(prefix, channel, suffix, type, unit)
         data = {}
         data['channel'] = data_channel
         data['value'] = value
@@ -69,11 +107,7 @@ class DataChannel:
     @staticmethod
     def add_unique(data_list, prefix, channel=None, suffix=None, value=None, type=None, unit=None, name=None):
         """Create data channel dict and append it to a list if the channel doesn't already exist in the list"""
-        data_channel = prefix
-        if channel is not None:
-            data_channel += ':' + str(channel)
-        if suffix is not None:
-            data_channel += ';' + str(suffix)
+        data_channel = DataChannel.get_channel(prefix, channel, suffix)
         item = next((item for item in data_list if item['channel'] == data_channel), None)
         if not item:            
             data = {}

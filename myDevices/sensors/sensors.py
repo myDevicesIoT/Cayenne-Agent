@@ -42,8 +42,11 @@ class SensorsClient():
         self.disabledSensorTable = "disabled_sensors"
         checkAllBus()
         self.gpio = GPIO()
-        self.downloadSpeed = DownloadSpeed(Config(APP_SETTINGS))
-        self.downloadSpeed.getDownloadSpeed()
+        config = Config(APP_SETTINGS)
+        self.sensors_only = config.get('Agent', 'SensorsOnly', 'false').lower() == 'true'
+        if not self.sensors_only:
+            self.downloadSpeed = DownloadSpeed(config)
+            self.downloadSpeed.getDownloadSpeed()
         manager.addDeviceInstance("GPIO", "GPIO", "GPIO", self.gpio, [], "system")
         manager.loadJsonDevices("rest")
         results = DbManager.Select(self.disabledSensorTable)
@@ -150,7 +153,7 @@ class SensorsClient():
         """Monitor bus/sensor states and system info and report changed data via callbacks"""
         debug('Monitoring sensors and os resources started')
         sendAllDataCount = 0
-        nextTime = datetime.now()
+        nextTime = datetime.now() + timedelta(seconds=10)
         while not self.exiting.is_set():
             try:
                 difference = nextTime - datetime.now()
@@ -159,10 +162,11 @@ class SensorsClient():
                 if not self.exiting.wait(delay):
                     nextTime = datetime.now() + timedelta(seconds=REFRESH_FREQUENCY)
                     self.currentSystemState = []
-                    self.MonitorSystemInformation()
+                    if not self.sensors_only:
+                        self.MonitorSystemInformation()
+                        self.MonitorBus()
                     self.MonitorSensors()
                     self.MonitorPlugins()
-                    self.MonitorBus()
                     if self.currentSystemState != self.systemData:
                         data = self.currentSystemState
                         if self.systemData and not sendAllDataCount == 0:
@@ -203,10 +207,11 @@ class SensorsClient():
                         data.append(item)
                     else: 
                         cayennemqtt.DataChannel.add_unique(data, cayennemqtt.DEV_SENSOR, name, value=item['value'], name=item['name'], type=item['type'], unit=item['unit'])
-                        try:
-                            cayennemqtt.DataChannel.add_unique(data, cayennemqtt.SYS_GPIO, item['args']['channel'], cayennemqtt.VALUE, item['value'])
-                        except:
-                            pass
+                        if not self.sensors_only:
+                            try:
+                                cayennemqtt.DataChannel.add_unique(data, cayennemqtt.SYS_GPIO, item['args']['channel'], cayennemqtt.VALUE, item['value'])
+                            except:
+                                pass
                         if name in self.queuedRealTimeData and self.queuedRealTimeData[name]['value'] == item['value']:
                             del self.queuedRealTimeData[name]
                 self.currentRealTimeData = self.queuedRealTimeData
